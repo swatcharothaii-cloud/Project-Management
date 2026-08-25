@@ -3343,6 +3343,62 @@ function syncDailyDraftFromDom(){
   const n=g('#de-note'); if(n!==undefined) dailyEntryDraft.note=n;
 }
 
+/* ---- Daily / weekly / monthly log summary (aggregated from proj.logs) ---- */
+function sumLogsRange(arr){
+  let headcount=0, entries=0, photos=0, issues=0;
+  arr.forEach(l=>{
+    headcount += (l.workforce||[]).reduce((s,w)=> s+(Number(w.count)||0), 0);
+    entries += (l.entries||[]).length;
+    photos += (l.photoIds||[]).length;
+    issues += (l.issues||[]).length;
+  });
+  return {days:arr.length, headcount, entries, photos, issues};
+}
+function isoWeekRange(dateStr){
+  const dt = parseYMD(dateStr);
+  const day = (dt.getDay()+6)%7; // Mon=0..Sun=6
+  const mon = new Date(dt); mon.setDate(dt.getDate()-day);
+  const sun = new Date(mon); sun.setDate(mon.getDate()+6);
+  return {start:fmtYMD(mon), end:fmtYMD(sun)};
+}
+function logPeriodSummary(proj, date){
+  const dayLogs = proj.logs.filter(l=> l.date===date);
+  const wk = isoWeekKey(date);
+  const weekLogs = proj.logs.filter(l=> isoWeekKey(l.date)===wk);
+  const ym = date.slice(0,7);
+  const monthLogs = proj.logs.filter(l=> l.date.slice(0,7)===ym);
+  const range = isoWeekRange(date);
+  const d = parseYMD(date);
+  return {
+    day: sumLogsRange(dayLogs),
+    week: sumLogsRange(weekLogs),
+    month: sumLogsRange(monthLogs),
+    weekLabel: fmtDate(range.start)+' – '+fmtDate(range.end),
+    monthLabel: (state.lang==='en'? ENMONTHS[d.getMonth()]+' '+d.getFullYear() : THMONTHS[d.getMonth()]+' '+(d.getFullYear()+543)),
+  };
+}
+function logSummaryCardHtml(proj, date){
+  const s = logPeriodSummary(proj, date);
+  const block = (icon, label, sub, st)=> `
+    <div class="card" style="flex:1;min-width:210px">
+      <b style="font-family:var(--font-display);font-size:13px">${icon} ${label}</b>
+      <div class="sub" style="margin-top:2px">${sub}</div>
+      <div style="display:flex;flex-wrap:wrap;gap:10px 22px;margin-top:12px">
+        <div><div class="meta-lbl">${tf('วันที่บันทึก','Days logged')}</div><b class="tabular">${st.days}</b></div>
+        <div><div class="meta-lbl">${tf('กำลังคน (คน-วัน)','Manpower (person-days)')}</div><b class="tabular">${st.headcount}</b></div>
+        <div><div class="meta-lbl">${tf('รายการความคืบหน้า','Progress entries')}</div><b class="tabular">${st.entries}</b></div>
+        <div><div class="meta-lbl">${tf('รูปภาพ','Photos')}</div><b class="tabular">${st.photos}</b></div>
+        <div><div class="meta-lbl">${tf('ปัญหาที่พบ','Issues')}</div><b class="tabular">${st.issues}</b></div>
+      </div>
+    </div>`;
+  return `
+  <div style="display:flex;gap:14px;flex-wrap:wrap">
+    ${block('📅', tf('สรุปวันนี้','Today'), fmtDate(date), s.day)}
+    ${block('🗓️', tf('สรุปสัปดาห์นี้','This week'), s.weekLabel, s.week)}
+    ${block('📆', tf('สรุปเดือนนี้','This month'), s.monthLabel, s.month)}
+  </div>`;
+}
+
 function renderDailyLog(){
   ensureDailyDraft();
   const date = state.selectedLogDate;
@@ -3495,6 +3551,7 @@ function renderDailyLog(){
     <div class="field" style="min-width:180px"><input type="date" id="log-date" value="${date}"></div>
   </div>
   ${metaCard}
+  ${logSummaryCardHtml(proj, date)}
   ${envCard}
   ${progressCard}
   ${issueCard}
@@ -3504,6 +3561,7 @@ function renderDailyLog(){
     <button class="btn primary block" id="btn-save-log" style="flex:2;min-width:200px">${tf('บันทึกรายงานประจำวัน','Save daily report')}</button>
     <button class="btn ghost" id="btn-export-pdf-log" style="flex:1;min-width:160px">📄 ${tf('ส่งออก PDF','Export PDF')}</button>
     <button class="btn ghost" id="btn-export-img-log" style="flex:1;min-width:160px">🖼️ ${tf('ส่งออกรูปภาพ','Export image')}</button>
+    <button class="btn danger" id="btn-clear-log" style="flex:1;min-width:160px">🗑️ ${tf('เคลียร์ฟอร์ม','Clear form')}</button>
   </div>
   `;
 }
@@ -3617,6 +3675,15 @@ function wireDailyLog(){
     toast(tf('บันทึกแล้ว กำลังสร้างรูปภาพรายงาน...','Saved -- generating the report image...'));
     state.reportDate = date; state.tab = 'report'; render();
     setTimeout(()=> exportReportAsImage(), 400);
+  };
+  const clearBtn = $('#btn-clear-log');
+  if(clearBtn) clearBtn.onclick = ()=>{
+    if(!confirm(tf('ล้างข้อมูลในฟอร์มของวันนี้ทั้งหมด (ที่ยังไม่ได้บันทึก)? การกดบันทึกหลังจากนี้จะบันทึกทับด้วยฟอร์มเปล่า','Clear everything in today’s form (unsaved changes)? Saving afterwards will overwrite with a blank form.'))) return;
+    dailyDraft = {date: state.selectedLogDate, weather:'', workforce:[], entries:[], issues:[], deliveryNote:''};
+    dailyEntryDraft = {category:'', itemId:'', qty:'', note:''};
+    pendingPhotos = [];
+    toast(tf('เคลียร์ฟอร์มแล้ว','Form cleared'));
+    render();
   };
 }
 
