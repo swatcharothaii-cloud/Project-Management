@@ -195,6 +195,7 @@ main{flex:1;width:100%;max-width:1180px;margin:0 auto;padding:22px 18px 64px;}
 .grid{display:grid;gap:14px}
 .grid.cols-auto{grid-template-columns:repeat(auto-fit,minmax(240px,1fr))}
 .grid.cols-2{grid-template-columns:repeat(auto-fit,minmax(300px,1fr))}
+.grid.cols-proj{grid-template-columns:repeat(auto-fit,minmax(290px,1fr))}
 .field{display:flex;flex-direction:column;gap:6px}
 .field label{font-size:12.5px;font-weight:600;color:var(--ink-700)}
 .field .hint{font-size:11.5px;color:var(--ink-300);font-weight:400}
@@ -274,7 +275,7 @@ tbody tr:hover{background:var(--surface-2)}
 .photo-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:10px}
 .photo-item{position:relative;border-radius:var(--radius-sm);overflow:hidden;background:var(--surface-2);border:1px solid var(--line)}
 .photo-item img{width:100%;height:98px;object-fit:cover;display:block}
-.photo-item input{border:none;border-top:1px solid var(--line);border-radius:0;font-size:10.5px;padding:5px 7px;background:var(--surface)}
+.photo-item input,.photo-item select{border:none;border-top:1px solid var(--line);border-radius:0;font-size:10.5px;padding:5px 7px;background:var(--surface);width:100%;display:block}
 .photo-item .rm{position:absolute;top:5px;right:5px;width:22px;height:22px;border-radius:50%;background:rgba(20,18,36,.62);color:#fff;border:none;font-size:12px;line-height:1}
 .progressline{height:6px;background:var(--line-soft);border-radius:999px;overflow:hidden}
 .progressline i{display:block;height:100%;background:var(--purple-600)}
@@ -317,6 +318,24 @@ tbody tr:hover{background:var(--surface-2)}
 }
 .role-switch button.active{background:#fff;color:var(--purple-700)}
 .role-note{font-size:11.5px;color:var(--ink-500);display:flex;align-items:center;gap:6px;background:var(--purple-50);border:1px solid var(--purple-100);padding:8px 12px;border-radius:var(--radius-sm)}
+
+/* ---------- Language switcher ---------- */
+.lang-switch{
+  display:flex;align-items:center;gap:6px;background:rgba(255,255,255,.14);
+  border:1px solid rgba(255,255,255,.26);border-radius:999px;padding:4px;
+}
+.lang-switch button{
+  border:none;background:none;color:rgba(255,255,255,.78);font-size:12px;font-weight:600;
+  padding:6px 11px;border-radius:999px;white-space:nowrap;
+}
+.lang-switch button.active{background:#fff;color:var(--purple-700)}
+
+/* ---------- Daily log: meta strip + mini rows (progress entries) ---------- */
+.meta-lbl{font-size:10.5px;text-transform:uppercase;letter-spacing:.05em;color:var(--purple-700);font-weight:700;margin-bottom:2px}
+.mini-row{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;padding:10px 12px;border:1px solid var(--line);border-radius:var(--radius-sm);background:var(--surface)}
+.mini-row .txt{display:flex;flex-direction:column;gap:2px;min-width:0}
+.mini-row .txt .t1{font-weight:600;font-size:13px;color:var(--ink-900)}
+.mini-row .txt .t2{font-size:11.5px;color:var(--ink-500)}
 
 /* ---------- Badges: approval states ---------- */
 .badge.pending{background:var(--amber-50);color:var(--amber-600)}
@@ -396,6 +415,12 @@ const uid = ()=> Date.now().toString(36)+Math.random().toString(36).slice(2,8);
 const clamp=(n,a,b)=>Math.max(a,Math.min(b,n));
 const escapeHtml = (s)=> String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
+/* ============================= I18N ============================= */
+// tf(thaiText, englishText) -- returns the string matching the current UI
+// language. Kept as inline pairs (not a giant key dictionary) since most
+// strings here are one-off and easier to review side-by-side at the call site.
+function tf(th,en){ return state.lang==='en' ? en : th; }
+
 function pad2(n){return String(n).padStart(2,'0')}
 function parseYMD(s){ if(!s) return null; const [y,m,d]=s.split('-').map(Number); return new Date(y,m-1,d); }
 function fmtYMD(d){ return d.getFullYear()+'-'+pad2(d.getMonth()+1)+'-'+pad2(d.getDate()); }
@@ -403,10 +428,18 @@ function addDays(dateStr,n){ const d=parseYMD(dateStr); d.setDate(d.getDate()+n)
 function daysBetween(aStr,bStr){ const a=parseYMD(aStr), b=parseYMD(bStr); return Math.round((b-a)/86400000); }
 function todayStr(){ return fmtYMD(new Date()); }
 const THMONTHS=['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
+const ENMONTHS=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 function fmtThai(dateStr){ if(!dateStr) return '-'; const d=parseYMD(dateStr); return d.getDate()+' '+THMONTHS[d.getMonth()]+' '+(d.getFullYear()+543); }
+function fmtEng(dateStr){ if(!dateStr) return '-'; const d=parseYMD(dateStr); return ENMONTHS[d.getMonth()]+' '+d.getDate()+', '+d.getFullYear(); }
+function fmtDate(dateStr){ return state.lang==='en' ? fmtEng(dateStr) : fmtThai(dateStr); }
 function isoAt(dateStr,hh,mm){ const d=parseYMD(dateStr); d.setHours(hh,mm,0,0); return d.toISOString(); }
-function fmtDateTime(iso){ if(!iso) return '-'; const d=new Date(iso); return d.getDate()+' '+THMONTHS[d.getMonth()]+' '+(d.getFullYear()+543)+' '+pad2(d.getHours())+':'+pad2(d.getMinutes())+' น.'; }
-function fmtNum(n,dec){ if(n==null||isNaN(n)) return '-'; dec = dec==null?1:dec; const v=Number(n); const r = Math.round(v*Math.pow(10,dec))/Math.pow(10,dec); return r.toLocaleString('th-TH',{minimumFractionDigits:0,maximumFractionDigits:dec}); }
+function fmtDateTime(iso){
+  if(!iso) return '-';
+  const d = new Date(iso);
+  if(state.lang==='en') return ENMONTHS[d.getMonth()]+' '+d.getDate()+', '+d.getFullYear()+' '+pad2(d.getHours())+':'+pad2(d.getMinutes());
+  return d.getDate()+' '+THMONTHS[d.getMonth()]+' '+(d.getFullYear()+543)+' '+pad2(d.getHours())+':'+pad2(d.getMinutes())+' น.';
+}
+function fmtNum(n,dec){ if(n==null||isNaN(n)) return '-'; dec = dec==null?1:dec; const v=Number(n); const r = Math.round(v*Math.pow(10,dec))/Math.pow(10,dec); return r.toLocaleString(state.lang==='en'?'en-US':'th-TH',{minimumFractionDigits:0,maximumFractionDigits:dec}); }
 
 function toast(msg){
   const t=$('#toast'); t.textContent=msg; t.classList.add('show');
@@ -423,8 +456,8 @@ function loadData(){
   return null;
 }
 function saveData(){
-  try{ localStorage.setItem(LS_KEY, JSON.stringify({contractor:state.contractor,project:state.project,boq:state.boq,logs:state.logs,materialRequests:state.materialRequests,role:state.role})); }
-  catch(e){ toast('บันทึกไม่สำเร็จ (พื้นที่จัดเก็บเต็ม)'); }
+  try{ localStorage.setItem(LS_KEY, JSON.stringify({contractor:state.contractor,projects:state.projects,role:state.role,lang:state.lang})); }
+  catch(e){ toast(tf('บันทึกไม่สำเร็จ (พื้นที่จัดเก็บเต็ม)','Save failed (storage is full)')); }
 }
 
 /* ============================= STORAGE (IndexedDB for photos) ============================= */
@@ -488,38 +521,36 @@ function compressImage(file, maxDim, quality){
 }
 
 /* ============================= DEMO SEED ============================= */
+function logEntryFor(date,entries,note){ return {id:uid(),date,entries,note:note||'',photoIds:[]}; }
 function demoData(){
   const today = todayStr();
-  const start = addDays(today,-9);
+  /* ---- Project 1: townhome renovation (mixed pace -- one item behind) ---- */
   const spcStart = addDays(today,-8), spcEnd = addDays(today,3);
   const wdStart = addDays(today,-8), wdEnd = addDays(today,-3);
-  const boq = [
+  const boq1 = [
     {id:'demo-spc',name:'งานปูพื้น SPC',unit:'ตร.ม.',qtyTotal:60,startDate:spcStart,endDate:spcEnd},
     {id:'demo-wd',name:'โครงตู้เสื้อผ้า Built-in',unit:'เมตร',qtyTotal:6,startDate:wdStart,endDate:wdEnd},
     {id:'demo-paint',name:'งานทาสีผนังภายใน',unit:'ตร.ม.',qtyTotal:140,startDate:addDays(today,-4),endDate:addDays(today,6)}
   ];
-  const logs = [];
-  // wardrobe: finished ahead, spread across its window
+  const logs1 = [];
   const wdDaily=[1,1.5,1.5,2,1,1]; let wdCum=0;
   for(let i=0;i<6;i++){ const d=addDays(wdStart,i); wdCum+=wdDaily[i];
-    logs.push(logEntryFor(d, [{itemId:'demo-wd',actualQty:wdDaily[i]}], i===5?'ติดตั้งบานพับและราวแขวนเสื้อครบชุด เก็บงานเรียบร้อย':'')); }
-  // spc: behind schedule, still going, last entry today
+    logs1.push(logEntryFor(d, [{itemId:'demo-wd',actualQty:wdDaily[i]}], i===5?'ติดตั้งบานพับและราวแขวนเสื้อครบชุด เก็บงานเรียบร้อย':'')); }
   const spcDaily=[4,5,4,6,5,6,15];
   for(let i=0;i<7;i++){ const d=addDays(spcStart,i);
     const note = i===6? 'งานพื้น SPC ล่าช้าเนื่องจากปูนฉาบพื้นชั้นล่างมีความชื้นสูงจากฝนตก ช่างจำเป็นต้องเปิดพัดลมเป่าแห้งเพิ่ม 1 วันเพื่อป้องกันพื้นโก่งในอนาคต' : '';
-    const existing = logs.find(l=>l.date===d);
+    const existing = logs1.find(l=>l.date===d);
     if(existing){ existing.entries.push({itemId:'demo-spc',actualQty:spcDaily[i]}); if(note) existing.note = note; }
-    else logs.push(logEntryFor(d,[{itemId:'demo-spc',actualQty:spcDaily[i]}], note));
+    else logs1.push(logEntryFor(d,[{itemId:'demo-spc',actualQty:spcDaily[i]}], note));
   }
-  // paint: just started, on pace
   const paintDaily=[10,12,11,14,13];
   for(let i=0;i<5;i++){ const d=addDays(addDays(today,-4),i);
-    const existing = logs.find(l=>l.date===d);
+    const existing = logs1.find(l=>l.date===d);
     if(existing) existing.entries.push({itemId:'demo-paint',actualQty:paintDaily[i]});
-    else logs.push(logEntryFor(d,[{itemId:'demo-paint',actualQty:paintDaily[i]}],''));
+    else logs1.push(logEntryFor(d,[{itemId:'demo-paint',actualQty:paintDaily[i]}],''));
   }
-  logs.sort((a,b)=> a.date<b.date?-1:1);
-  const materialRequests = [
+  logs1.sort((a,b)=> a.date<b.date?-1:1);
+  const materialRequests1 = [
     { id:'demo-req-1', reqNo:'REQ-'+today.replace(/-/g,'')+'-01', createdAt:isoAt(today,10,15),
       requestedBy:'ทีมงานช่างตั้ม', area:'ห้องนั่งเล่น โซนชั้นทีวี', workType:'งานระบบไฟและบิ้วอิน',
       lines:[{name:'ไฟ LED Strip Warm White 24V',qty:5,unit:'ม้วน',neededDate:addDays(today,3)}],
@@ -539,60 +570,138 @@ function demoData(){
       approval:{by:'PM สมศักดิ์', at:isoAt(addDays(today,-1),16,30), reason:'ปฏิเสธเนื่องจากสั่งซ้ำกับล็อตที่สั่งไปแล้วเมื่อสัปดาห์ก่อน'}, procurement:null
     }
   ];
+  /* ---- Project 2: condo interior fit-out (running ahead of plan) ---- */
+  const tileStart = addDays(today,-6), tileEnd = addDays(today,1);
+  const ceilStart = addDays(today,-5), ceilEnd = addDays(today,-1);
+  const boq2 = [
+    {id:'demo2-tile',name:'งานปูกระเบื้องพื้นห้องน้ำ',unit:'ตร.ม.',qtyTotal:24,startDate:tileStart,endDate:tileEnd},
+    {id:'demo2-ceil',name:'งานฝ้าเพดานยิปซัม',unit:'ตร.ม.',qtyTotal:32,startDate:ceilStart,endDate:ceilEnd}
+  ];
+  const logs2 = [];
+  const tileDaily=[4,5,5,6,6];
+  for(let i=0;i<5;i++){ const d=addDays(tileStart,i); logs2.push(logEntryFor(d,[{itemId:'demo2-tile',actualQty:tileDaily[i]}], i===4?'ปูกระเบื้องเสร็จเร็วกว่าแผน เพราะพื้นเดิมเรียบไม่ต้องปรับระดับเยอะ':'')); }
+  const ceilDaily=[7,8,9,8];
+  for(let i=0;i<4;i++){ const d=addDays(ceilStart,i); logs2.push(logEntryFor(d,[{itemId:'demo2-ceil',actualQty:ceilDaily[i]}],'')); }
+  logs2.sort((a,b)=> a.date<b.date?-1:1);
+  const materialRequests2 = [
+    { id:'demo2-req-1', reqNo:'REQ-'+today.replace(/-/g,'')+'-C1', createdAt:isoAt(today,8,30),
+      requestedBy:'ทีมงานโครงการคอนโด', area:'ห้องน้ำ Master', workType:'งานกระเบื้อง',
+      lines:[{name:'ยาแนวกันน้ำ',qty:6,unit:'ถุง',neededDate:addDays(today,1)}],
+      photoIds:[], status:'pending', approval:null, procurement:null
+    }
+  ];
   return {
     contractor:{nickname:'ช่างตั้ม',fullname:'ธนกร ตั้มไพศาล',phone:'081-234-5678',company:'ตั้มไพศาล อินทีเรีย',logo:''},
-    project:{name:'รีโนเวททาวน์โฮม 3 ชั้น',zone:'Master Bedroom & Living Room'},
-    boq, logs, materialRequests
+    projects:[
+      {id:'demo-proj-1', name:'รีโนเวททาวน์โฮม 3 ชั้น', zone:'Master Bedroom & Living Room', boq:boq1, logs:logs1, materialRequests:materialRequests1, createdAt:isoAt(addDays(today,-10),9,0)},
+      {id:'demo-proj-2', name:'ตกแต่งภายในคอนโด The Breeze', zone:'ห้องน้ำ & ฝ้าเพดาน', boq:boq2, logs:logs2, materialRequests:materialRequests2, createdAt:isoAt(addDays(today,-7),9,0)}
+    ]
   };
 }
-function logEntryFor(date,entries,note){ return {id:uid(),date,entries,note:note||'',photoIds:[]}; }
 
 /* ============================= STATE ============================= */
 let state = {
-  tab:'dashboard',
-  contractor:null, project:{name:'',zone:''}, boq:[], logs:[],
-  materialRequests:[], role:'site',
+  view:'hub',            // 'hub' | 'overview' | 'profile' | 'project'
+  tab:'dashboard',        // active sub-tab when view==='project'
+  contractor:null, projects:[], currentProjectId:null,
+  role:'site', lang:'th',
   selectedLogDate: todayStr(),
   reportDate: todayStr(),
   photoQueue:false,
   lastExportedImg:null,
 };
-
-// Field-worker restricted link: opening the app with #field in the URL locks
-// the whole UI to the Daily Log screen only -- no other tab is reachable.
-// This is a UX-level lock (the app has no server/auth), meant for handing a
-// simple "just fill today's report" link to a site contractor.
-const FIELD_MODE = location.hash.replace('#','').split('&').includes('field');
-function fieldLink(){
-  return location.origin + location.pathname + location.search + '#field';
+// P() = the project currently open (state.view==='project'). Falls back to an
+// empty stub so calls made outside a project context never throw.
+function P(){
+  return state.projects.find(p=>p.id===state.currentProjectId) || {id:null,name:'',zone:'',boq:[],logs:[],materialRequests:[]};
 }
-const ROLE_LABEL = {site:'ผู้รับเหมาหน้างาน / ทีมงาน', pm:'ผู้จัดการโครงการ / ผู้บริหาร', procurement:'ฝ่ายจัดซื้อ'};
-const STATUS_LABEL = {pending:'🟡 รออนุมัติ', approved:'🟢 อนุมัติแล้ว', rejected:'🔴 ปฏิเสธ', scheduled:'🔵 นัดส่งแล้ว'};
+
+// Field-worker restricted link: opening the app with #field&project=<id> in the
+// URL locks the whole UI to that project's Daily Log screen only -- no other
+// tab, and no other project, is reachable. This is a UX-level lock (the app
+// has no server/auth), meant for handing a simple "just fill today's report"
+// link to a site contractor.
+const FIELD_MODE = location.hash.replace('#','').split('&').includes('field');
+function fieldProjectIdFromHash(){
+  const parts = location.hash.replace('#','').split('&');
+  const m = parts.find(s=> s.indexOf('project=')===0);
+  return m ? decodeURIComponent(m.slice('project='.length)) : null;
+}
+function fieldLink(projectId){
+  return location.origin + location.pathname + location.search + '#field&project=' + encodeURIComponent(projectId);
+}
+const ROLE_LABEL = {
+  site: tf('ผู้รับเหมาหน้างาน / ทีมงาน','Site contractor / crew'),
+  pm: tf('ผู้จัดการโครงการ / ผู้บริหาร','Project manager / owner'),
+  procurement: tf('ฝ่ายจัดซื้อ','Procurement')
+};
+const STATUS_LABEL = {
+  pending: tf('🟡 รออนุมัติ','🟡 Pending approval'),
+  approved: tf('🟢 อนุมัติแล้ว','🟢 Approved'),
+  rejected: tf('🔴 ปฏิเสธ','🔴 Rejected'),
+  scheduled: tf('🔵 นัดส่งแล้ว','🔵 Scheduled')
+};
 const PSTATUS = [
-  {id:'pending', label:'รออนุมัติ', ic:'🟡'},
-  {id:'approved', label:'อนุมัติแล้ว (รอจัดซื้อ)', ic:'🟢'},
-  {id:'scheduled', label:'นัดส่งแล้ว', ic:'🔵'},
-  {id:'rejected', label:'ปฏิเสธ', ic:'🔴'},
+  {id:'pending', label:tf('รออนุมัติ','Pending'), ic:'🟡'},
+  {id:'approved', label:tf('อนุมัติแล้ว (รอจัดซื้อ)','Approved (awaiting procurement)'), ic:'🟢'},
+  {id:'scheduled', label:tf('นัดส่งแล้ว','Scheduled'), ic:'🔵'},
+  {id:'rejected', label:tf('ปฏิเสธ','Rejected'), ic:'🔴'},
 ];
+// NOTE: ROLE_LABEL/STATUS_LABEL/PSTATUS above are captured once at parse time
+// using tf(), which reads state.lang at that instant. rebuildLangConstants()
+// re-evaluates them after a language switch so labels update immediately.
+function rebuildLangConstants(){
+  ROLE_LABEL.site = tf('ผู้รับเหมาหน้างาน / ทีมงาน','Site contractor / crew');
+  ROLE_LABEL.pm = tf('ผู้จัดการโครงการ / ผู้บริหาร','Project manager / owner');
+  ROLE_LABEL.procurement = tf('ฝ่ายจัดซื้อ','Procurement');
+  STATUS_LABEL.pending = tf('🟡 รออนุมัติ','🟡 Pending approval');
+  STATUS_LABEL.approved = tf('🟢 อนุมัติแล้ว','🟢 Approved');
+  STATUS_LABEL.rejected = tf('🔴 ปฏิเสธ','🔴 Rejected');
+  STATUS_LABEL.scheduled = tf('🔵 นัดส่งแล้ว','🔵 Scheduled');
+  PSTATUS[0].label=tf('รออนุมัติ','Pending'); PSTATUS[1].label=tf('อนุมัติแล้ว (รอจัดซื้อ)','Approved (awaiting procurement)');
+  PSTATUS[2].label=tf('นัดส่งแล้ว','Scheduled'); PSTATUS[3].label=tf('ปฏิเสธ','Rejected');
+  rebuildDailyLogConstants();
+}
 
 function bootstrap(){
   const saved = loadData();
-  if(saved && saved.contractor){
-    Object.assign(state,{contractor:saved.contractor, project:saved.project||{name:'',zone:''}, boq:saved.boq||[], logs:saved.logs||[], materialRequests:saved.materialRequests||[], role:saved.role||'site'});
-    state.tab='dashboard';
+  if(saved && saved.contractor && Array.isArray(saved.projects)){
+    Object.assign(state,{contractor:saved.contractor, projects:saved.projects, role:saved.role||'site', lang:saved.lang||'th'});
+  } else if(saved && saved.contractor && saved.boq){
+    // migrate an older single-project save into the new multi-project shape
+    Object.assign(state,{
+      contractor:saved.contractor,
+      projects:[{id:uid(), name:(saved.project&&saved.project.name)||tf('โปรเจกต์ของฉัน','My project'), zone:(saved.project&&saved.project.zone)||'', boq:saved.boq||[], logs:saved.logs||[], materialRequests:saved.materialRequests||[], createdAt:new Date().toISOString()}],
+      role:saved.role||'site', lang:saved.lang||'th'
+    });
+    saveData();
   } else {
     const d = demoData();
-    Object.assign(state,{contractor:d.contractor, project:d.project, boq:d.boq, logs:d.logs, materialRequests:d.materialRequests, role:'site'});
+    Object.assign(state,{contractor:d.contractor, projects:d.projects, role:'site', lang:'th'});
     saveData();
-    state.tab='dashboard';
   }
-  const lastLog = state.logs[state.logs.length-1];
+  rebuildLangConstants();
+  state.view='hub'; state.currentProjectId=null; state.tab='dashboard';
   state.selectedLogDate = todayStr();
-  state.reportDate = lastLog ? lastLog.date : todayStr();
-  if(FIELD_MODE) state.tab = 'dailylog';
+  state.reportDate = todayStr();
+  if(FIELD_MODE){
+    const pid = fieldProjectIdFromHash();
+    const proj = state.projects.find(p=>p.id===pid) || state.projects[0] || null;
+    if(proj){
+      state.currentProjectId = proj.id; state.view='project'; state.tab='dailylog';
+      const lastLog = proj.logs[proj.logs.length-1];
+      state.reportDate = lastLog ? lastLog.date : todayStr();
+    } else {
+      state.currentProjectId = null; state.view='project'; state.tab='dailylog';
+    }
+  }
 }
 
 /* ============================= CALC ENGINE ============================= */
+// boq/logs are accepted as optional explicit params so the Hub and Overview
+// screens can compute a summary for *any* project, not just the one open in
+// P(). Every call from inside a project screen omits them and falls back to
+// the currently open project via P().
 function dailyTarget(item){
   const days = daysBetween(item.startDate,item.endDate)+1;
   return item.qtyTotal / Math.max(days,1);
@@ -602,27 +711,31 @@ function plannedCumAt(item,dateStr){
   const elapsed = clamp(daysBetween(item.startDate,dateStr)+1,0,days);
   return elapsed<=0 ? 0 : elapsed*dailyTarget(item);
 }
-function actualCumAt(item,dateStr){
+function actualCumAt(item,dateStr,logs){
+  logs = logs || P().logs;
   let sum=0;
-  for(const log of state.logs){
+  for(const log of logs){
     if(log.date>dateStr) continue;
     for(const e of log.entries) if(e.itemId===item.id) sum += Number(e.actualQty)||0;
   }
   return sum;
 }
-function todayQtyFor(item,dateStr){
-  const log = state.logs.find(l=>l.date===dateStr);
+function todayQtyFor(item,dateStr,logs){
+  logs = logs || P().logs;
+  const log = logs.find(l=>l.date===dateStr);
   if(!log) return 0;
   return log.entries.filter(e=>e.itemId===item.id).reduce((s,e)=>s+(Number(e.actualQty)||0),0);
 }
-function itemLoggedDates(item){
+function itemLoggedDates(item,logs){
+  logs = logs || P().logs;
   const set=[];
-  for(const log of state.logs){ if(log.entries.some(e=>e.itemId===item.id)) set.push(log.date); }
+  for(const log of logs){ if(log.entries.some(e=>e.itemId===item.id)) set.push(log.date); }
   return set.sort();
 }
-function itemPrediction(item, asOf){
-  const dates = itemLoggedDates(item).filter(d=>d<=asOf);
-  const actual = actualCumAt(item,asOf);
+function itemPrediction(item, asOf, logs){
+  logs = logs || P().logs;
+  const dates = itemLoggedDates(item,logs).filter(d=>d<=asOf);
+  const actual = actualCumAt(item,asOf,logs);
   const remaining = Math.max(item.qtyTotal - actual,0);
   if(remaining<=0){
     const lastDate = dates.length? dates[dates.length-1] : item.startDate;
@@ -635,22 +748,24 @@ function itemPrediction(item, asOf){
   const daysNeeded = Math.ceil(remaining/burnRate);
   return {finishDate: addDays(asOf,daysNeeded), burnRate, done:false};
 }
-function itemStatus(item,asOf){
-  const planned = plannedCumAt(item,asOf), actual = actualCumAt(item,asOf);
+function itemStatus(item,asOf,logs){
+  logs = logs || P().logs;
+  const planned = plannedCumAt(item,asOf), actual = actualCumAt(item,asOf,logs);
   if(planned<=0 && actual<=0) return 'idle';
   return actual+1e-9 >= planned ? 'ok' : 'bad';
 }
-function projectSummary(asOf){
-  if(state.boq.length===0) return null;
+function projectSummary(asOf, boq, logs){
+  boq = boq || P().boq; logs = logs || P().logs;
+  if(boq.length===0) return null;
   let plannedPct=0, actualPct=0, n=0;
   let contractEnd=null, predictedEnd=null, anyPrediction=false;
-  for(const item of state.boq){
+  for(const item of boq){
     const total = item.qtyTotal||1;
     plannedPct += clamp(plannedCumAt(item,asOf)/total,0,1);
-    actualPct += clamp(actualCumAt(item,asOf)/total,0,1);
+    actualPct += clamp(actualCumAt(item,asOf,logs)/total,0,1);
     n++;
     if(!contractEnd || item.endDate>contractEnd) contractEnd=item.endDate;
-    const pred = itemPrediction(item,asOf);
+    const pred = itemPrediction(item,asOf,logs);
     if(pred.finishDate){ anyPrediction=true; if(!predictedEnd || pred.finishDate>predictedEnd) predictedEnd=pred.finishDate; }
   }
   plannedPct = n? (plannedPct/n)*100 : 0;
@@ -661,20 +776,23 @@ function projectSummary(asOf){
 }
 
 /* ============================= RENDER: SHELL ============================= */
+const TOP_TABS = [
+  {id:'hub', label:tf('โปรเจ็คทั้งหมด','All Projects'), ic:'🏠'},
+  {id:'overview', label:tf('ภาพรวมทุกโปรเจ็ค','Overview'), ic:'📈'},
+  {id:'profile', label:tf('ตั้งค่าบริษัท','Company'), ic:'🏢'},
+];
 const TABS = [
-  {id:'profile',label:'โปรไฟล์',ic:'👤'},
-  {id:'masterplan',label:'แผนงานหลัก',ic:'📋'},
-  {id:'dailylog',label:'บันทึกประจำวัน',ic:'📝'},
-  {id:'procure',label:'จัดซื้อวัสดุ',ic:'🛒'},
-  {id:'dashboard',label:'แดชบอร์ด',ic:'📊'},
-  {id:'report',label:'รายงาน',ic:'🖨️'},
+  {id:'masterplan',label:tf('แผนงานหลัก','Master Plan'),ic:'📋'},
+  {id:'dailylog',label:tf('บันทึกประจำวัน','Daily Log'),ic:'📝'},
+  {id:'procure',label:tf('จัดซื้อวัสดุ','Procurement'),ic:'🛒'},
+  {id:'dashboard',label:tf('แดชบอร์ด','Dashboard'),ic:'📊'},
+  {id:'report',label:tf('รายงาน','Report'),ic:'🖨️'},
 ];
 
 function render(){
   const app = $('#app');
-  const summary = projectSummary(todayStr());
   app.innerHTML = `
-    ${renderTopbar(summary)}
+    ${renderTopbar()}
     ${renderTabbar()}
     <main><div class="screen">${renderScreen()}</div></main>
     ${renderModalRoot()}
@@ -692,107 +810,284 @@ function renderModalRoot(){
   if(creatingRequest) return requestModalHtml();
   if(procureDetailId) return detailModalHtml();
   if(refGalleryItemId) return refGalleryModalHtml();
+  if(projectDraft) return projectModalHtml();
   return '';
 }
 
-function renderTopbar(summary){
-  let pillClass='idle', pillText='ยังไม่มีข้อมูลเพียงพอ';
-  if(summary && state.boq.length){
-    if(summary.delta>=0){ pillClass='ok'; pillText='เร็วกว่าแผน '+fmtNum(Math.abs(summary.delta),1)+'%'; }
-    else { pillClass='bad'; pillText='ล่าช้ากว่าแผน '+fmtNum(Math.abs(summary.delta),1)+'%'; }
+function renderTopbar(){
+  const inProject = state.view==='project' && !FIELD_MODE;
+  let pillHtml='';
+  if(inProject){
+    const proj = P();
+    const summary = proj.boq.length? projectSummary(todayStr(), proj.boq, proj.logs) : null;
+    let pillClass='idle', pillText=tf('ยังไม่มีข้อมูลเพียงพอ','Not enough data yet');
+    if(summary){
+      if(summary.delta>=0){ pillClass='ok'; pillText=tf('เร็วกว่าแผน ','Ahead of plan ')+fmtNum(Math.abs(summary.delta),1)+'%'; }
+      else { pillClass='bad'; pillText=tf('ล่าช้ากว่าแผน ','Behind plan ')+fmtNum(Math.abs(summary.delta),1)+'%'; }
+    }
+    pillHtml = `<div class="status-pill ${pillClass}"><span class="dot"></span>${pillText}</div>`;
   }
-  const cname = state.contractor && state.contractor.company ? state.contractor.company : 'ยังไม่ได้ตั้งค่าโปรไฟล์';
+  const cname = state.contractor && state.contractor.company ? state.contractor.company : tf('ยังไม่ได้ตั้งค่าโปรไฟล์','Company profile not set');
+  const titleText = (state.view==='project') ? (P().name || tf('โปรเจ็คไม่มีชื่อ','Untitled project')) : cname;
   return `
   <header class="topbar">
     <div class="brand">
       <div class="mark">🏗️</div>
       <div class="txt">
-        <b>ชีพจรไซต์งาน <span class="net-dot" id="net-dot" title="ออนไลน์"></span></b>
-        <span>${escapeHtml(state.project.name || cname)}</span>
+        <b>${tf('ชีพจรไซต์งาน','Site Pulse')} <span class="net-dot" id="net-dot" title="${tf('ออนไลน์','Online')}"></span></b>
+        <span>${escapeHtml(titleText)}</span>
       </div>
     </div>
     <div class="spacer"></div>
-    ${FIELD_MODE? '' : `<div class="role-switch">
-      <button data-role="site" class="${state.role==='site'?'active':''}">หน้างาน</button>
-      <button data-role="pm" class="${state.role==='pm'?'active':''}">PM</button>
-      <button data-role="procurement" class="${state.role==='procurement'?'active':''}">จัดซื้อ</button>
+    ${FIELD_MODE? '' : `<div class="lang-switch">
+      <button data-lang="th" class="${state.lang==='th'?'active':''}">ไทย</button>
+      <button data-lang="en" class="${state.lang==='en'?'active':''}">EN</button>
     </div>`}
-    <div class="status-pill ${pillClass}"><span class="dot"></span>${pillText}</div>
+    ${FIELD_MODE? '' : `<div class="role-switch">
+      <button data-role="site" class="${state.role==='site'?'active':''}">${tf('หน้างาน','Site')}</button>
+      <button data-role="pm" class="${state.role==='pm'?'active':''}">PM</button>
+      <button data-role="procurement" class="${state.role==='procurement'?'active':''}">${tf('จัดซื้อ','Buy')}</button>
+    </div>`}
+    ${pillHtml}
   </header>`;
 }
 
 function renderTabbar(){
   if(FIELD_MODE){
-    return `<nav class="tabbar"><span class="tabbtn active" style="pointer-events:none"><span class="ic">📝</span>บันทึกงานประจำวัน (โหมดผู้รับเหมา)</span></nav>`;
+    return `<nav class="tabbar"><span class="tabbtn active" style="pointer-events:none"><span class="ic">📝</span>${tf('บันทึกงานประจำวัน (โหมดผู้รับเหมา)','Daily log (contractor mode)')}</span></nav>`;
   }
-  return `<nav class="tabbar">${TABS.map(t=>`
-    <button class="tabbtn ${state.tab===t.id?'active':''}" data-nav="${t.id}"><span class="ic">${t.ic}</span>${t.label}</button>
+  if(state.view==='project'){
+    return `<nav class="tabbar">
+      <button class="tabbtn back" data-back-hub><span class="ic">←</span>${tf('โปรเจ็คทั้งหมด','All projects')}</button>
+      ${TABS.map(t=>`<button class="tabbtn ${state.tab===t.id?'active':''}" data-nav="${t.id}"><span class="ic">${t.ic}</span>${t.label}</button>`).join('')}
+    </nav>`;
+  }
+  return `<nav class="tabbar">${TOP_TABS.map(t=>`
+    <button class="tabbtn ${state.view===t.id?'active':''}" data-view="${t.id}"><span class="ic">${t.ic}</span>${t.label}</button>
   `).join('')}</nav>`;
 }
 
 function renderScreen(){
-  if(FIELD_MODE) return renderDailyLog();
+  if(FIELD_MODE){
+    if(!state.currentProjectId) return `<div class="empty"><span class="ic">🔗</span>${tf('ไม่พบโปรเจ็คสำหรับลิงก์นี้ กรุณาขอลิงก์ใหม่จากผู้ดูแลโปรเจ็ค','This link is not linked to any project. Please ask the project owner for a new link.')}</div>`;
+    return renderDailyLog();
+  }
+  if(state.view==='hub') return renderHub();
+  if(state.view==='overview') return renderOverview();
+  if(state.view==='profile') return renderProfile();
   switch(state.tab){
-    case 'profile': return renderProfile();
     case 'masterplan': return renderMasterPlan();
     case 'dailylog': return renderDailyLog();
     case 'procure': return renderProcure();
     case 'dashboard': return renderDashboard();
     case 'report': return renderReport();
-    default: return '';
+    default: return renderMasterPlan();
   }
+}
+
+function resetTransient(){
+  pendingPhotos=[];
+  editingItemId=null; itemDraft=null;
+  creatingRequest=false; requestForm=null; procureDetailId=null; refGalleryItemId=null;
+  projectDraft=null; editingProjectId=null;
+  dailyDraft=null; dailyEntryDraft={zone:'',itemId:'',qty:'',note:''};
+}
+function goToHub(){
+  resetTransient();
+  state.currentProjectId=null; state.view='hub';
+  render(); window.scrollTo({top:0});
+}
+function enterProject(id){
+  resetTransient();
+  state.currentProjectId=id; state.view='project'; state.tab='dashboard';
+  const proj = P();
+  const lastLog = proj.logs[proj.logs.length-1];
+  state.selectedLogDate = todayStr();
+  state.reportDate = lastLog ? lastLog.date : todayStr();
+  render(); window.scrollTo({top:0});
 }
 
 function wireGlobal(){
   if(!FIELD_MODE){
     $$('[data-nav]').forEach(b=> b.onclick = ()=>{ state.tab=b.dataset.nav; render(); window.scrollTo({top:0}); });
-    $$('[data-role]').forEach(b=> b.onclick = ()=>{ state.role=b.dataset.role; saveData(); render(); toast('สลับมุมมองเป็น: '+ROLE_LABEL[state.role]); });
+    $$('[data-view]').forEach(b=> b.onclick = ()=>{ resetTransient(); state.currentProjectId=null; state.view=b.dataset.view; render(); window.scrollTo({top:0}); });
+    const backBtn = $('[data-back-hub]'); if(backBtn) backBtn.onclick = goToHub;
+    const brandEl = $('.brand'); if(brandEl){ brandEl.style.cursor='pointer'; brandEl.onclick = goToHub; }
+    $$('[data-role]').forEach(b=> b.onclick = ()=>{ state.role=b.dataset.role; saveData(); render(); toast(tf('สลับมุมมองเป็น: ','Switched view to: ')+ROLE_LABEL[state.role]); });
+    $$('[data-lang]').forEach(b=> b.onclick = ()=>{ if(state.lang===b.dataset.lang) return; state.lang=b.dataset.lang; rebuildLangConstants(); saveData(); render(); });
+    $$('[data-open-project]').forEach(b=> b.onclick = ()=> enterProject(b.dataset.openProject));
   }
   wireItemModal();
   wireRequestModal();
   wireDetailModal();
   wireGalleryModal();
+  wireProjectModal();
 }
 
-/* ============================= SCREEN: PROFILE ============================= */
+/* ============================= SCREEN: HUB (ALL PROJECTS) ============================= */
+function renderHub(){
+  const asOf = todayStr();
+  const cards = state.projects.map(pr=>{
+    const summary = pr.boq.length? projectSummary(asOf, pr.boq, pr.logs) : null;
+    const lastLog = pr.logs[pr.logs.length-1];
+    const st = !summary? 'idle' : summary.delta>=0?'ok':'bad';
+    const pillText = !summary? tf('ยังไม่มีข้อมูลเพียงพอ','Not enough data yet')
+      : (summary.delta>=0? tf('เร็วกว่าแผน ','Ahead of plan ')+fmtNum(Math.abs(summary.delta),1)+'%' : tf('ล่าช้ากว่าแผน ','Behind plan ')+fmtNum(Math.abs(summary.delta),1)+'%');
+    return `<div class="card proj-card">
+      <div class="proj-card-head">
+        <div>
+          <b style="font-family:var(--font-display);font-size:16px">${escapeHtml(pr.name||tf('(ไม่มีชื่อโปรเจ็ค)','(untitled project)'))}</b>
+          ${pr.zone? `<div class="sub">${escapeHtml(pr.zone)}</div>` : ''}
+        </div>
+        <span class="badge ${st}">${st==='ok'?'🟢':st==='bad'?'🔴':'⏳'} ${pillText}</span>
+      </div>
+      ${summary? `
+      <div class="progress ${st==='ok'?'ok':st==='bad'?'bad':''}" style="margin-top:10px"><i style="width:${clamp(summary.actualPct,0,100)}%"></i></div>
+      <div class="sub" style="margin-top:6px">${tf('ความคืบหน้าจริง','Actual progress')} <b class="tabular" style="color:var(--ink-700)">${fmtNum(summary.actualPct,1)}%</b> ${tf('จากแผน','vs. planned')} <span class="tabular">${fmtNum(summary.plannedPct,1)}%</span></div>`
+      : `<div class="empty" style="margin-top:10px;padding:16px">${tf('ยังไม่มีรายการงานใน BOQ','No BOQ items yet')}</div>`}
+      <div class="sub" style="margin-top:6px">${pr.boq.length} ${tf('รายการงาน','work items')} · ${tf('บันทึกล่าสุด','last log')} ${lastLog? fmtDate(lastLog.date) : tf('ยังไม่มีบันทึก','none yet')}</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:14px">
+        <button class="btn primary sm" data-open-project="${pr.id}">${tf('เข้าโปรเจ็ค','Open project')}</button>
+        <button class="btn ghost sm" data-edit-project="${pr.id}">${tf('แก้ไข','Edit')}</button>
+        <button class="btn ghost sm" data-copy-field="${pr.id}">🔗 ${tf('ลิงก์บันทึกประจำวัน','Daily log link')}</button>
+        <button class="btn danger sm" data-del-project="${pr.id}">${tf('ลบ','Delete')}</button>
+      </div>
+    </div>`;
+  }).join('');
+  return `
+  <div class="page-head">
+    <div><h2>${tf('โปรเจ็คทั้งหมด','All Projects')}</h2><div class="sub">${state.contractor&&state.contractor.company? escapeHtml(state.contractor.company)+' · ' : ''}${tf('จัดการหลายโปรเจ็คในที่เดียว กดเข้าโปรเจ็คเพื่อบันทึกงานประจำวันหรือดูแดชบอร์ด','Manage every project in one place -- open a project to log daily work or check its dashboard.')}</div></div>
+    <button class="btn primary" id="btn-add-project">+ ${tf('สร้างโปรเจ็คใหม่','New project')}</button>
+  </div>
+  ${state.projects.length===0? `<div class="empty"><span class="ic">🏗️</span>${tf('ยังไม่มีโปรเจ็ค','No projects yet')}<br>${tf('กด “สร้างโปรเจ็คใหม่” เพื่อเริ่มต้น','Tap “New project” to get started')}</div>` : `<div class="grid cols-proj">${cards}</div>`}
+  `;
+}
+let projectDraft=null, editingProjectId=null;
+function openProjectDraft(id){
+  if(id==='new'){ projectDraft={name:'',zone:''}; editingProjectId='new'; }
+  else { const pr=state.projects.find(p=>p.id===id); projectDraft={name:pr.name,zone:pr.zone||''}; editingProjectId=id; }
+}
+function projectModalHtml(){
+  if(!projectDraft) return '';
+  const d = projectDraft;
+  return `<div class="modal-bg" id="proj-modal-bg"><div class="modal">
+    <div class="modal-head"><h3>${editingProjectId==='new'? tf('สร้างโปรเจ็คใหม่','New project') : tf('แก้ไขโปรเจ็ค','Edit project')}</h3><button class="iconbtn" id="proj-modal-close">✕</button></div>
+    <div class="field"><label>${tf('ชื่อโครงการ','Project name')}</label><input type="text" id="pm-name" value="${escapeHtml(d.name)}" placeholder="${tf('เช่น รีโนเวททาวน์โฮม 3 ชั้น','e.g. 3-storey townhome renovation')}"></div>
+    <div class="field" style="margin-top:12px"><label>${tf('โซน/พื้นที่ทำงาน','Zone / work area')}</label><input type="text" id="pm-zone" value="${escapeHtml(d.zone)}" placeholder="${tf('เช่น Master Bedroom & Living Room','e.g. Master Bedroom & Living Room')}"></div>
+    <button class="btn primary block" style="margin-top:16px" id="pm-save">${tf('บันทึกโปรเจ็ค','Save project')}</button>
+  </div></div>`;
+}
+function closeProjectModal(){ projectDraft=null; editingProjectId=null; render(); }
+function wireProjectModal(){
+  const bg=$('#proj-modal-bg'); if(!bg) return;
+  $('#proj-modal-close').onclick = closeProjectModal;
+  bg.addEventListener('click', e=>{ if(e.target===bg) closeProjectModal(); });
+  $('#pm-save').onclick = ()=>{
+    const name=$('#pm-name').value.trim(), zone=$('#pm-zone').value.trim();
+    if(!name){ toast(tf('กรุณาระบุชื่อโครงการ','Please enter a project name')); return; }
+    if(editingProjectId==='new'){
+      state.projects.push({id:uid(), name, zone, boq:[], logs:[], materialRequests:[], createdAt:new Date().toISOString()});
+      saveData(); closeProjectModal(); toast(tf('สร้างโปรเจ็คใหม่แล้ว','Project created'));
+    } else {
+      const pr=state.projects.find(p=>p.id===editingProjectId);
+      Object.assign(pr,{name,zone});
+      saveData(); closeProjectModal(); toast(tf('บันทึกโปรเจ็คแล้ว','Project saved'));
+    }
+  };
+}
+function wireHub(){
+  $('#btn-add-project').onclick = ()=>{ openProjectDraft('new'); render(); };
+  $$('[data-edit-project]').forEach(b=> b.onclick = ()=>{ openProjectDraft(b.dataset.editProject); render(); });
+  $$('[data-del-project]').forEach(b=> b.onclick = ()=>{
+    const pr = state.projects.find(p=>p.id===b.dataset.delProject);
+    if(!confirm(tf('ลบโปรเจ็ค "'+(pr?pr.name:'')+'" และข้อมูลทั้งหมด (แผนงาน บันทึก รูปภาพ) หรือไม่?','Delete project "'+(pr?pr.name:'')+'" and all its data (plan, logs, photos)?'))) return;
+    state.projects = state.projects.filter(p=>p.id!==b.dataset.delProject);
+    saveData(); render(); toast(tf('ลบโปรเจ็คแล้ว','Project deleted'));
+  });
+  $$('[data-copy-field]').forEach(b=> b.onclick = async ()=>{
+    const link = fieldLink(b.dataset.copyField);
+    try{ await navigator.clipboard.writeText(link); toast(tf('คัดลอกลิงก์บันทึกประจำวันแล้ว','Daily log link copied')); }
+    catch(err){ prompt(tf('คัดลอกลิงก์นี้:','Copy this link:'), link); }
+  });
+}
+
+/* ============================= SCREEN: OVERVIEW (ALL PROJECTS DASHBOARD) ============================= */
+function renderOverview(){
+  const asOf = todayStr();
+  const rows = state.projects.map(pr=> ({pr, summary: pr.boq.length? projectSummary(asOf, pr.boq, pr.logs) : null}));
+  const withData = rows.filter(r=>r.summary);
+  const aheadCount = withData.filter(r=>r.summary.delta>=0).length;
+  const behindCount = withData.filter(r=>r.summary.delta<0).length;
+  const avgActual = withData.length? withData.reduce((s,r)=>s+r.summary.actualPct,0)/withData.length : 0;
+  const tableRows = rows.map(({pr,summary})=>{
+    if(!summary){
+      return `<tr>
+        <td>${escapeHtml(pr.name||tf('(ไม่มีชื่อโปรเจ็ค)','(untitled project)'))}</td>
+        <td class="tabular">-</td><td class="tabular">-</td><td><span class="badge idle">⏳ ${tf('ยังไม่มีข้อมูล','No data')}</span></td><td class="tabular">-</td>
+        <td><button class="btn ghost sm" data-open-project="${pr.id}">${tf('เปิด','Open')}</button></td>
+      </tr>`;
+    }
+    const st = summary.delta>=0?'ok':'bad';
+    return `<tr>
+      <td>${escapeHtml(pr.name||tf('(ไม่มีชื่อโปรเจ็ค)','(untitled project)'))}${pr.zone?` <span class="sub" style="font-weight:400">(${escapeHtml(pr.zone)})</span>`:''}</td>
+      <td class="tabular">${fmtNum(summary.plannedPct,1)}%</td>
+      <td class="tabular">${fmtNum(summary.actualPct,1)}%</td>
+      <td><span class="badge ${st}">${st==='ok'? '🟢 '+tf('เร็วกว่า/ตรงแผน','Ahead / on plan') : '🔴 '+tf('ล่าช้า','Behind')} ${fmtNum(Math.abs(summary.delta),1)}%</span></td>
+      <td class="tabular">${summary.anyPrediction? fmtDate(summary.predictedEnd) : tf('รอข้อมูล','Pending data')}</td>
+      <td><button class="btn ghost sm" data-open-project="${pr.id}">${tf('เปิด','Open')}</button></td>
+    </tr>`;
+  }).join('');
+  return `
+  <div class="page-head"><div><h2>${tf('ภาพรวมทุกโปรเจ็ค','All-Project Overview')}</h2><div class="sub">${tf('สรุปสถานะรวมของทุกโปรเจ็คที่กำลังดำเนินการ อัปเดตล่าสุด','Combined status of every active project, updated')} ${fmtDate(asOf)}</div></div></div>
+  ${state.projects.length===0? `<div class="empty"><span class="ic">📈</span>${tf('ยังไม่มีโปรเจ็ค กลับไปหน้าโปรเจ็คทั้งหมดเพื่อสร้างโปรเจ็คแรก','No projects yet -- go to All Projects to create your first one')}</div>` : `
+  <div class="grid cols-auto">
+    <div class="card kpi"><div class="stat"><span class="lbl">${tf('โปรเจ็คทั้งหมด','Total projects')}</span><span class="num">${state.projects.length}</span></div></div>
+    <div class="card kpi"><div class="stat"><span class="lbl">${tf('เร็วกว่า/ตรงตามแผน','Ahead / on plan')}</span><span class="num" style="color:var(--mint-600)">${aheadCount}</span></div></div>
+    <div class="card kpi"><div class="stat"><span class="lbl">${tf('ล่าช้ากว่าแผน','Behind plan')}</span><span class="num" style="color:var(--coral-600)">${behindCount}</span></div></div>
+    <div class="card kpi"><div class="stat"><span class="lbl">${tf('ความคืบหน้าเฉลี่ยจริง','Avg. actual progress')}</span><span class="num">${fmtNum(avgActual,1)}%</span></div></div>
+  </div>
+  <div class="card">
+    <b style="font-family:var(--font-display)">${tf('ตารางเปรียบเทียบแต่ละโปรเจ็ค','Project comparison')}</b>
+    <div class="table-wrap" style="margin-top:12px"><table>
+      <thead><tr><th>${tf('โปรเจ็ค','Project')}</th><th>${tf('ตามแผน','Planned')}</th><th>${tf('ทำได้จริง','Actual')}</th><th>${tf('สถานะ','Status')}</th><th>${tf('คาดเสร็จ','Est. finish')}</th><th></th></tr></thead>
+      <tbody>${tableRows}</tbody>
+    </table></div>
+  </div>`}
+  `;
+}
+
+/* ============================= SCREEN: PROFILE (SHARED COMPANY INFO) ============================= */
 function renderProfile(){
   const c = state.contractor || {};
   return `
   <div class="page-head">
-    <div><h2>โปรไฟล์ผู้รับเหมา</h2><div class="sub">ข้อมูลนี้จะแสดงบนหัวรายงาน PDF และรูปภาพส่งออกโดยอัตโนมัติ</div></div>
+    <div><h2>${tf('ตั้งค่าบริษัท / ผู้รับเหมา','Company / Contractor Settings')}</h2><div class="sub">${tf('ข้อมูลนี้ใช้ร่วมกันทุกโปรเจ็ค และจะแสดงบนหัวรายงาน PDF และรูปภาพส่งออกโดยอัตโนมัติ','Shared across every project -- shown automatically on the PDF report header and exported images.')}</div></div>
   </div>
   <div class="card">
     <div class="grid cols-2">
-      <div class="field"><label>ชื่อเล่น</label><input type="text" id="f-nickname" value="${escapeHtml(c.nickname||'')}" placeholder="เช่น ช่างตั้ม"></div>
-      <div class="field"><label>ชื่อ-นามสกุลจริง</label><input type="text" id="f-fullname" value="${escapeHtml(c.fullname||'')}" placeholder="ชื่อ นามสกุล"></div>
-      <div class="field"><label>เบอร์โทรศัพท์</label><input type="tel" id="f-phone" value="${escapeHtml(c.phone||'')}" placeholder="08X-XXX-XXXX"></div>
-      <div class="field"><label>ชื่อบริษัท / ทีมช่าง</label><input type="text" id="f-company" value="${escapeHtml(c.company||'')}" placeholder="ชื่อบริษัท"></div>
+      <div class="field"><label>${tf('ชื่อเล่น','Nickname')}</label><input type="text" id="f-nickname" value="${escapeHtml(c.nickname||'')}" placeholder="${tf('เช่น ช่างตั้ม','e.g. Tam')}"></div>
+      <div class="field"><label>${tf('ชื่อ-นามสกุลจริง','Full name')}</label><input type="text" id="f-fullname" value="${escapeHtml(c.fullname||'')}" placeholder="${tf('ชื่อ นามสกุล','First Last')}"></div>
+      <div class="field"><label>${tf('เบอร์โทรศัพท์','Phone number')}</label><input type="tel" id="f-phone" value="${escapeHtml(c.phone||'')}" placeholder="08X-XXX-XXXX"></div>
+      <div class="field"><label>${tf('ชื่อบริษัท / ทีมช่าง','Company / crew name')}</label><input type="text" id="f-company" value="${escapeHtml(c.company||'')}" placeholder="${tf('ชื่อบริษัท','Company name')}"></div>
     </div>
     <div class="field" style="margin-top:14px">
-      <label>โลโก้ (ไม่บังคับ)</label>
+      <label>${tf('โลโก้ (ไม่บังคับ)','Logo (optional)')}</label>
       <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
         ${c.logo?`<img src="${c.logo}" style="width:52px;height:52px;border-radius:12px;object-fit:cover;border:1px solid var(--line)">`:''}
         <input type="file" id="f-logo" accept="image/*">
       </div>
     </div>
   </div>
-  <div class="card">
-    <div class="field" style="margin-bottom:10px"><label>ชื่อโครงการ</label><input type="text" id="f-projectname" value="${escapeHtml(state.project.name||'')}" placeholder="เช่น รีโนเวททาวน์โฮม 3 ชั้น"></div>
-    <div class="field"><label>โซน/พื้นที่ทำงาน</label><input type="text" id="f-projectzone" value="${escapeHtml(state.project.zone||'')}" placeholder="เช่น Master Bedroom & Living Room"></div>
-  </div>
   <div style="display:flex;gap:10px;flex-wrap:wrap">
-    <button class="btn primary" id="btn-save-profile">บันทึกโปรไฟล์</button>
-    <button class="btn ghost" id="btn-reset-demo">ล้างข้อมูล / เริ่มโปรเจกต์ใหม่</button>
+    <button class="btn primary" id="btn-save-profile">${tf('บันทึกข้อมูลบริษัท','Save company info')}</button>
+    <button class="btn ghost" id="btn-reset-demo">${tf('ล้างข้อมูลทั้งหมด / เริ่มใหม่ทั้งระบบ','Reset everything / start over')}</button>
   </div>
+  <div class="role-note">📶 ${tf('ใช้งานได้แม้สัญญาณอินเทอร์เน็ตหน้างานหลุด — แอปนี้ทำงานทั้งหมดในเครื่อง ไม่ต้องต่อเซิร์ฟเวอร์ระหว่างใช้งาน ข้อมูลบันทึกอยู่ในเบราว์เซอร์นี้เท่านั้น (จุดสีเขียว/เทาที่มุมบนซ้ายบอกสถานะอินเทอร์เน็ต ณ ตอนนี้) หมายเหตุ: การเปิดลิงก์ครั้งแรกและการรีเฟรชหน้าแต่ละครั้งยังต้องใช้อินเทอร์เน็ตเพื่อโหลดหน้าเว็บ','Keeps working even if the site connection drops — everything runs locally, no server round-trip needed while you work. Data is saved only in this browser (the green/grey dot at top-left shows the current connection status). Note: the first load and every page refresh still need internet to fetch the page itself.')}</div>
   <div class="card tint">
-    <b style="font-family:var(--font-display)">🔗 ลิงก์สำหรับผู้รับเหมา (บันทึกประจำวันเท่านั้น)</b>
-    <div class="sub" style="margin:6px 0 10px">ส่งลิงก์นี้ให้ทีมช่างหน้างานแทนลิงก์เต็ม — เปิดแล้วจะเห็นแค่หน้ากรอกบันทึกประจำวัน กดเข้าหน้าอื่น (แผนงาน/จัดซื้อ/แดชบอร์ด/รายงาน) ไม่ได้</div>
-    <div style="display:flex;gap:8px;flex-wrap:wrap">
-      <input type="text" id="field-link-box" readonly value="${fieldLink()}" style="flex:1;min-width:220px;font-family:var(--font-mono);font-size:12px">
-      <button class="btn primary sm" id="btn-copy-field-link">คัดลอกลิงก์</button>
-    </div>
+    <b style="font-family:var(--font-display)">🔗 ${tf('ลิงก์บันทึกประจำวันสำหรับผู้รับเหมา','Contractor daily-log links')}</b>
+    <div class="sub" style="margin:6px 0 10px">${tf('แต่ละโปรเจ็คมีลิงก์บันทึกประจำวันของตัวเอง — ไปที่หน้า “โปรเจ็คทั้งหมด” แล้วกด “ลิงก์บันทึกประจำวัน” บนการ์ดโปรเจ็คที่ต้องการ','Every project has its own daily-log link — go to “All Projects” and tap “Daily log link” on the project card you need.')}</div>
+    <button class="btn ghost sm" data-view="hub">${tf('ไปหน้าโปรเจ็คทั้งหมด','Go to All Projects')}</button>
   </div>
-  <div class="role-note">📶 ใช้งานได้แม้สัญญาณอินเทอร์เน็ตหน้างานหลุด — แอปนี้ทำงานทั้งหมดในเครื่อง ไม่ต้องต่อเซิร์ฟเวอร์ระหว่างใช้งาน ข้อมูลบันทึกอยู่ในเบราว์เซอร์นี้เท่านั้น (จุดสีเขียว/เทาที่มุมบนซ้ายบอกสถานะอินเทอร์เน็ต ณ ตอนนี้) หมายเหตุ: การเปิดลิงก์ครั้งแรกและการรีเฟรชหน้าแต่ละครั้งยังต้องใช้อินเทอร์เน็ตเพื่อโหลดหน้าเว็บ</div>
   `;
 }
 function wireProfile(){
@@ -804,40 +1099,27 @@ function wireProfile(){
       company: $('#f-company').value.trim(),
       logo: (state.contractor&&state.contractor.logo)||''
     };
-    state.project = { name:$('#f-projectname').value.trim(), zone:$('#f-projectzone').value.trim() };
-    saveData(); toast('บันทึกโปรไฟล์แล้ว'); render();
+    saveData(); toast(tf('บันทึกข้อมูลบริษัทแล้ว','Company info saved')); render();
   };
   const logoInput = $('#f-logo');
   if(logoInput) logoInput.onchange = async (e)=>{
     const f = e.target.files[0]; if(!f) return;
     const dataUrl = await compressImage(f,240,0.75);
     state.contractor = state.contractor||{}; state.contractor.logo = dataUrl;
-    saveData(); render(); toast('อัปเดตโลโก้แล้ว');
+    saveData(); render(); toast(tf('อัปเดตโลโก้แล้ว','Logo updated'));
   };
   $('#btn-reset-demo').onclick = ()=>{
-    if(!confirm('ล้างข้อมูลทั้งหมด (แผนงาน บันทึก รูปภาพ) และเริ่มโปรเจกต์ใหม่?')) return;
+    if(!confirm(tf('ล้างข้อมูลทั้งหมดทุกโปรเจ็ค (แผนงาน บันทึก รูปภาพ ใบสั่งของ) และเริ่มต้นใหม่ทั้งระบบหรือไม่?','Clear every project (plans, logs, photos, material requests) and start over completely?'))) return;
     localStorage.removeItem(LS_KEY);
     indexedDB.deleteDatabase('sitepulse_photos');
-    Object.assign(state,{contractor:{nickname:'',fullname:'',phone:'',company:'',logo:''}, project:{name:'',zone:''}, boq:[], logs:[], materialRequests:[], role:'site'});
-    saveData(); toast('เริ่มโปรเจกต์ใหม่แล้ว'); render();
-  };
-  const copyBtn = $('#btn-copy-field-link');
-  if(copyBtn) copyBtn.onclick = async ()=>{
-    const box = $('#field-link-box');
-    try{
-      await navigator.clipboard.writeText(box.value);
-      toast('คัดลอกลิงก์แล้ว');
-    }catch(err){
-      box.select(); box.setSelectionRange(0,99999);
-      try{ document.execCommand('copy'); toast('คัดลอกลิงก์แล้ว'); }
-      catch(err2){ toast('คัดลอกไม่สำเร็จ กรุณาเลือกข้อความในช่องแล้วคัดลอกเอง'); }
-    }
+    Object.assign(state,{contractor:{nickname:'',fullname:'',phone:'',company:'',logo:''}, projects:[], currentProjectId:null, view:'hub', role:'site'});
+    saveData(); toast(tf('เริ่มต้นใหม่ทั้งระบบแล้ว','Everything has been reset')); render();
   };
 }
 
 /* ============================= SCREEN: MASTER PLAN ============================= */
 function renderMasterPlan(){
-  const rows = state.boq.map(item=>{
+  const rows = P().boq.map(item=>{
     const days = daysBetween(item.startDate,item.endDate)+1;
     const photoCount = (item.refPhotoIds||[]).length;
     return `<tr>
@@ -847,42 +1129,43 @@ function renderMasterPlan(){
         </div>
       </td>
       <td>${escapeHtml(item.name)}</td>
+      <td>${item.zone? escapeHtml(item.zone) : '<span class="hint">-</span>'}</td>
       <td class="tabular">${fmtNum(item.qtyTotal,2)} ${escapeHtml(item.unit)}</td>
-      <td class="tabular">${fmtThai(item.startDate)} → ${fmtThai(item.endDate)}</td>
-      <td class="tabular">${days} วัน</td>
-      <td class="tabular">${fmtNum(dailyTarget(item),2)} ${escapeHtml(item.unit)}/วัน</td>
+      <td class="tabular">${fmtDate(item.startDate)} → ${fmtDate(item.endDate)}</td>
+      <td class="tabular">${days} ${tf('วัน','days')}</td>
+      <td class="tabular">${fmtNum(dailyTarget(item),2)} ${escapeHtml(item.unit)}/${tf('วัน','day')}</td>
       <td>
-        <button class="btn ghost sm" data-edit-item="${item.id}">แก้ไข</button>
-        <button class="btn danger sm" data-del-item="${item.id}">ลบ</button>
+        <button class="btn ghost sm" data-edit-item="${item.id}">${tf('แก้ไข','Edit')}</button>
+        <button class="btn danger sm" data-del-item="${item.id}">${tf('ลบ','Delete')}</button>
       </td>
     </tr>`;
   }).join('');
   return `
   <div class="page-head">
-    <div><h2>แผนงานหลัก &amp; BOQ</h2><div class="sub">ใส่รายการงาน ปริมาณรวมตามสัญญา และช่วงเวลาทำงาน ระบบคำนวณเป้าหมายรายวันให้อัตโนมัติ</div></div>
-    <button class="btn primary" id="btn-add-item">+ เพิ่มรายการงาน</button>
+    <div><h2>${tf('แผนงานหลัก & BOQ','Master Plan & BOQ')}</h2><div class="sub">${tf('ใส่รายการงาน โซนพื้นที่ ปริมาณรวมตามสัญญา และช่วงเวลาทำงาน ระบบคำนวณเป้าหมายรายวันให้อัตโนมัติ','Enter each work item, its zone, contract quantity and date range — the daily target is calculated automatically.')}</div></div>
+    <button class="btn primary" id="btn-add-item">+ ${tf('เพิ่มรายการงาน','Add work item')}</button>
   </div>
-  ${state.boq.length===0? `<div class="empty"><span class="ic">📋</span>ยังไม่มีรายการงานใน BOQ<br>กด “เพิ่มรายการงาน” เพื่อเริ่มต้น</div>` : `
+  ${P().boq.length===0? `<div class="empty"><span class="ic">📋</span>${tf('ยังไม่มีรายการงานใน BOQ','No BOQ items yet')}<br>${tf('กด “เพิ่มรายการงาน” เพื่อเริ่มต้น','Tap “Add work item” to get started')}</div>` : `
   <div class="table-wrap"><table>
-    <thead><tr><th>ภาพ</th><th>รายการงาน</th><th>ปริมาณรวม</th><th>ช่วงเวลา</th><th>ระยะเวลา</th><th>เป้าหมาย/วัน</th><th></th></tr></thead>
+    <thead><tr><th>${tf('ภาพ','Photo')}</th><th>${tf('รายการงาน','Work item')}</th><th>${tf('โซน','Zone')}</th><th>${tf('ปริมาณรวม','Total qty')}</th><th>${tf('ช่วงเวลา','Date range')}</th><th>${tf('ระยะเวลา','Duration')}</th><th>${tf('เป้าหมาย/วัน','Daily target')}</th><th></th></tr></thead>
     <tbody>${rows}</tbody>
   </table></div>`}
   <div class="card tint">
-    <b style="font-family:var(--font-display)">นำเข้าแบบเร็ว (วางข้อความ)</b>
-    <div class="sub" style="margin:6px 0 10px">รูปแบบต่อบรรทัด: <span class="tabular">ชื่องาน, ปริมาณ, หน่วย, วันเริ่ม(YYYY-MM-DD), วันสิ้นสุด(YYYY-MM-DD)</span></div>
-    <textarea id="import-text" placeholder="งานปูกระเบื้องห้องน้ำ, 18, ตร.ม., 2026-09-01, 2026-09-04"></textarea>
-    <button class="btn ghost sm" style="margin-top:8px" id="btn-import">นำเข้ารายการ</button>
+    <b style="font-family:var(--font-display)">${tf('นำเข้าแบบเร็ว (วางข้อความ)','Quick import (paste text)')}</b>
+    <div class="sub" style="margin:6px 0 10px">${tf('รูปแบบต่อบรรทัด:','One item per line, format:')} <span class="tabular">${tf('ชื่องาน, ปริมาณ, หน่วย, วันเริ่ม(YYYY-MM-DD), วันสิ้นสุด(YYYY-MM-DD), โซน(ไม่บังคับ)','name, quantity, unit, start(YYYY-MM-DD), end(YYYY-MM-DD), zone(optional)')}</span></div>
+    <textarea id="import-text" placeholder="${tf('งานปูกระเบื้องห้องน้ำ, 18, ตร.ม., 2026-09-01, 2026-09-04, ห้องน้ำ Master','Bathroom tiling, 18, sqm, 2026-09-01, 2026-09-04, Master bathroom')}"></textarea>
+    <button class="btn ghost sm" style="margin-top:8px" id="btn-import">${tf('นำเข้ารายการ','Import items')}</button>
   </div>
   `;
 }
 let editingItemId=null;
-let itemDraft=null; // {name,qtyTotal,unit,startDate,endDate,existingPhotoIds,pendingPhotos,removedPhotoIds} -- persists across re-renders (e.g. photo add/remove) so in-progress typing is never lost
+let itemDraft=null; // {name,zone,qtyTotal,unit,startDate,endDate,existingPhotoIds,pendingPhotos,removedPhotoIds} -- persists across re-renders (e.g. photo add/remove) so in-progress typing is never lost
 function openItemDraft(id){
   if(id==='new'){
-    itemDraft = {name:'',qtyTotal:'',unit:'ตร.ม.',startDate:todayStr(),endDate:addDays(todayStr(),3),existingPhotoIds:[],pendingPhotos:[],removedPhotoIds:[]};
+    itemDraft = {name:'',zone:'',qtyTotal:'',unit:tf('ตร.ม.','sqm'),startDate:todayStr(),endDate:addDays(todayStr(),3),existingPhotoIds:[],pendingPhotos:[],removedPhotoIds:[]};
   } else {
-    const it = state.boq.find(i=>i.id===id);
-    itemDraft = {name:it.name,qtyTotal:it.qtyTotal,unit:it.unit,startDate:it.startDate,endDate:it.endDate,existingPhotoIds:(it.refPhotoIds||[]).slice(),pendingPhotos:[],removedPhotoIds:[]};
+    const it = P().boq.find(i=>i.id===id);
+    itemDraft = {name:it.name,zone:it.zone||'',qtyTotal:it.qtyTotal,unit:it.unit,startDate:it.startDate,endDate:it.endDate,existingPhotoIds:(it.refPhotoIds||[]).slice(),pendingPhotos:[],removedPhotoIds:[]};
   }
   editingItemId = id;
 }
@@ -890,6 +1173,7 @@ function syncItemDraftFromDom(){
   if(!itemDraft) return;
   const g = (sel)=> { const el=$(sel); return el?el.value:undefined; };
   const name=g('#im-name'); if(name!==undefined) itemDraft.name=name;
+  const zone=g('#im-zone'); if(zone!==undefined) itemDraft.zone=zone;
   const qty=g('#im-qty'); if(qty!==undefined) itemDraft.qtyTotal=qty;
   const unit=g('#im-unit'); if(unit!==undefined) itemDraft.unit=unit;
   const s=g('#im-start'); if(s!==undefined) itemDraft.startDate=s;
@@ -902,25 +1186,27 @@ function itemModalHtml(){
   const existingThumbs = existingIds.map(id=>`<div class="photo-item"><img data-thumb-id="${id}" alt=""><button class="rm" data-rm-existing-photo="${id}">✕</button></div>`).join('');
   const pendingThumbs = d.pendingPhotos.map((p,idx)=>`<div class="photo-item"><img src="${p.dataUrl}" alt=""><button class="rm" data-rm-pending-photo="${idx}">✕</button></div>`).join('');
   const hasPhotos = existingIds.length || d.pendingPhotos.length;
+  const zoneList = Array.from(new Set(P().boq.map(i=>i.zone||'').filter(Boolean)));
   return `
   <div class="modal-bg" id="item-modal-bg">
     <div class="modal">
-      <div class="modal-head"><h3>${editingItemId==='new'?'เพิ่มรายการงาน':'แก้ไขรายการงาน'}</h3><button class="iconbtn" id="item-modal-close">✕</button></div>
+      <div class="modal-head"><h3>${editingItemId==='new'?tf('เพิ่มรายการงาน','Add work item'):tf('แก้ไขรายการงาน','Edit work item')}</h3><button class="iconbtn" id="item-modal-close">✕</button></div>
       <div class="grid cols-2">
-        <div class="field" style="grid-column:1/-1"><label>ชื่อรายการงาน</label><input type="text" id="im-name" value="${escapeHtml(d.name)}" placeholder="เช่น งานปูพื้น SPC / ตู้บิ้วอินห้องนอนใหญ่"></div>
-        <div class="field"><label>ปริมาณรวมตามสัญญา</label><input type="number" step="0.01" id="im-qty" value="${d.qtyTotal}"></div>
-        <div class="field"><label>หน่วยวัด</label><input type="text" id="im-unit" value="${escapeHtml(d.unit)}" placeholder="ตร.ม. / เมตร / จุด"></div>
-        <div class="field"><label>วันเริ่มต้น</label><input type="date" id="im-start" value="${d.startDate}"></div>
-        <div class="field"><label>วันสิ้นสุด</label><input type="date" id="im-end" value="${d.endDate}"></div>
+        <div class="field" style="grid-column:1/-1"><label>${tf('ชื่อรายการงาน','Work item name')}</label><input type="text" id="im-name" value="${escapeHtml(d.name)}" placeholder="${tf('เช่น งานปูพื้น SPC / ตู้บิ้วอินห้องนอนใหญ่','e.g. SPC flooring / built-in wardrobe')}"></div>
+        <div class="field" style="grid-column:1/-1"><label>${tf('โซน/พื้นที่ทำงาน (ไม่บังคับ)','Zone / work area (optional)')}</label><input type="text" id="im-zone" list="im-zone-list" value="${escapeHtml(d.zone)}" placeholder="${tf('เช่น ห้องนอนใหญ่, ห้องนั่งเล่น, Walk-in Closet','e.g. Master bedroom, Living room, Walk-in closet')}"><datalist id="im-zone-list">${zoneList.map(z=>`<option value="${escapeHtml(z)}">`).join('')}</datalist></div>
+        <div class="field"><label>${tf('ปริมาณรวมตามสัญญา','Total contract qty')}</label><input type="number" step="0.01" id="im-qty" value="${d.qtyTotal}"></div>
+        <div class="field"><label>${tf('หน่วยวัด','Unit')}</label><input type="text" id="im-unit" value="${escapeHtml(d.unit)}" placeholder="${tf('ตร.ม. / เมตร / จุด','sqm / m / point')}"></div>
+        <div class="field"><label>${tf('วันเริ่มต้น','Start date')}</label><input type="date" id="im-start" value="${d.startDate}"></div>
+        <div class="field"><label>${tf('วันสิ้นสุด','End date')}</label><input type="date" id="im-end" value="${d.endDate}"></div>
       </div>
       <div class="field" style="margin-top:14px">
-        <label>รูปชุดงาน / แบบอ้างอิง (ไม่บังคับ) <span class="hint">เช่น แบบตู้บิ้วอิน สเปกวัสดุ สี — จะแสดงเป็นภาพประกอบถาวรข้างรายการนี้</span></label>
-        <label class="photo-drop" for="im-photo-input">📷 แตะเพื่อเลือกรูปภาพ</label>
+        <label>${tf('รูปชุดงาน / แบบอ้างอิง (ไม่บังคับ)','Reference photos (optional)')} <span class="hint">${tf('เช่น แบบตู้บิ้วอิน สเปกวัสดุ สี — จะแสดงเป็นภาพประกอบถาวรข้างรายการนี้','e.g. built-in drawings, material specs, colours — shown permanently next to this item')}</span></label>
+        <label class="photo-drop" for="im-photo-input">📷 ${tf('แตะเพื่อเลือกรูปภาพ','Tap to choose photos')}</label>
         <input type="file" id="im-photo-input" accept="image/*" multiple style="display:none">
         ${hasPhotos? `<div class="photo-grid" id="im-photo-grid" style="margin-top:10px">${existingThumbs}${pendingThumbs}</div>` : ''}
       </div>
       <div style="display:flex;gap:10px;margin-top:16px">
-        <button class="btn primary block" id="im-save">บันทึกรายการ</button>
+        <button class="btn primary block" id="im-save">${tf('บันทึกรายการ','Save item')}</button>
       </div>
     </div>
   </div>`;
@@ -931,10 +1217,10 @@ function wireMasterPlan(){
   $$('[data-open-gallery]').forEach(el=> el.onclick = ()=>{ refGalleryItemId=el.dataset.openGallery; render(); });
   refreshMasterPlanThumbs();
   $$('[data-del-item]').forEach(b=> b.onclick = ()=>{
-    if(!confirm('ลบรายการงานนี้ และประวัติที่เกี่ยวข้องหรือไม่?')) return;
-    state.boq = state.boq.filter(i=>i.id!==b.dataset.delItem);
-    state.logs.forEach(l=> l.entries = l.entries.filter(e=>e.itemId!==b.dataset.delItem));
-    saveData(); render(); toast('ลบรายการแล้ว');
+    if(!confirm(tf('ลบรายการงานนี้ และประวัติที่เกี่ยวข้องหรือไม่?','Delete this work item and its related history?'))) return;
+    P().boq = P().boq.filter(i=>i.id!==b.dataset.delItem);
+    P().logs.forEach(l=> l.entries = l.entries.filter(e=>e.itemId!==b.dataset.delItem));
+    saveData(); render(); toast(tf('ลบรายการแล้ว','Item deleted'));
   });
   const importBtn = $('#btn-import');
   if(importBtn) importBtn.onclick = ()=>{
@@ -944,13 +1230,13 @@ function wireMasterPlan(){
     text.split('\n').forEach(line=>{
       const parts = line.split(',').map(p=>p.trim());
       if(parts.length<5) return;
-      const [name,qty,unit,s,en] = parts;
+      const [name,qty,unit,s,en,zone] = parts;
       const q = parseFloat(qty);
       if(!name||!q||!unit||!/^\d{4}-\d{2}-\d{2}$/.test(s)||!/^\d{4}-\d{2}-\d{2}$/.test(en)) return;
-      state.boq.push({id:uid(),name,qtyTotal:q,unit,startDate:s,endDate:en}); count++;
+      P().boq.push({id:uid(),name,zone:zone||'',qtyTotal:q,unit,startDate:s,endDate:en}); count++;
     });
-    if(count){ saveData(); $('#import-text').value=''; render(); toast('นำเข้า '+count+' รายการแล้ว'); }
-    else toast('ไม่พบรายการที่ถูกต้อง ตรวจสอบรูปแบบอีกครั้ง');
+    if(count){ saveData(); $('#import-text').value=''; render(); toast(tf('นำเข้า ','Imported ')+count+tf(' รายการแล้ว',' item(s)')); }
+    else toast(tf('ไม่พบรายการที่ถูกต้อง ตรวจสอบรูปแบบอีกครั้ง','No valid rows found -- please check the format'));
   };
 }
 
@@ -982,16 +1268,16 @@ function wireItemModal(){
   $('#im-save').onclick = async ()=>{
     syncItemDraftFromDom();
     const d = itemDraft;
-    const name=d.name.trim(), qty=parseFloat(d.qtyTotal), unit=d.unit.trim();
+    const name=d.name.trim(), zone=d.zone.trim(), qty=parseFloat(d.qtyTotal), unit=d.unit.trim();
     const s=d.startDate, en=d.endDate;
-    if(!name || !qty || qty<=0 || !unit || !s || !en || en<s){ toast('กรอกข้อมูลให้ครบและถูกต้อง'); return; }
+    if(!name || !qty || qty<=0 || !unit || !s || !en || en<s){ toast(tf('กรอกข้อมูลให้ครบและถูกต้อง','Please fill in all fields correctly')); return; }
     const keptExisting = d.existingPhotoIds.filter(id=>!d.removedPhotoIds.includes(id));
     const newIds = [];
     for(const p of d.pendingPhotos){ const id=uid(); await idbPut(id,p.dataUrl); newIds.push(id); }
     const refPhotoIds = keptExisting.concat(newIds);
-    if(editingItemId==='new'){ state.boq.push({id:uid(),name,qtyTotal:qty,unit,startDate:s,endDate:en,refPhotoIds}); }
-    else { const it = state.boq.find(i=>i.id===editingItemId); Object.assign(it,{name,qtyTotal:qty,unit,startDate:s,endDate:en,refPhotoIds}); }
-    saveData(); editingItemId=null; itemDraft=null; render(); toast('บันทึกรายการแล้ว');
+    if(editingItemId==='new'){ P().boq.push({id:uid(),name,zone,qtyTotal:qty,unit,startDate:s,endDate:en,refPhotoIds}); }
+    else { const it = P().boq.find(i=>i.id===editingItemId); Object.assign(it,{name,zone,qtyTotal:qty,unit,startDate:s,endDate:en,refPhotoIds}); }
+    saveData(); editingItemId=null; itemDraft=null; render(); toast(tf('บันทึกรายการแล้ว','Item saved'));
   };
   refreshItemModalPhotos();
 }
@@ -1011,7 +1297,7 @@ async function loadRefPhoto(id){
 async function refreshMasterPlanThumbs(){
   const imgs = $$('[data-mp-thumb]');
   for(const img of imgs){
-    const item = state.boq.find(i=>i.id===img.dataset.mpThumb);
+    const item = P().boq.find(i=>i.id===img.dataset.mpThumb);
     if(!item || !item.refPhotoIds || !item.refPhotoIds.length) continue;
     const data = await loadRefPhoto(item.refPhotoIds[0]);
     if(data) img.src = data;
@@ -1019,11 +1305,11 @@ async function refreshMasterPlanThumbs(){
 }
 let refGalleryItemId=null;
 function refGalleryModalHtml(){
-  const item = state.boq.find(i=>i.id===refGalleryItemId);
+  const item = P().boq.find(i=>i.id===refGalleryItemId);
   if(!item) return '';
   return `<div class="modal-bg" id="gallery-modal-bg"><div class="modal">
-    <div class="modal-head"><h3>ภาพชุดงาน: ${escapeHtml(item.name)}</h3><button class="iconbtn" id="gallery-modal-close">✕</button></div>
-    <div class="photo-grid" id="gallery-photo-grid" style="grid-template-columns:repeat(auto-fill,minmax(140px,1fr))"><span class="sub">กำลังโหลดรูปภาพ...</span></div>
+    <div class="modal-head"><h3>${tf('ภาพชุดงาน:','Reference photos:')} ${escapeHtml(item.name)}</h3><button class="iconbtn" id="gallery-modal-close">✕</button></div>
+    <div class="photo-grid" id="gallery-photo-grid" style="grid-template-columns:repeat(auto-fill,minmax(140px,1fr))"><span class="sub">${tf('กำลังโหลดรูปภาพ...','Loading photos...')}</span></div>
   </div></div>`;
 }
 function wireGalleryModal(){
@@ -1034,66 +1320,215 @@ function wireGalleryModal(){
   refreshGalleryPhotos();
 }
 async function refreshGalleryPhotos(){
-  const item = state.boq.find(i=>i.id===refGalleryItemId);
+  const item = P().boq.find(i=>i.id===refGalleryItemId);
   const grid = $('#gallery-photo-grid');
   if(!item || !grid) return;
   const ids = item.refPhotoIds||[];
-  if(!ids.length){ grid.innerHTML = '<span class="sub">ไม่มีรูปภาพ</span>'; return; }
+  if(!ids.length){ grid.innerHTML = `<span class="sub">${tf('ไม่มีรูปภาพ','No photos')}</span>`; return; }
   const cards=[];
   for(const id of ids){ const data = await loadRefPhoto(id); if(data) cards.push(`<div class="photo-item" style="height:auto"><img src="${data}" style="height:130px" alt=""></div>`); }
-  grid.innerHTML = cards.join('') || '<span class="sub">โหลดรูปภาพไม่สำเร็จ</span>';
+  grid.innerHTML = cards.join('') || `<span class="sub">${tf('โหลดรูปภาพไม่สำเร็จ','Failed to load photos')}</span>`;
 }
 
 /* ============================= SCREEN: DAILY LOG ============================= */
-let pendingPhotos = []; // {id(local temp), dataUrl, caption}
-function renderDailyLog(){
+let pendingPhotos = []; // {dataUrl, caption, tag}
+let dailyDraft = null;  // {date, weather, workforce:[], entries:[], issues:[], deliveryNote} -- persists across re-renders
+let dailyEntryDraft = {zone:'', itemId:'', qty:'', note:''}; // the "not yet added" progress-entry composer row
+
+let ISSUE_TYPES=[], SEVERITY=[], PHOTO_TAGS=[];
+function rebuildDailyLogConstants(){
+  ISSUE_TYPES = [
+    tf('หน้างานติดขัด','Site blocked / delayed'),
+    tf('แบบขัดแย้งกับหน้างานจริง','Drawing conflicts with site'),
+    tf('ของมาส่งเลวร้าย/ชำรุด','Delivered materials damaged'),
+    tf('หน้างานมีความชื้นสูง','High site moisture'),
+    tf('อื่นๆ','Other')
+  ];
+  SEVERITY = [
+    {v:'green', ic:'🟢', label:tf('ทั่วไป แก้ไขได้','Minor, fixable')},
+    {v:'amber', ic:'🟡', label:tf('ปานกลาง รอตัดสินใจ','Medium, needs a decision')},
+    {v:'red', ic:'🔴', label:tf('เร่งด่วน หน้างานหยุดชะงัก','Urgent, work stopped')}
+  ];
+  PHOTO_TAGS = [
+    tf('งานโครงสร้าง','Structure'),
+    tf('งานระบบ','MEP / systems'),
+    tf('งานผิวตกแต่ง','Finishes'),
+    tf('ก่อนทำ/หลังทำ','Before / after')
+  ];
+}
+function severityInfo(v){ return SEVERITY.find(s=>s.v===v) || SEVERITY[1]; }
+function zonesInBoq(boq){ return Array.from(new Set(boq.map(i=>i.zone||'').filter(Boolean))); }
+
+function ensureDailyDraft(){
   const date = state.selectedLogDate;
-  const existing = state.logs.find(l=>l.date===date);
-  const activeItems = state.boq; // allow logging any item regardless of window, simplest & most forgiving
-  const rows = activeItems.map(item=>{
-    const val = existing ? (existing.entries.find(e=>e.itemId===item.id)||{}).actualQty : '';
-    return `<div class="field" data-qty-row="${item.id}">
-      <label>${escapeHtml(item.name)} <span class="hint">(เป้าหมาย ${fmtNum(dailyTarget(item),2)} ${escapeHtml(item.unit)}/วัน)</span></label>
-      <input type="number" step="0.01" min="0" class="qty-input" data-item="${item.id}" value="${val==null?'':val}" placeholder="ปริมาณที่ทำได้จริงวันนี้ (${escapeHtml(item.unit)})">
+  if(dailyDraft && dailyDraft.date===date) return;
+  const existing = P().logs.find(l=>l.date===date);
+  dailyDraft = {
+    date,
+    weather: existing ? (existing.weather||'') : '',
+    workforce: existing ? (existing.workforce||[]).map(w=>({...w})) : [],
+    entries: existing ? (existing.entries||[]).map(e=>({...e})) : [],
+    issues: existing ? (existing.issues && existing.issues.length ? existing.issues.map(i=>({...i})) : (existing.note ? [{type:tf('อื่นๆ','Other'),detail:existing.note,severity:'amber'}] : [])) : [],
+    deliveryNote: existing ? (existing.deliveryNote||'') : '',
+  };
+  dailyEntryDraft = {zone:'', itemId:'', qty:'', note:''};
+}
+function syncDailyDraftFromDom(){
+  if(!dailyDraft) return;
+  const g = (sel)=>{ const el=$(sel); return el?el.value:undefined; };
+  const w=g('#log-weather'); if(w!==undefined) dailyDraft.weather=w;
+  const dn=g('#log-delivery'); if(dn!==undefined) dailyDraft.deliveryNote=dn;
+  $$('[data-wf]').forEach(inp=>{ const row=dailyDraft.workforce[Number(inp.dataset.idx)]; if(row) row[inp.dataset.wf]=inp.value; });
+  $$('[data-issue]').forEach(inp=>{ const row=dailyDraft.issues[Number(inp.dataset.idx)]; if(row) row[inp.dataset.issue]=inp.value; });
+  const z=g('#de-zone'); if(z!==undefined) dailyEntryDraft.zone=z;
+  const it=g('#de-item'); if(it!==undefined) dailyEntryDraft.itemId=it;
+  const q=g('#de-qty'); if(q!==undefined) dailyEntryDraft.qty=q;
+  const n=g('#de-note'); if(n!==undefined) dailyEntryDraft.note=n;
+}
+
+function renderDailyLog(){
+  ensureDailyDraft();
+  const date = state.selectedLogDate;
+  const proj = P();
+  const c = state.contractor||{};
+  const existing = proj.logs.find(l=>l.date===date);
+  const d = dailyDraft;
+
+  /* ---- Section 1: project metadata (auto) ---- */
+  const metaCard = `
+  <div class="card tint" style="display:flex;flex-wrap:wrap;gap:14px 30px">
+    <div><div class="meta-lbl">${tf('โครงการ','Project')}</div><b>${escapeHtml(proj.name||'-')}</b></div>
+    <div><div class="meta-lbl">${tf('ผู้บันทึก','Recorded by')}</div><b>${escapeHtml(c.nickname||c.fullname||'-')}</b>${c.phone?' · '+escapeHtml(c.phone):''}</div>
+    ${existing&&existing.recordedAt? `<div><div class="meta-lbl">${tf('บันทึกล่าสุด','Last saved')}</div><b class="tabular">${fmtDateTime(existing.recordedAt)}</b></div>` : ''}
+  </div>`;
+
+  if(proj.boq.length===0){
+    return `
+    <div class="page-head">
+      <div><h2>${tf('บันทึกงานประจำวัน','Daily Work Log')}</h2><div class="sub">${tf('กรอกปริมาณจริงที่ทำได้ พร้อมแนบรูปถ่ายหน้างาน','Enter the actual quantity completed and attach site photos.')}</div></div>
+      <div class="field" style="min-width:180px"><input type="date" id="log-date" value="${date}"></div>
+    </div>
+    ${metaCard}
+    <div class="empty"><span class="ic">📋</span>${tf('ยังไม่มีรายการงานใน BOQ กรุณาเพิ่มในหน้า “แผนงานหลัก” ก่อน','No BOQ items yet -- add some on the “Master Plan” page first')}</div>`;
+  }
+
+  /* ---- Section 2: site environment & workforce ---- */
+  const wfRows = d.workforce.map((w,idx)=>`
+    <div class="rq-line-row" style="grid-template-columns:1.3fr .6fr 1.3fr auto">
+      <input type="text" placeholder="${tf('ชื่อทีมงาน','team name')}" data-wf="team" data-idx="${idx}" value="${escapeHtml(w.team||'')}">
+      <input type="number" min="0" placeholder="${tf('จำนวนคน','headcount')}" data-wf="count" data-idx="${idx}" value="${w.count==null?'':w.count}">
+      <input type="text" placeholder="${tf('ประเภทงานที่ทำ','type of work')}" data-wf="workType" data-idx="${idx}" value="${escapeHtml(w.workType||'')}">
+      <button class="iconbtn" data-rm-wf="${idx}">✕</button>
+    </div>`).join('');
+  const envCard = `
+  <div class="card">
+    <b style="font-family:var(--font-display)">🌦️ ${tf('สภาพหน้างานและกำลังพลประจำวัน','Site Condition & Workforce')}</b>
+    <div class="field" style="margin-top:12px"><label>${tf('สภาพหน้างาน/สภาพอากาศ','Site condition / weather')} <span class="hint">${tf('สำคัญต่องานสีและงานปูนฉาบ','important for paint & plaster work')}</span></label>
+      <input type="text" id="log-weather" value="${escapeHtml(d.weather)}" placeholder="${tf('เช่น ปกติดี, ฝนตกหนักทำงานระเบียงไม่ได้, นิติบุคคลปิดแอร์','e.g. normal, heavy rain blocked balcony work, building A/C off')}">
+    </div>
+    <div class="field" style="margin-top:14px"><label>${tf('จำนวนช่างและประเภทงานประจำวัน','Daily headcount by team')}</label>
+      <div class="rq-lines" id="wf-lines">${wfRows || `<div class="hint" style="padding:4px 2px">${tf('ยังไม่ได้เพิ่มทีมงาน','No teams added yet')}</div>`}</div>
+      <button class="btn ghost sm" style="margin-top:8px" id="wf-add-line">+ ${tf('เพิ่มทีมงาน','Add team')}</button>
+    </div>
+  </div>`;
+
+  /* ---- Section 3: BOQ progress entries (zone -> item -> qty -> note) ---- */
+  const zones = zonesInBoq(proj.boq);
+  const zoneOptions = `<option value="">${tf('ทุกโซน','All zones')}</option>` + zones.map(z=>`<option value="${escapeHtml(z)}" ${dailyEntryDraft.zone===z?'selected':''}>${escapeHtml(z)}</option>`).join('');
+  const filteredItems = dailyEntryDraft.zone ? proj.boq.filter(i=>(i.zone||'')===dailyEntryDraft.zone) : proj.boq;
+  const itemOptions = filteredItems.map(i=>`<option value="${i.id}" ${dailyEntryDraft.itemId===i.id?'selected':''}>${escapeHtml(i.name)}</option>`).join('');
+  const selectedItem = filteredItems.find(i=>i.id===dailyEntryDraft.itemId) || proj.boq.find(i=>i.id===dailyEntryDraft.itemId);
+  const entryRows = d.entries.map((e,idx)=>{
+    const it = proj.boq.find(i=>i.id===e.itemId);
+    return `<div class="mini-row">
+      <div class="txt">
+        <span class="t1">${it? escapeHtml(it.name) : tf('(รายการนี้ถูกลบออกจากแผนแล้ว)','(item removed from plan)')}</span>
+        <span class="t2">${e.zone? escapeHtml(e.zone)+' · ' : ''}${fmtNum(e.actualQty,2)} ${it? escapeHtml(it.unit):''}${e.note? ' — '+escapeHtml(e.note) : ''}</span>
+      </div>
+      <button class="iconbtn" data-rm-entry="${idx}">✕</button>
     </div>`;
   }).join('');
+  const progressCard = `
+  <div class="card">
+    <b style="font-family:var(--font-display)">📐 ${tf('บันทึกความคืบหน้างานตาม BOQ','BOQ Progress Entries')}</b>
+    <div class="grid cols-2" style="margin-top:12px">
+      <div class="field"><label>${tf('พื้นที่ทำงาน (Zone)','Zone')}</label><select id="de-zone">${zoneOptions}</select></div>
+      <div class="field"><label>${tf('รายการงาน (จาก Master Plan)','Work item (from Master Plan)')}</label><select id="de-item">${itemOptions || `<option value="">${tf('ไม่มีรายการในโซนนี้','No items in this zone')}</option>`}</select></div>
+      <div class="field"><label>${tf('ปริมาณที่ทำได้วันนี้','Actual qty today')}</label><input type="number" step="0.01" min="0" id="de-qty" value="${escapeHtml(String(dailyEntryDraft.qty||''))}" placeholder="0"></div>
+      <div class="field"><label>${tf('หน่วยวัด','Unit')}</label><input type="text" value="${selectedItem?escapeHtml(selectedItem.unit):'-'}" disabled></div>
+      <div class="field" style="grid-column:1/-1"><label>${tf('หมายเหตุความคืบหน้า (ไม่บังคับ)','Progress note (optional)')}</label><input type="text" id="de-note" value="${escapeHtml(dailyEntryDraft.note)}" placeholder="${tf('เช่น เดินสายไฟแสงสว่างในตู้เสื้อผ้าเสร็จแล้ว รอฝ้าปิดทับ','e.g. wardrobe wiring done, awaiting ceiling close-up')}"></div>
+    </div>
+    <button class="btn ghost sm" style="margin-top:10px" id="de-add">+ ${tf('เพิ่มรายการนี้','Add this entry')}</button>
+    ${entryRows? `<div style="display:flex;flex-direction:column;gap:8px;margin-top:14px">${entryRows}</div>` : `<div class="hint" style="margin-top:12px">${tf('ยังไม่ได้เพิ่มความคืบหน้าใดๆ สำหรับวันนี้','No progress entries added for today yet')}</div>`}
+  </div>`;
 
+  /* ---- Section 4: site issues & defect log ---- */
+  const issueRows = d.issues.map((iss,idx)=>`
+    <div class="rq-line-row" style="grid-template-columns:1.2fr 1.6fr 1fr auto">
+      <select data-issue="type" data-idx="${idx}">${ISSUE_TYPES.map(t=>`<option value="${escapeHtml(t)}" ${iss.type===t?'selected':''}>${escapeHtml(t)}</option>`).join('')}</select>
+      <input type="text" placeholder="${tf('รายละเอียดปัญหา','issue detail')}" data-issue="detail" data-idx="${idx}" value="${escapeHtml(iss.detail||'')}">
+      <select data-issue="severity" data-idx="${idx}">${SEVERITY.map(s=>`<option value="${s.v}" ${iss.severity===s.v?'selected':''}>${s.ic} ${escapeHtml(s.label)}</option>`).join('')}</select>
+      <button class="iconbtn" data-rm-issue="${idx}">✕</button>
+    </div>`).join('');
+  const issueCard = `
+  <div class="card">
+    <b style="font-family:var(--font-display)">⚠️ ${tf('ปัญหาและอุปสรรคหน้างาน','Site Issues & Defect Log')}</b>
+    <div class="rq-lines" id="issue-lines" style="margin-top:12px">${issueRows || `<div class="hint" style="padding:4px 2px">${tf('ยังไม่มีปัญหาที่บันทึกไว้','No issues logged')}</div>`}</div>
+    <button class="btn ghost sm" style="margin-top:8px" id="issue-add-line">+ ${tf('เพิ่มปัญหา','Add issue')}</button>
+  </div>`;
+
+  /* ---- Section 5: photo gallery ---- */
   const photoCards = pendingPhotos.map((p,idx)=>`
     <div class="photo-item">
       <img src="${p.dataUrl}" alt="">
-      <input type="text" placeholder="คำอธิบายภาพ" value="${escapeHtml(p.caption||'')}" data-caption="${idx}">
+      <input type="text" placeholder="${tf('คำอธิบายภาพ','photo caption')}" value="${escapeHtml(p.caption||'')}" data-caption="${idx}">
+      <select data-photo-tag="${idx}">
+        <option value="">${tf('ประเภทรูป (ไม่บังคับ)','photo type (optional)')}</option>
+        ${PHOTO_TAGS.map(t=>`<option value="${escapeHtml(t)}" ${p.tag===t?'selected':''}>${escapeHtml(t)}</option>`).join('')}
+      </select>
       <button class="rm" data-rm-photo="${idx}">✕</button>
     </div>`).join('');
-
-  return `
-  <div class="page-head">
-    <div><h2>บันทึกงานประจำวัน</h2><div class="sub">กรอกปริมาณจริงที่ทำได้ พร้อมแนบรูปถ่ายหน้างาน</div></div>
-    <div class="field" style="min-width:180px"><input type="date" id="log-date" value="${date}"></div>
-  </div>
-  ${state.boq.length===0? `<div class="empty"><span class="ic">📋</span>ยังไม่มีรายการงานใน BOQ กรุณาเพิ่มในหน้า “แผนงานหลัก” ก่อน</div>` : `
-  <div class="card"><div class="grid cols-2">${rows}</div></div>
+  const photoCard = `
   <div class="card">
-    <div class="field"><label>บันทึกอุปสรรคหน้างาน (ไม่บังคับ)</label>
-      <textarea id="log-note" placeholder="เช่น สภาพอากาศ วัสดุมาไม่ครบ ปัญหาหน้างาน ฯลฯ">${escapeHtml(existing?existing.note:'')}</textarea>
-    </div>
-  </div>
-  <div class="card">
-    <div class="field" style="margin-bottom:10px"><label>คลังภาพหน้างาน</label></div>
-    <label class="photo-drop" for="photo-input">📷 แตะเพื่อเลือกรูปภาพ (เลือกได้ทีละหลายรูป 20+ รูป)</label>
+    <div class="field" style="margin-bottom:10px"><label>📸 ${tf('คลังรูปภาพหลักฐานหน้างาน','Site Photo Evidence Gallery')}</label></div>
+    <label class="photo-drop" for="photo-input">📷 ${tf('แตะเพื่อเลือกรูปภาพ (เลือกได้ทีละหลายรูป 20+ รูป)','Tap to choose photos (select 20+ at once)')}</label>
     <input type="file" id="photo-input" accept="image/*" multiple style="display:none">
     <div id="compress-progress" style="display:none;margin-top:10px">
       <div class="progressline"><i id="compress-bar" style="width:0%"></i></div>
       <div class="sub" id="compress-label" style="margin-top:6px"></div>
     </div>
-    ${(pendingPhotos.length||(existing&&existing.photoIds.length))? `<div class="photo-grid" id="photo-grid" style="margin-top:12px">${photoCards}</div>` : ''}
-    ${existing&&existing.photoIds.length? `<div class="sub" style="margin-top:8px">มีรูปที่บันทึกไว้แล้ว ${existing.photoIds.length} รูปสำหรับวันนี้ (รูปใหม่จะถูกเพิ่มต่อท้ายเมื่อบันทึก)</div>`:''}
+    ${(pendingPhotos.length||(existing&&existing.photoIds&&existing.photoIds.length))? `<div class="photo-grid" id="photo-grid" style="margin-top:12px">${photoCards}</div>` : ''}
+    ${existing&&existing.photoIds&&existing.photoIds.length? `<div class="sub" style="margin-top:8px">${tf('มีรูปที่บันทึกไว้แล้ว','Already saved')} ${existing.photoIds.length} ${tf('รูปสำหรับวันนี้ (รูปใหม่จะถูกเพิ่มต่อท้ายเมื่อบันทึก)','photo(s) for today (new photos will be appended on save)')}</div>`:''}
+  </div>`;
+
+  /* ---- Section 6: material delivery check & quick link to procurement ---- */
+  const deliveryCard = `
+  <div class="card">
+    <b style="font-family:var(--font-display)">🚚 ${tf('ตรวจรับของและสั่งวัสดุ','Material Delivery & Procurement')}</b>
+    <div class="field" style="margin-top:12px"><label>${tf('บันทึกการรับของวันนี้ (ไม่บังคับ)','Today’s material deliveries (optional)')}</label>
+      <textarea id="log-delivery" placeholder="${tf('เช่น หินท็อปครัวมาส่งแล้ว ตรวจสภาพสมบูรณ์ไม่มีรอยร้าว','e.g. kitchen countertop delivered, inspected, no cracks')}">${escapeHtml(d.deliveryNote)}</textarea>
+    </div>
+    ${FIELD_MODE? '' : `<button class="btn ghost sm" style="margin-top:10px" data-nav="procure">🛒 ${tf('ไปหน้าสั่งของรายวัน','Go to daily procurement')}</button>`}
+  </div>`;
+
+  return `
+  <div class="page-head">
+    <div><h2>${tf('บันทึกงานประจำวัน','Daily Work Log')}</h2><div class="sub">${tf('กรอกความคืบหน้า สภาพหน้างาน ปัญหา และรูปถ่ายประจำวัน','Log today’s progress, site condition, issues and photos.')}</div></div>
+    <div class="field" style="min-width:180px"><input type="date" id="log-date" value="${date}"></div>
   </div>
-  <button class="btn primary block" id="btn-save-log">บันทึกรายงานประจำวัน</button>
-  `}`;
+  ${metaCard}
+  ${envCard}
+  ${progressCard}
+  ${issueCard}
+  ${photoCard}
+  ${deliveryCard}
+  <button class="btn primary block" id="btn-save-log">${tf('บันทึกรายงานประจำวัน','Save daily report')}</button>
+  `;
 }
 function wireDailyLog(){
   const dateInput = $('#log-date');
-  if(dateInput) dateInput.onchange = ()=>{ state.selectedLogDate = dateInput.value; pendingPhotos=[]; render(); };
+  if(dateInput) dateInput.onchange = ()=>{ state.selectedLogDate = dateInput.value; pendingPhotos=[]; dailyDraft=null; render(); };
+
   const photoInput = $('#photo-input');
   if(photoInput) photoInput.onchange = async (e)=>{
     const files = Array.from(e.target.files||[]);
@@ -1101,38 +1536,69 @@ function wireDailyLog(){
     const bar = $('#compress-progress'); bar.style.display='block';
     for(let i=0;i<files.length;i++){
       $('#compress-bar').style.width = Math.round(((i)/files.length)*100)+'%';
-      $('#compress-label').textContent = `กำลังบีบอัดรูป ${i+1} / ${files.length}...`;
+      $('#compress-label').textContent = tf('กำลังบีบอัดรูป ','Compressing photo ')+(i+1)+' / '+files.length+'...';
       try{
         const dataUrl = await compressImage(files[i]);
-        pendingPhotos.push({dataUrl,caption:''});
+        pendingPhotos.push({dataUrl,caption:'',tag:''});
       }catch(err){}
       await new Promise(r=>setTimeout(r,0));
     }
     $('#compress-bar').style.width='100%';
-    $('#compress-label').textContent = `บีบอัดเสร็จแล้ว ${files.length} รูป`;
+    $('#compress-label').textContent = tf('บีบอัดเสร็จแล้ว ','Done compressing ')+files.length+tf(' รูป',' photo(s)');
     photoInput.value='';
+    syncDailyDraftFromDom();
     render();
   };
-  $$('[data-rm-photo]').forEach(b=> b.onclick = ()=>{ pendingPhotos.splice(Number(b.dataset.rmPhoto),1); render(); });
+  $$('[data-rm-photo]').forEach(b=> b.onclick = ()=>{ syncDailyDraftFromDom(); pendingPhotos.splice(Number(b.dataset.rmPhoto),1); render(); });
   $$('[data-caption]').forEach(inp=> inp.oninput = ()=>{ pendingPhotos[Number(inp.dataset.caption)].caption = inp.value; });
+  $$('[data-photo-tag]').forEach(sel=> sel.onchange = ()=>{ pendingPhotos[Number(sel.dataset.photoTag)].tag = sel.value; });
+
+  const wfAdd = $('#wf-add-line');
+  if(wfAdd) wfAdd.onclick = ()=>{ syncDailyDraftFromDom(); dailyDraft.workforce.push({team:'',count:'',workType:''}); render(); };
+  $$('[data-rm-wf]').forEach(b=> b.onclick = ()=>{ syncDailyDraftFromDom(); dailyDraft.workforce.splice(Number(b.dataset.rmWf),1); render(); });
+
+  const issueAdd = $('#issue-add-line');
+  if(issueAdd) issueAdd.onclick = ()=>{ syncDailyDraftFromDom(); dailyDraft.issues.push({type:ISSUE_TYPES[0],detail:'',severity:'amber'}); render(); };
+  $$('[data-rm-issue]').forEach(b=> b.onclick = ()=>{ syncDailyDraftFromDom(); dailyDraft.issues.splice(Number(b.dataset.rmIssue),1); render(); });
+
+  const zoneSel = $('#de-zone');
+  if(zoneSel) zoneSel.onchange = ()=>{ syncDailyDraftFromDom(); dailyEntryDraft.itemId=''; render(); };
+  const itemSel = $('#de-item');
+  if(itemSel) itemSel.onchange = ()=>{ syncDailyDraftFromDom(); render(); };
+  const deAdd = $('#de-add');
+  if(deAdd) deAdd.onclick = ()=>{
+    syncDailyDraftFromDom();
+    const itemId = dailyEntryDraft.itemId, qty = parseFloat(dailyEntryDraft.qty);
+    if(!itemId || !qty || qty<=0){ toast(tf('กรุณาเลือกรายการงานและใส่ปริมาณให้ถูกต้อง','Please choose a work item and enter a valid quantity')); return; }
+    dailyDraft.entries.push({itemId, zone:dailyEntryDraft.zone||'', actualQty:qty, note:(dailyEntryDraft.note||'').trim()});
+    dailyEntryDraft = {zone:dailyEntryDraft.zone, itemId:'', qty:'', note:''};
+    render();
+  };
+  $$('[data-rm-entry]').forEach(b=> b.onclick = ()=>{ syncDailyDraftFromDom(); dailyDraft.entries.splice(Number(b.dataset.rmEntry),1); render(); });
+
   const saveBtn = $('#btn-save-log');
   if(saveBtn) saveBtn.onclick = async ()=>{
-    saveBtn.disabled = true; saveBtn.textContent='กำลังบันทึก...';
+    saveBtn.disabled = true; saveBtn.textContent=tf('กำลังบันทึก...','Saving...');
+    syncDailyDraftFromDom();
     const date = state.selectedLogDate;
-    const entries = $$('.qty-input').map(inp=>({itemId:inp.dataset.item, actualQty: inp.value===''?0:parseFloat(inp.value)})).filter(e=>e.actualQty>0 || e.actualQty===0);
-    const note = $('#log-note').value.trim();
-    let log = state.logs.find(l=>l.date===date);
+    let log = P().logs.find(l=>l.date===date);
     const newPhotoIds = [];
-    for(const p of pendingPhotos){ const id=uid(); await idbPut(id,p.dataUrl); newPhotoIds.push({id,caption:p.caption}); }
-    if(!log){ log = {id:uid(),date,entries:[],note:'',photoIds:[]}; state.logs.push(log); }
-    log.entries = entries;
-    log.note = note;
-    log.photoIds = (log.photoIds||[]).concat(newPhotoIds.map(p=>p.id));
-    log._captions = Object.assign(log._captions||{}, Object.fromEntries(newPhotoIds.map(p=>[p.id,p.caption])));
-    state.logs.sort((a,b)=> a.date<b.date?-1:1);
+    const newPhotoMeta = {};
+    for(const p of pendingPhotos){ const id=uid(); await idbPut(id,p.dataUrl); newPhotoIds.push(id); newPhotoMeta[id] = {caption:p.caption||'', tag:p.tag||''}; }
+    if(!log){ log = {id:uid(),date,entries:[],photoIds:[]}; P().logs.push(log); }
+    log.weather = dailyDraft.weather;
+    log.workforce = dailyDraft.workforce.filter(w=> (w.team||'').trim());
+    log.entries = dailyDraft.entries.slice();
+    log.issues = dailyDraft.issues.filter(i=> (i.detail||'').trim());
+    log.deliveryNote = dailyDraft.deliveryNote;
+    log.photoIds = (log.photoIds||[]).concat(newPhotoIds);
+    log.photoMeta = Object.assign(log.photoMeta||{}, newPhotoMeta);
+    log.recordedAt = new Date().toISOString();
+    P().logs.sort((a,b)=> a.date<b.date?-1:1);
     saveData();
     pendingPhotos=[];
-    toast('บันทึกรายงานประจำวันแล้ว');
+    dailyDraft=null;
+    toast(tf('บันทึกรายงานประจำวันแล้ว','Daily report saved'));
     state.reportDate = date;
     render();
   };
@@ -1145,31 +1611,31 @@ function newRequestForm(){
 }
 function genReqNo(dateStr){
   const ymd = dateStr.replace(/-/g,'');
-  const countToday = state.materialRequests.filter(r=>r.createdAt.slice(0,10)===dateStr).length + 1;
+  const countToday = P().materialRequests.filter(r=>r.createdAt.slice(0,10)===dateStr).length + 1;
   return 'REQ-'+ymd+'-'+pad2(countToday);
 }
 function currentActorName(){
-  const nick = (state.contractor&&state.contractor.nickname) || 'ผู้ใช้งาน';
+  const nick = (state.contractor&&state.contractor.nickname) || tf('ผู้ใช้งาน','User');
   return nick+' ('+ROLE_LABEL[state.role]+')';
 }
-function reqsForDate(date){ return state.materialRequests.filter(r=> r.createdAt.slice(0,10)===date); }
+function reqsForDate(date){ return P().materialRequests.filter(r=> r.createdAt.slice(0,10)===date); }
 
 function renderProcure(){
   const canCreate = state.role==='site';
   const cols = PSTATUS.map(col=>{
-    const items = state.materialRequests.filter(r=>r.status===col.id).sort((a,b)=> a.createdAt<b.createdAt?1:-1);
+    const items = P().materialRequests.filter(r=>r.status===col.id).sort((a,b)=> a.createdAt<b.createdAt?1:-1);
     return `<div class="kcol">
       <div class="kcol-head"><b>${col.ic} ${col.label}</b><span class="count">${items.length}</span></div>
-      ${items.length? items.map(reqCardHtml).join('') : `<div class="empty-col">ไม่มีรายการ</div>`}
+      ${items.length? items.map(reqCardHtml).join('') : `<div class="empty-col">${tf('ไม่มีรายการ','No items')}</div>`}
     </div>`;
   }).join('');
   return `
   <div class="page-head">
-    <div><h2>จัดซื้อวัสดุ &amp; อนุมัติ</h2><div class="sub">สั่งวัสดุหน้างานรายวัน ผ่านขั้นตอนอนุมัติและนัดส่งของ พร้อมประทับเวลาอัตโนมัติทุกขั้นตอน</div></div>
-    ${canCreate? `<button class="btn primary" id="btn-new-request">+ สร้างใบสั่งของ</button>` : ''}
+    <div><h2>${tf('จัดซื้อวัสดุ & อนุมัติ','Material Procurement & Approval')}</h2><div class="sub">${tf('สั่งวัสดุหน้างานรายวัน ผ่านขั้นตอนอนุมัติและนัดส่งของ พร้อมประทับเวลาอัตโนมัติทุกขั้นตอน','Request site materials day-to-day through approval and delivery scheduling, with an automatic timestamp at every step.')}</div></div>
+    ${canCreate? `<button class="btn primary" id="btn-new-request">+ ${tf('สร้างใบสั่งของ','New request')}</button>` : ''}
   </div>
-  <div class="role-note">👁️ มุมมองปัจจุบัน: <b>${ROLE_LABEL[state.role]}</b> — สลับมุมมองจากปุ่มมุมบนขวาเพื่อจำลองสิทธิ์แต่ละบทบาท (ข้อมูลทั้งหมดอยู่ในเบราว์เซอร์เครื่องนี้ ยังไม่ใช่ระบบล็อกอินผู้ใช้หลายคนจริง)</div>
-  ${state.materialRequests.length===0? `<div class="empty"><span class="ic">🛒</span>ยังไม่มีใบสั่งของ${canCreate? ' กด “สร้างใบสั่งของ” เพื่อเริ่มต้น':''}</div>` : `<div class="kanban">${cols}</div>`}
+  <div class="role-note">👁️ ${tf('มุมมองปัจจุบัน:','Current view:')} <b>${ROLE_LABEL[state.role]}</b> — ${tf('สลับมุมมองจากปุ่มมุมบนขวาเพื่อจำลองสิทธิ์แต่ละบทบาท (ข้อมูลทั้งหมดอยู่ในเบราว์เซอร์เครื่องนี้ ยังไม่ใช่ระบบล็อกอินผู้ใช้หลายคนจริง)','switch views from the top-right buttons to try each role’s permissions (all data lives in this browser -- this is not yet a real multi-user login system).')}</div>
+  ${P().materialRequests.length===0? `<div class="empty"><span class="ic">🛒</span>${tf('ยังไม่มีใบสั่งของ','No material requests yet')}${canCreate? tf(' กด “สร้างใบสั่งของ” เพื่อเริ่มต้น',' -- tap “New request” to get started'):''}</div>` : `<div class="kanban">${cols}</div>`}
   `;
 }
 function reqCardHtml(r){
@@ -1177,19 +1643,19 @@ function reqCardHtml(r){
   const moreCount = r.lines.length-1;
   return `<div class="kcard ${r.status}" data-open-req="${r.id}">
     <div class="reqno">${r.reqNo}</div>
-    <div class="title">${escapeHtml(firstLine.name)}${moreCount>0?` +${moreCount} รายการ`:''}</div>
+    <div class="title">${escapeHtml(firstLine.name)}${moreCount>0?tf(` +${moreCount} รายการ`,` +${moreCount} more`):''}</div>
     <div class="meta">📍 ${escapeHtml(r.area||'-')} · ${escapeHtml(r.workType||'-')}</div>
-    <div class="meta">ต้องการใช้: <b class="tabular">${fmtThai(firstLine.neededDate)}</b></div>
-    <div class="meta">โดย ${escapeHtml(r.requestedBy)} · ${fmtDateTime(r.createdAt)}</div>
+    <div class="meta">${tf('ต้องการใช้:','Needed by:')} <b class="tabular">${fmtDate(firstLine.neededDate)}</b></div>
+    <div class="meta">${tf('โดย','by')} ${escapeHtml(r.requestedBy)} · ${fmtDateTime(r.createdAt)}</div>
   </div>`;
 }
 function requestModalHtml(){
   const f = requestForm;
   const lineRows = f.lines.map((ln,idx)=>`
     <div class="rq-line-row">
-      <input type="text" placeholder="ชื่อวัสดุ" data-line="name" data-idx="${idx}" value="${escapeHtml(ln.name)}">
-      <input type="number" step="0.01" placeholder="จำนวน" data-line="qty" data-idx="${idx}" value="${ln.qty}">
-      <input type="text" placeholder="หน่วย" data-line="unit" data-idx="${idx}" value="${escapeHtml(ln.unit)}">
+      <input type="text" placeholder="${tf('ชื่อวัสดุ','material name')}" data-line="name" data-idx="${idx}" value="${escapeHtml(ln.name)}">
+      <input type="number" step="0.01" placeholder="${tf('จำนวน','qty')}" data-line="qty" data-idx="${idx}" value="${ln.qty}">
+      <input type="text" placeholder="${tf('หน่วย','unit')}" data-line="unit" data-idx="${idx}" value="${escapeHtml(ln.unit)}">
       <input type="date" data-line="neededDate" data-idx="${idx}" value="${ln.neededDate}">
       <button class="iconbtn" data-rm-line="${idx}">✕</button>
     </div>`).join('');
@@ -1197,22 +1663,22 @@ function requestModalHtml(){
   return `
   <div class="modal-bg" id="req-modal-bg">
     <div class="modal">
-      <div class="modal-head"><h3>สร้างใบสั่งของ</h3><button class="iconbtn" id="req-modal-close">✕</button></div>
+      <div class="modal-head"><h3>${tf('สร้างใบสั่งของ','New material request')}</h3><button class="iconbtn" id="req-modal-close">✕</button></div>
       <div class="grid cols-2">
-        <div class="field"><label>ผู้สั่งของ</label><input type="text" id="rq-by" value="${escapeHtml(f.requestedBy)}" placeholder="ชื่อช่าง/ทีมงาน"></div>
-        <div class="field"><label>ประเภทงาน</label><input type="text" id="rq-worktype" value="${escapeHtml(f.workType)}" placeholder="เช่น งานฝ้า, งานสี"></div>
-        <div class="field" style="grid-column:1/-1"><label>พื้นที่ที่ต้องใช้ของ</label><input type="text" id="rq-area" value="${escapeHtml(f.area)}" placeholder="เช่น ห้องนอนใหญ่ ชั้น 3"></div>
+        <div class="field"><label>${tf('ผู้สั่งของ','Requested by')}</label><input type="text" id="rq-by" value="${escapeHtml(f.requestedBy)}" placeholder="${tf('ชื่อช่าง/ทีมงาน','crew / team name')}"></div>
+        <div class="field"><label>${tf('ประเภทงาน','Work type')}</label><input type="text" id="rq-worktype" value="${escapeHtml(f.workType)}" placeholder="${tf('เช่น งานฝ้า, งานสี','e.g. ceiling, painting')}"></div>
+        <div class="field" style="grid-column:1/-1"><label>${tf('พื้นที่ที่ต้องใช้ของ','Area needed')}</label><input type="text" id="rq-area" value="${escapeHtml(f.area)}" placeholder="${tf('เช่น ห้องนอนใหญ่ ชั้น 3','e.g. Master bedroom, 3rd floor')}"></div>
       </div>
-      <div class="field" style="margin-top:14px"><label>รายการวัสดุ</label>
+      <div class="field" style="margin-top:14px"><label>${tf('รายการวัสดุ','Material lines')}</label>
         <div class="rq-lines" id="rq-lines">${lineRows}</div>
-        <button class="btn ghost sm" style="margin-top:8px" id="rq-add-line">+ เพิ่มรายการวัสดุ</button>
+        <button class="btn ghost sm" style="margin-top:8px" id="rq-add-line">+ ${tf('เพิ่มรายการวัสดุ','Add material line')}</button>
       </div>
-      <div class="field" style="margin-top:14px"><label>แนบรูปภาพ (วัสดุ / ตัวอย่างสี / แคปสเปกจาก LINE)</label>
-        <label class="photo-drop" for="rq-photo-input">📷 แตะเพื่อเลือกรูปภาพ</label>
+      <div class="field" style="margin-top:14px"><label>${tf('แนบรูปภาพ (วัสดุ / ตัวอย่างสี / แคปสเปกจาก LINE)','Attach photos (material / colour sample / spec screenshot)')}</label>
+        <label class="photo-drop" for="rq-photo-input">📷 ${tf('แตะเพื่อเลือกรูปภาพ','Tap to choose photos')}</label>
         <input type="file" id="rq-photo-input" accept="image/*" multiple style="display:none">
         ${f.photos.length? `<div class="photo-grid" style="margin-top:10px">${photoCards}</div>`:''}
       </div>
-      <button class="btn primary block" style="margin-top:16px" id="rq-submit">ส่งใบสั่งของ</button>
+      <button class="btn primary block" style="margin-top:16px" id="rq-submit">${tf('ส่งใบสั่งของ','Submit request')}</button>
     </div>
   </div>`;
 }
@@ -1221,7 +1687,7 @@ function wireRequestModal(){
   $('#req-modal-close').onclick=()=>{ creatingRequest=false; requestForm=null; render(); };
   bg.addEventListener('click', e=>{ if(e.target===bg){ creatingRequest=false; requestForm=null; render(); } });
   $('#rq-add-line').onclick=()=>{ requestForm.lines.push({name:'',qty:'',unit:'',neededDate:addDays(todayStr(),2)}); render(); };
-  $$('[data-rm-line]').forEach(b=> b.onclick=()=>{ if(requestForm.lines.length>1){ requestForm.lines.splice(Number(b.dataset.rmLine),1); render(); } else toast('ต้องมีอย่างน้อย 1 รายการ'); });
+  $$('[data-rm-line]').forEach(b=> b.onclick=()=>{ if(requestForm.lines.length>1){ requestForm.lines.splice(Number(b.dataset.rmLine),1); render(); } else toast(tf('ต้องมีอย่างน้อย 1 รายการ','At least one line is required')); });
   $$('[data-line]').forEach(inp=> inp.oninput=()=>{ requestForm.lines[Number(inp.dataset.idx)][inp.dataset.line] = inp.value; });
   const photoInput=$('#rq-photo-input');
   if(photoInput) photoInput.onchange = async (e)=>{
@@ -1233,54 +1699,54 @@ function wireRequestModal(){
   $('#rq-submit').onclick = async ()=>{
     const by=$('#rq-by').value.trim(), area=$('#rq-area').value.trim(), wt=$('#rq-worktype').value.trim();
     const lines = requestForm.lines.filter(l=>l.name.trim() && parseFloat(l.qty)>0 && l.unit.trim() && l.neededDate);
-    if(!by || !area || lines.length===0){ toast('กรอกผู้สั่งของ พื้นที่ และรายการวัสดุอย่างน้อย 1 รายการ'); return; }
+    if(!by || !area || lines.length===0){ toast(tf('กรอกผู้สั่งของ พื้นที่ และรายการวัสดุอย่างน้อย 1 รายการ','Please fill in requester, area, and at least one material line')); return; }
     const date = todayStr();
     const reqNo = genReqNo(date);
     const photoIds=[];
     for(const p of requestForm.photos){ const id=uid(); await idbPut(id,p.dataUrl); photoIds.push(id); }
-    state.materialRequests.push({
+    P().materialRequests.push({
       id:uid(), reqNo, createdAt:new Date().toISOString(), requestedBy:by, area, workType:wt,
       lines: lines.map(l=>({name:l.name.trim(),qty:parseFloat(l.qty),unit:l.unit.trim(),neededDate:l.neededDate})),
       photoIds, status:'pending', approval:null, procurement:null
     });
-    saveData(); creatingRequest=false; requestForm=null; toast('ส่งใบสั่งของแล้ว รอการอนุมัติ'); render();
+    saveData(); creatingRequest=false; requestForm=null; toast(tf('ส่งใบสั่งของแล้ว รอการอนุมัติ','Request submitted, awaiting approval')); render();
   };
 }
 function detailModalHtml(){
-  const r = state.materialRequests.find(x=>x.id===procureDetailId);
+  const r = P().materialRequests.find(x=>x.id===procureDetailId);
   if(!r) return '';
-  const lines = r.lines.map(l=>`<tr><td>${escapeHtml(l.name)}</td><td class="tabular">${fmtNum(l.qty,2)} ${escapeHtml(l.unit)}</td><td class="tabular">${fmtThai(l.neededDate)}</td></tr>`).join('');
-  const steps=[{state:'done',title:'สร้างใบสั่งของ',sub:escapeHtml(r.requestedBy)+' · '+fmtDateTime(r.createdAt)}];
-  if(r.status==='pending') steps.push({state:'wait',title:'รอการอนุมัติ',sub:'PM / ผู้บริหารยังไม่ได้ตัดสินใจ'});
-  else if(r.status==='rejected') steps.push({state:'rej',title:'ปฏิเสธ',sub:'โดย '+escapeHtml(r.approval.by)+' · '+fmtDateTime(r.approval.at)+(r.approval.reason?' — '+escapeHtml(r.approval.reason):'')});
+  const lines = r.lines.map(l=>`<tr><td>${escapeHtml(l.name)}</td><td class="tabular">${fmtNum(l.qty,2)} ${escapeHtml(l.unit)}</td><td class="tabular">${fmtDate(l.neededDate)}</td></tr>`).join('');
+  const steps=[{state:'done',title:tf('สร้างใบสั่งของ','Request created'),sub:escapeHtml(r.requestedBy)+' · '+fmtDateTime(r.createdAt)}];
+  if(r.status==='pending') steps.push({state:'wait',title:tf('รอการอนุมัติ','Awaiting approval'),sub:tf('PM / ผู้บริหารยังไม่ได้ตัดสินใจ','PM / owner has not decided yet')});
+  else if(r.status==='rejected') steps.push({state:'rej',title:tf('ปฏิเสธ','Rejected'),sub:tf('โดย ','by ')+escapeHtml(r.approval.by)+' · '+fmtDateTime(r.approval.at)+(r.approval.reason?' — '+escapeHtml(r.approval.reason):'')});
   else {
-    steps.push({state:'done',title:'อนุมัติแล้ว',sub:'โดย '+escapeHtml(r.approval.by)+' · '+fmtDateTime(r.approval.at)+(r.approval.reason?' — '+escapeHtml(r.approval.reason):'')});
-    if(r.status==='approved') steps.push({state:'wait',title:'รอฝ่ายจัดซื้อนัดส่ง',sub:'ยังไม่ได้ระบุวันส่งมอบ'});
-    else steps.push({state:'done',title:'ยืนยันวันจัดส่งแล้ว',sub:'โดย '+escapeHtml(r.procurement.by)+' · '+fmtDateTime(r.procurement.at)+' — ของถึงหน้างาน '+fmtThai(r.procurement.deliveryDate)});
+    steps.push({state:'done',title:tf('อนุมัติแล้ว','Approved'),sub:tf('โดย ','by ')+escapeHtml(r.approval.by)+' · '+fmtDateTime(r.approval.at)+(r.approval.reason?' — '+escapeHtml(r.approval.reason):'')});
+    if(r.status==='approved') steps.push({state:'wait',title:tf('รอฝ่ายจัดซื้อนัดส่ง','Awaiting delivery schedule'),sub:tf('ยังไม่ได้ระบุวันส่งมอบ','Delivery date not set yet')});
+    else steps.push({state:'done',title:tf('ยืนยันวันจัดส่งแล้ว','Delivery confirmed'),sub:tf('โดย ','by ')+escapeHtml(r.procurement.by)+' · '+fmtDateTime(r.procurement.at)+tf(' — ของถึงหน้างาน ',' — arriving on site ')+fmtDate(r.procurement.deliveryDate)});
   }
   const timeline = steps.map(s=>`<div class="tl-step"><div class="tl-dot ${s.state}">${s.state==='done'?'✓':s.state==='rej'?'✕':'…'}</div><div class="tl-body"><b>${s.title}</b><span>${s.sub}</span></div></div>`).join('');
   let actions='';
   if(r.status==='pending' && state.role==='pm'){
-    actions = `<div class="field" style="margin-top:14px"><label>เหตุผล (จำเป็นเมื่อกดปฏิเสธ)</label><input type="text" id="dt-reason" placeholder="เช่น อนุมัติด่วนที่สุด / ปฏิเสธเนื่องจากสั่งซ้ำ"></div>
-      <div class="action-row"><button class="btn approve" id="dt-approve">✅ อนุมัติ (Approve)</button><button class="btn reject" id="dt-reject">🚫 ปฏิเสธ (Reject)</button></div>`;
+    actions = `<div class="field" style="margin-top:14px"><label>${tf('เหตุผล (จำเป็นเมื่อกดปฏิเสธ)','Reason (required to reject)')}</label><input type="text" id="dt-reason" placeholder="${tf('เช่น อนุมัติด่วนที่สุด / ปฏิเสธเนื่องจากสั่งซ้ำ','e.g. approved, urgent / rejected -- duplicate order')}"></div>
+      <div class="action-row"><button class="btn approve" id="dt-approve">✅ ${tf('อนุมัติ (Approve)','Approve')}</button><button class="btn reject" id="dt-reject">🚫 ${tf('ปฏิเสธ (Reject)','Reject')}</button></div>`;
   } else if(r.status==='approved' && state.role==='procurement'){
-    actions = `<div class="grid cols-2" style="margin-top:14px"><div class="field"><label>วันที่ของถึงหน้างานจริง</label><input type="date" id="dt-delivery" value="${addDays(todayStr(),2)}"></div><div class="field"><label>หมายเหตุ (ไม่บังคับ)</label><input type="text" id="dt-note" placeholder="เช่น ช่วงบ่าย"></div></div>
-      <div class="action-row"><button class="btn schedule" id="dt-schedule">🚚 ยืนยันวันจัดส่ง</button></div>`;
+    actions = `<div class="grid cols-2" style="margin-top:14px"><div class="field"><label>${tf('วันที่ของถึงหน้างานจริง','Actual delivery date')}</label><input type="date" id="dt-delivery" value="${addDays(todayStr(),2)}"></div><div class="field"><label>${tf('หมายเหตุ (ไม่บังคับ)','Note (optional)')}</label><input type="text" id="dt-note" placeholder="${tf('เช่น ช่วงบ่าย','e.g. afternoon')}"></div></div>
+      <div class="action-row"><button class="btn schedule" id="dt-schedule">🚚 ${tf('ยืนยันวันจัดส่ง','Confirm delivery date')}</button></div>`;
   } else if(r.status==='pending'){
-    actions = `<div class="role-note" style="margin-top:14px">รอ PM / ผู้บริหารตรวจสอบและอนุมัติ (สลับมุมมองเป็น “PM” เพื่อทดสอบขั้นตอนนี้)</div>`;
+    actions = `<div class="role-note" style="margin-top:14px">${tf('รอ PM / ผู้บริหารตรวจสอบและอนุมัติ (สลับมุมมองเป็น “PM” เพื่อทดสอบขั้นตอนนี้)','Waiting for the PM / owner to review and approve (switch view to “PM” to try this step)')}</div>`;
   } else if(r.status==='approved'){
-    actions = `<div class="role-note" style="margin-top:14px">รอฝ่ายจัดซื้อระบุวันจัดส่ง (สลับมุมมองเป็น “จัดซื้อ” เพื่อทดสอบขั้นตอนนี้)</div>`;
+    actions = `<div class="role-note" style="margin-top:14px">${tf('รอฝ่ายจัดซื้อระบุวันจัดส่ง (สลับมุมมองเป็น “จัดซื้อ” เพื่อทดสอบขั้นตอนนี้)','Waiting for procurement to set a delivery date (switch view to “Buy” to try this step)')}</div>`;
   }
   return `<div class="modal-bg" id="dt-modal-bg"><div class="modal">
     <div class="modal-head"><h3>${r.reqNo}</h3><button class="iconbtn" id="dt-modal-close">✕</button></div>
     <span class="badge ${r.status}">${STATUS_LABEL[r.status]}</span>
     <div class="grid cols-2" style="margin-top:12px">
-      <div class="field"><label class="hint">ผู้สั่งของ</label><b>${escapeHtml(r.requestedBy)}</b></div>
-      <div class="field"><label class="hint">ประเภทงาน</label><b>${escapeHtml(r.workType||'-')}</b></div>
-      <div class="field" style="grid-column:1/-1"><label class="hint">พื้นที่ที่ต้องใช้ของ</label><b>${escapeHtml(r.area||'-')}</b></div>
+      <div class="field"><label class="hint">${tf('ผู้สั่งของ','Requested by')}</label><b>${escapeHtml(r.requestedBy)}</b></div>
+      <div class="field"><label class="hint">${tf('ประเภทงาน','Work type')}</label><b>${escapeHtml(r.workType||'-')}</b></div>
+      <div class="field" style="grid-column:1/-1"><label class="hint">${tf('พื้นที่ที่ต้องใช้ของ','Area needed')}</label><b>${escapeHtml(r.area||'-')}</b></div>
     </div>
-    <div class="table-wrap" style="margin-top:12px"><table><thead><tr><th>วัสดุ</th><th>จำนวน</th><th>วันที่ต้องใช้</th></tr></thead><tbody>${lines}</tbody></table></div>
-    <div style="margin-top:14px"><b style="font-family:var(--font-display);font-size:13px">ไทม์ไลน์</b><div class="timeline">${timeline}</div></div>
+    <div class="table-wrap" style="margin-top:12px"><table><thead><tr><th>${tf('วัสดุ','Material')}</th><th>${tf('จำนวน','Qty')}</th><th>${tf('วันที่ต้องใช้','Needed by')}</th></tr></thead><tbody>${lines}</tbody></table></div>
+    <div style="margin-top:14px"><b style="font-family:var(--font-display);font-size:13px">${tf('ไทม์ไลน์','Timeline')}</b><div class="timeline">${timeline}</div></div>
     ${actions}
   </div></div>`;
 }
@@ -1290,24 +1756,24 @@ function wireDetailModal(){
   bg.addEventListener('click', e=>{ if(e.target===bg){ procureDetailId=null; render(); } });
   const approveBtn=$('#dt-approve');
   if(approveBtn) approveBtn.onclick=()=>{
-    const r = state.materialRequests.find(x=>x.id===procureDetailId);
+    const r = P().materialRequests.find(x=>x.id===procureDetailId);
     r.status='approved'; r.approval={by:currentActorName(), at:new Date().toISOString(), reason:$('#dt-reason').value.trim()};
-    saveData(); procureDetailId=null; toast('อนุมัติใบสั่งของแล้ว'); render();
+    saveData(); procureDetailId=null; toast(tf('อนุมัติใบสั่งของแล้ว','Request approved')); render();
   };
   const rejectBtn=$('#dt-reject');
   if(rejectBtn) rejectBtn.onclick=()=>{
     const reason=$('#dt-reason').value.trim();
-    if(!reason){ toast('กรุณาระบุเหตุผลการปฏิเสธ'); return; }
-    const r = state.materialRequests.find(x=>x.id===procureDetailId);
+    if(!reason){ toast(tf('กรุณาระบุเหตุผลการปฏิเสธ','Please enter a reason for rejecting')); return; }
+    const r = P().materialRequests.find(x=>x.id===procureDetailId);
     r.status='rejected'; r.approval={by:currentActorName(), at:new Date().toISOString(), reason};
-    saveData(); procureDetailId=null; toast('ปฏิเสธใบสั่งของแล้ว'); render();
+    saveData(); procureDetailId=null; toast(tf('ปฏิเสธใบสั่งของแล้ว','Request rejected')); render();
   };
   const schedBtn=$('#dt-schedule');
   if(schedBtn) schedBtn.onclick=()=>{
-    const dd=$('#dt-delivery').value; if(!dd){ toast('กรุณาเลือกวันที่จัดส่ง'); return; }
-    const r = state.materialRequests.find(x=>x.id===procureDetailId);
+    const dd=$('#dt-delivery').value; if(!dd){ toast(tf('กรุณาเลือกวันที่จัดส่ง','Please choose a delivery date')); return; }
+    const r = P().materialRequests.find(x=>x.id===procureDetailId);
     r.status='scheduled'; r.procurement={by:currentActorName(), at:new Date().toISOString(), deliveryDate:dd, note:$('#dt-note').value.trim()};
-    saveData(); procureDetailId=null; toast('ยืนยันวันจัดส่งแล้ว'); render();
+    saveData(); procureDetailId=null; toast(tf('ยืนยันวันจัดส่งแล้ว','Delivery date confirmed')); render();
   };
 }
 function wireProcure(){
@@ -1319,64 +1785,66 @@ function wireProcure(){
 /* ============================= SCREEN: DASHBOARD ============================= */
 function renderDashboard(){
   const asOf = todayStr();
-  const summary = projectSummary(asOf);
-  if(!state.boq.length){
-    return `<div class="page-head"><div><h2>แดชบอร์ดวิเคราะห์โปรเจกต์</h2></div></div><div class="empty"><span class="ic">📊</span>เพิ่มรายการงานในแผนงานหลักก่อน เพื่อเริ่มวิเคราะห์</div>`;
+  const proj = P();
+  const summary = projectSummary(asOf, proj.boq, proj.logs);
+  if(!proj.boq.length){
+    return `<div class="page-head"><div><h2>${tf('แดชบอร์ดวิเคราะห์โปรเจกต์','Project Analytics Dashboard')}</h2></div></div><div class="empty"><span class="ic">📊</span>${tf('เพิ่มรายการงานในแผนงานหลักก่อน เพื่อเริ่มวิเคราะห์','Add work items in the Master Plan first to start the analysis')}</div>`;
   }
-  const itemCards = state.boq.map(item=>{
-    const planned = plannedCumAt(item,asOf), actual = actualCumAt(item,asOf);
-    const st = itemStatus(item,asOf);
+  const itemCards = proj.boq.map(item=>{
+    const planned = plannedCumAt(item,asOf), actual = actualCumAt(item,asOf,proj.logs);
+    const st = itemStatus(item,asOf,proj.logs);
     const pct = clamp((actual/item.qtyTotal)*100,0,100);
     const diff = actual-planned;
-    const pred = itemPrediction(item,asOf);
+    const pred = itemPrediction(item,asOf,proj.logs);
     return `<div class="card">
       <div style="display:flex;justify-content:space-between;gap:8px;align-items:flex-start">
         <b style="font-family:var(--font-display);font-size:14.5px">${escapeHtml(item.name)}</b>
-        <span class="badge ${st==='ok'?'ok':st==='bad'?'bad':'idle'}">${st==='ok'?'🟢 เร็วกว่าแผน':st==='bad'?'🔴 ล่าช้ากว่าแผน':'⏳ ยังไม่เริ่ม'}</span>
+        <span class="badge ${st==='ok'?'ok':st==='bad'?'bad':'idle'}">${st==='ok'?'🟢 '+tf('เร็วกว่าแผน','Ahead of plan'):st==='bad'?'🔴 '+tf('ล่าช้ากว่าแผน','Behind plan'):'⏳ '+tf('ยังไม่เริ่ม','Not started')}</span>
       </div>
-      <div class="sub" style="margin:8px 0 6px">สะสมจริง <b class="tabular" style="color:var(--ink-900)">${fmtNum(actual,2)}</b> / แผน <span class="tabular">${fmtNum(planned,2)}</span> ${escapeHtml(item.unit)}</div>
+      <div class="sub" style="margin:8px 0 6px">${tf('สะสมจริง','Actual to date')} <b class="tabular" style="color:var(--ink-900)">${fmtNum(actual,2)}</b> / ${tf('แผน','planned')} <span class="tabular">${fmtNum(planned,2)}</span> ${escapeHtml(item.unit)}</div>
       <div class="progress ${st==='ok'?'ok':st==='bad'?'bad':''}"><i style="width:${pct}%"></i></div>
       <div style="display:flex;justify-content:space-between;margin-top:8px;font-size:12px;color:var(--ink-500)">
-        <span>${diff>=0?'เร็วกว่าแผน':'ล่าช้ากว่าแผน'} <b class="tabular" style="color:var(--ink-700)">${fmtNum(Math.abs(diff),2)}</b> ${escapeHtml(item.unit)}</span>
+        <span>${diff>=0?tf('เร็วกว่าแผน','ahead of plan'):tf('ล่าช้ากว่าแผน','behind plan')} <b class="tabular" style="color:var(--ink-700)">${fmtNum(Math.abs(diff),2)}</b> ${escapeHtml(item.unit)}</span>
         <span class="tabular">${fmtNum(pct,0)}%</span>
       </div>
-      <div class="sub" style="margin-top:8px">คาดเสร็จ: <b class="tabular" style="color:var(--ink-700)">${pred.finishDate? fmtThai(pred.finishDate) : 'ยังประเมินไม่ได้'}</b></div>
+      <div class="sub" style="margin-top:8px">${tf('คาดเสร็จ:','Est. finish:')} <b class="tabular" style="color:var(--ink-700)">${pred.finishDate? fmtDate(pred.finishDate) : tf('ยังประเมินไม่ได้','not enough data')}</b></div>
     </div>`;
   }).join('');
 
   const curve = buildSCurve(asOf);
 
   return `
-  <div class="page-head"><div><h2>แดชบอร์ดวิเคราะห์โปรเจกต์</h2><div class="sub">อัปเดตล่าสุด ${fmtThai(asOf)}</div></div></div>
+  <div class="page-head"><div><h2>${tf('แดชบอร์ดวิเคราะห์โปรเจกต์','Project Analytics Dashboard')}</h2><div class="sub">${tf('อัปเดตล่าสุด','Last updated')} ${fmtDate(asOf)}</div></div></div>
   <div class="grid cols-auto">
-    <div class="card kpi"><div class="stat"><span class="lbl">ความคืบหน้าตามแผน</span><span class="num">${fmtNum(summary.plannedPct,1)}%</span></div></div>
-    <div class="card kpi"><div class="stat"><span class="lbl">ความคืบหน้าจริง</span><span class="num" style="color:${summary.delta>=0?'var(--mint-600)':'var(--coral-600)'}">${fmtNum(summary.actualPct,1)}%</span></div></div>
-    <div class="card kpi"><div class="stat"><span class="lbl">ส่วนต่างสะสม</span><span class="num" style="color:${summary.delta>=0?'var(--mint-600)':'var(--coral-600)'}">${summary.delta>=0?'+':''}${fmtNum(summary.delta,1)}%</span></div></div>
-    <div class="card kpi"><div class="stat"><span class="lbl">กำหนดส่งมอบตามสัญญา</span><span class="num" style="font-size:16px">${fmtThai(summary.contractEnd)}</span></div></div>
+    <div class="card kpi"><div class="stat"><span class="lbl">${tf('ความคืบหน้าตามแผน','Planned progress')}</span><span class="num">${fmtNum(summary.plannedPct,1)}%</span></div></div>
+    <div class="card kpi"><div class="stat"><span class="lbl">${tf('ความคืบหน้าจริง','Actual progress')}</span><span class="num" style="color:${summary.delta>=0?'var(--mint-600)':'var(--coral-600)'}">${fmtNum(summary.actualPct,1)}%</span></div></div>
+    <div class="card kpi"><div class="stat"><span class="lbl">${tf('ส่วนต่างสะสม','Cumulative delta')}</span><span class="num" style="color:${summary.delta>=0?'var(--mint-600)':'var(--coral-600)'}">${summary.delta>=0?'+':''}${fmtNum(summary.delta,1)}%</span></div></div>
+    <div class="card kpi"><div class="stat"><span class="lbl">${tf('กำหนดส่งมอบตามสัญญา','Contract deadline')}</span><span class="num" style="font-size:16px">${fmtDate(summary.contractEnd)}</span></div></div>
   </div>
-  <div class="card ${summary.delayDays>0?'':''}" style="border-color:${summary.delayDays>0?'var(--coral-500)':summary.delayDays<0?'var(--mint-500)':'var(--line)'};background:${summary.delayDays>0?'var(--coral-50)':summary.delayDays<0?'var(--mint-50)':'var(--surface)'}">
-    <b style="font-family:var(--font-display)">🔮 ระบบคาดการณ์วันเสร็จสิ้น</b>
+  <div class="card" style="border-color:${summary.delayDays>0?'var(--coral-500)':summary.delayDays<0?'var(--mint-500)':'var(--line)'};background:${summary.delayDays>0?'var(--coral-50)':summary.delayDays<0?'var(--mint-50)':'var(--surface)'}">
+    <b style="font-family:var(--font-display)">🔮 ${tf('ระบบคาดการณ์วันเสร็จสิ้น','Completion date forecast')}</b>
     <p style="margin-top:8px;font-size:14px">
-    ${!summary.anyPrediction ? 'ยังไม่มีข้อมูลเพียงพอสำหรับคาดการณ์' :
-      summary.delayDays>0 ? `โปรเจกต์นี้มีแนวโน้ม<b style="color:var(--coral-600)">ล่าช้ากว่าสัญญา ${summary.delayDays} วัน</b> คาดว่าจะเสร็จจริงวันที่ <b class="tabular">${fmtThai(summary.predictedEnd)}</b>` :
-      summary.delayDays<0 ? `โปรเจกต์นี้มีแนวโน้ม<b style="color:var(--mint-600)">เร็วกว่าสัญญา ${Math.abs(summary.delayDays)} วัน</b> คาดว่าจะเสร็จจริงวันที่ <b class="tabular">${fmtThai(summary.predictedEnd)}</b>` :
-      `โปรเจกต์นี้มีแนวโน้ม<b>ตรงตามสัญญา</b> คาดว่าจะเสร็จจริงวันที่ <b class="tabular">${fmtThai(summary.predictedEnd)}</b>`}
+    ${!summary.anyPrediction ? tf('ยังไม่มีข้อมูลเพียงพอสำหรับคาดการณ์','Not enough data yet to forecast') :
+      summary.delayDays>0 ? tf('โปรเจกต์นี้มีแนวโน้ม','This project trends')+`<b style="color:var(--coral-600)">`+tf('ล่าช้ากว่าสัญญา ','behind contract by ')+summary.delayDays+tf(' วัน',' day(s)')+`</b> `+tf('คาดว่าจะเสร็จจริงวันที่','estimated finish date')+` <b class="tabular">${fmtDate(summary.predictedEnd)}</b>` :
+      summary.delayDays<0 ? tf('โปรเจกต์นี้มีแนวโน้ม','This project trends')+`<b style="color:var(--mint-600)">`+tf('เร็วกว่าสัญญา ','ahead of contract by ')+Math.abs(summary.delayDays)+tf(' วัน',' day(s)')+`</b> `+tf('คาดว่าจะเสร็จจริงวันที่','estimated finish date')+` <b class="tabular">${fmtDate(summary.predictedEnd)}</b>` :
+      tf('โปรเจกต์นี้มีแนวโน้ม','This project trends')+`<b>`+tf('ตรงตามสัญญา','on schedule')+`</b> `+tf('คาดว่าจะเสร็จจริงวันที่','estimated finish date')+` <b class="tabular">${fmtDate(summary.predictedEnd)}</b>`}
     </p>
-    <p class="sub" style="margin-top:4px">คำนวณจากความเร็วเฉลี่ยการทำงานจริง (Actual Burn Rate) ของแต่ละรายการ เทียบกับปริมาณงานคงเหลือ</p>
+    <p class="sub" style="margin-top:4px">${tf('คำนวณจากความเร็วเฉลี่ยการทำงานจริง (Actual Burn Rate) ของแต่ละรายการ เทียบกับปริมาณงานคงเหลือ','Calculated from each item’s actual average burn rate compared with its remaining quantity.')}</p>
   </div>
   <div class="card">
-    <b style="font-family:var(--font-display)">S-Curve เปรียบเทียบแผนกับความจริง</b>
-    <div class="legend" style="margin:10px 0 6px"><span><i style="background:var(--purple-600)"></i>แผนงาน (Planned)</span><span><i style="background:var(--mint-500)"></i>ผลงานจริง (Actual)</span></div>
+    <b style="font-family:var(--font-display)">${tf('S-Curve เปรียบเทียบแผนกับความจริง','S-Curve: Planned vs. Actual')}</b>
+    <div class="legend" style="margin:10px 0 6px"><span><i style="background:var(--purple-600)"></i>${tf('แผนงาน (Planned)','Planned')}</span><span><i style="background:var(--mint-500)"></i>${tf('ผลงานจริง (Actual)','Actual')}</span></div>
     ${curve.svg}
   </div>
-  <div class="page-head"><div><h3 style="font-size:16px">สถานะรายรายการ</h3></div></div>
+  <div class="page-head"><div><h3 style="font-size:16px">${tf('สถานะรายรายการ','Item-level status')}</h3></div></div>
   <div class="grid cols-auto">${itemCards}</div>
   `;
 }
 function buildSCurve(asOf){
-  const starts = state.boq.map(i=>i.startDate);
-  const ends = state.boq.map(i=>i.endDate);
-  const summary0 = projectSummary(asOf);
+  const proj = P();
+  const starts = proj.boq.map(i=>i.startDate);
+  const ends = proj.boq.map(i=>i.endDate);
+  const summary0 = projectSummary(asOf, proj.boq, proj.logs);
   let rangeEnd = ends.reduce((a,b)=>a>b?a:b);
   if(summary0.predictedEnd && summary0.predictedEnd>rangeEnd) rangeEnd = summary0.predictedEnd;
   const rangeStart = starts.reduce((a,b)=>a<b?a:b);
@@ -1388,10 +1856,10 @@ function buildSCurve(asOf){
   let plannedPts=[], actualPts=[];
   for(let d=0; d<=totalDays; d+=Math.max(1,Math.round(totalDays/60))){
     const dateStr = addDays(rangeStart,d);
-    let pSum=0,n=0; state.boq.forEach(it=>{ pSum+=clamp(plannedCumAt(it,dateStr)/(it.qtyTotal||1),0,1); n++; });
+    let pSum=0,n=0; proj.boq.forEach(it=>{ pSum+=clamp(plannedCumAt(it,dateStr)/(it.qtyTotal||1),0,1); n++; });
     plannedPts.push([xFor(d), yFor((pSum/n)*100)]);
     if(dateStr<=asOf){
-      let aSum=0; state.boq.forEach(it=>{ aSum+=clamp(actualCumAt(it,dateStr)/(it.qtyTotal||1),0,1); });
+      let aSum=0; proj.boq.forEach(it=>{ aSum+=clamp(actualCumAt(it,dateStr,proj.logs)/(it.qtyTotal||1),0,1); });
       actualPts.push([xFor(d), yFor((aSum/n)*100)]);
     }
   }
@@ -1401,7 +1869,7 @@ function buildSCurve(asOf){
   const svg = `<svg class="svcurve" viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet">
     ${gridLines}
     <line x1="${todayX}" x2="${todayX}" y1="${padT}" y2="${H-padB}" stroke="var(--ink-300)" stroke-dasharray="3,3" stroke-width="1"/>
-    <text x="${todayX}" y="${H-padB+14}" font-size="9" fill="var(--ink-500)" text-anchor="middle" font-family="IBM Plex Mono">วันนี้</text>
+    <text x="${todayX}" y="${H-padB+14}" font-size="9" fill="var(--ink-500)" text-anchor="middle" font-family="IBM Plex Mono">${tf('วันนี้','today')}</text>
     <path d="${path(plannedPts)}" fill="none" stroke="var(--purple-600)" stroke-width="2.4"/>
     ${actualPts.length>1? `<path d="${path(actualPts)}" fill="none" stroke="var(--mint-500)" stroke-width="2.4"/>` : ''}
     ${actualPts.length? `<circle cx="${actualPts[actualPts.length-1][0]}" cy="${actualPts[actualPts.length-1][1]}" r="3.6" fill="var(--mint-500)"/>` : ''}
@@ -1415,65 +1883,71 @@ async function loadReportPhotos(log, reqs){
   const out=[];
   for(const pid of (log?log.photoIds:[])||[]){
     if(!reportPhotoCache[pid]) reportPhotoCache[pid] = await idbGet(pid);
-    if(reportPhotoCache[pid]) out.push({id:pid, dataUrl:reportPhotoCache[pid], caption:(log._captions&&log._captions[pid])||'ภาพหน้างาน'});
+    if(reportPhotoCache[pid]){
+      const meta = (log.photoMeta&&log.photoMeta[pid]) || (log._captions? {caption:log._captions[pid]} : {});
+      const caption = (meta.tag? '['+meta.tag+'] ' : '') + (meta.caption || tf('ภาพหน้างาน','site photo'));
+      out.push({id:pid, dataUrl:reportPhotoCache[pid], caption});
+    }
   }
   for(const r of (reqs||[])){
     for(const pid of (r.photoIds||[])){
       if(!reportPhotoCache[pid]) reportPhotoCache[pid] = await idbGet(pid);
-      if(reportPhotoCache[pid]) out.push({id:pid, dataUrl:reportPhotoCache[pid], caption:'อ้างอิงวัสดุ: '+((r.lines[0]&&r.lines[0].name)||r.reqNo)});
+      if(reportPhotoCache[pid]) out.push({id:pid, dataUrl:reportPhotoCache[pid], caption:tf('อ้างอิงวัสดุ: ','material reference: ')+((r.lines[0]&&r.lines[0].name)||r.reqNo)});
     }
   }
   return out;
 }
 function renderReport(){
-  const dateSet = new Set([...state.logs.map(l=>l.date), ...state.materialRequests.map(r=>r.createdAt.slice(0,10))]);
+  const proj = P();
+  const dateSet = new Set([...proj.logs.map(l=>l.date), ...proj.materialRequests.map(r=>r.createdAt.slice(0,10))]);
   const allDates = Array.from(dateSet).sort((a,b)=> a<b?1:-1);
-  const options = allDates.map(d=>`<option value="${d}" ${d===state.reportDate?'selected':''}>${fmtThai(d)}</option>`).join('');
+  const options = allDates.map(d=>`<option value="${d}" ${d===state.reportDate?'selected':''}>${fmtDate(d)}</option>`).join('');
   return `
   <div class="page-head">
-    <div><h2>ส่งออกรายงาน</h2><div class="sub">รูปแบบนิตยสารสีม่วง-ขาว พร้อมพิมพ์เป็น PDF หรือลองสร้างรูปภาพยาวส่งกลุ่ม LINE</div></div>
+    <div><h2>${tf('ส่งออกรายงาน','Export Report')}</h2><div class="sub">${tf('รูปแบบนิตยสารสีม่วง-ขาว พร้อมพิมพ์เป็น PDF หรือลองสร้างรูปภาพยาวส่งกลุ่ม LINE','Magazine-style purple & white layout -- print to PDF, or try generating a long image to send to a LINE group.')}</div></div>
     <div class="field" style="min-width:200px">
-      <select id="report-date-select">${options || `<option value="${state.reportDate}">${fmtThai(state.reportDate)} (ยังไม่มีบันทึก)</option>`}</select>
+      <select id="report-date-select">${options || `<option value="${state.reportDate}">${fmtDate(state.reportDate)} (${tf('ยังไม่มีบันทึก','no log yet')})</option>`}</select>
     </div>
   </div>
   <div style="display:flex;gap:10px;flex-wrap:wrap">
-    <button class="btn primary" id="btn-print">🖨️ พิมพ์ / บันทึกเป็น PDF</button>
-    <button class="btn ghost" id="btn-export-img">🖼️ ลองสร้างรูปภาพยาว</button>
+    <button class="btn primary" id="btn-print">🖨️ ${tf('พิมพ์ / บันทึกเป็น PDF','Print / Save as PDF')}</button>
+    <button class="btn ghost" id="btn-export-img">🖼️ ${tf('ลองสร้างรูปภาพยาว','Try generating a long image')}</button>
   </div>
-  <div class="role-note">💡 PDF คือช่องทางที่ใช้งานได้แน่นอนที่สุด — LINE ส่งไฟล์ PDF เข้าแชทได้โดยตรง ปุ่ม “ลองสร้างรูปภาพยาว” อาจใช้ไม่ได้ในบางเบราว์เซอร์เนื่องจากข้อจำกัดด้านความปลอดภัย ถ้าใช้ไม่ได้ให้ใช้ฟีเจอร์ “จับภาพหน้าจอแบบเลื่อน (Scroll Capture)” ของมือถือถ่ายรายงานด้านล่างแทน</div>
+  <div class="role-note">💡 ${tf('PDF คือช่องทางที่ใช้งานได้แน่นอนที่สุด — LINE ส่งไฟล์ PDF เข้าแชทได้โดยตรง ปุ่ม “ลองสร้างรูปภาพยาว” อาจใช้ไม่ได้ในบางเบราว์เซอร์เนื่องจากข้อจำกัดด้านความปลอดภัย ถ้าใช้ไม่ได้ให้ใช้ฟีเจอร์ “จับภาพหน้าจอแบบเลื่อน (Scroll Capture)” ของมือถือถ่ายรายงานด้านล่างแทน','PDF is the most reliable option -- LINE lets you send a PDF straight into a chat. The “long image” button may not work in every browser due to security restrictions; if it fails, use your phone’s “Scroll Capture / Long Screenshot” feature on the report below instead.')}</div>
   <div id="reportPrintable">${reportBodyHtml(state.reportDate)}</div>
   <div id="export-holder"></div>
   `;
 }
 function reqReportBlock(r){
-  const lines = r.lines.map(l=>`${escapeHtml(l.name)} × ${fmtNum(l.qty,2)} ${escapeHtml(l.unit)} (ต้องใช้ ${fmtThai(l.neededDate)})`).join('<br>');
+  const lines = r.lines.map(l=>`${escapeHtml(l.name)} × ${fmtNum(l.qty,2)} ${escapeHtml(l.unit)} (${tf('ต้องใช้','needed')} ${fmtDate(l.neededDate)})`).join('<br>');
   let approvalHtml, procureHtml='';
-  if(r.status==='pending') approvalHtml = `⚡ สถานะการอนุมัติ: <b style="color:#B4740E">🟡 รออนุมัติ</b>`;
-  else if(r.status==='rejected') approvalHtml = `⚡ สถานะการอนุมัติ: <b style="color:#DC3B3B">🔴 ปฏิเสธ</b> โดย ${escapeHtml(r.approval.by)} (${fmtDateTime(r.approval.at)})${r.approval.reason?' — '+escapeHtml(r.approval.reason):''}`;
+  if(r.status==='pending') approvalHtml = `⚡ ${tf('สถานะการอนุมัติ:','Approval status:')} <b style="color:#B4740E">🟡 ${tf('รออนุมัติ','Pending approval')}</b>`;
+  else if(r.status==='rejected') approvalHtml = `⚡ ${tf('สถานะการอนุมัติ:','Approval status:')} <b style="color:#DC3B3B">🔴 ${tf('ปฏิเสธ','Rejected')}</b> ${tf('โดย','by')} ${escapeHtml(r.approval.by)} (${fmtDateTime(r.approval.at)})${r.approval.reason?' — '+escapeHtml(r.approval.reason):''}`;
   else {
-    approvalHtml = `⚡ สถานะการอนุมัติ: <b style="color:#0D9668">🟢 อนุมัติแล้ว</b> โดย ${escapeHtml(r.approval.by)} (${fmtDateTime(r.approval.at)})${r.approval.reason?' — '+escapeHtml(r.approval.reason):''}`;
-    if(r.status==='scheduled') procureHtml = `<br>🚚 สถานะการจัดซื้อ: <b style="color:#2563D9">🔵 ยืนยันวันส่งมอบแล้ว</b> โดย ${escapeHtml(r.procurement.by)} (${fmtDateTime(r.procurement.at)})<br>&gt;&gt; ยืนยันของถึงหน้างานวันที่: <b>${fmtThai(r.procurement.deliveryDate)}</b>${r.procurement.note?' ('+escapeHtml(r.procurement.note)+')':''}`;
-    else procureHtml = `<br>🚚 สถานะการจัดซื้อ: รอฝ่ายจัดซื้อนัดส่งของ`;
+    approvalHtml = `⚡ ${tf('สถานะการอนุมัติ:','Approval status:')} <b style="color:#0D9668">🟢 ${tf('อนุมัติแล้ว','Approved')}</b> ${tf('โดย','by')} ${escapeHtml(r.approval.by)} (${fmtDateTime(r.approval.at)})${r.approval.reason?' — '+escapeHtml(r.approval.reason):''}`;
+    if(r.status==='scheduled') procureHtml = `<br>🚚 ${tf('สถานะการจัดซื้อ:','Procurement status:')} <b style="color:#2563D9">🔵 ${tf('ยืนยันวันส่งมอบแล้ว','Delivery date confirmed')}</b> ${tf('โดย','by')} ${escapeHtml(r.procurement.by)} (${fmtDateTime(r.procurement.at)})<br>&gt;&gt; ${tf('ยืนยันของถึงหน้างานวันที่:','Confirmed on-site delivery date:')} <b>${fmtDate(r.procurement.deliveryDate)}</b>${r.procurement.note?' ('+escapeHtml(r.procurement.note)+')':''}`;
+    else procureHtml = `<br>🚚 ${tf('สถานะการจัดซื้อ: รอฝ่ายจัดซื้อนัดส่งของ','Procurement status: awaiting delivery schedule')}`;
   }
   return `<div style="font-size:12.5px;line-height:1.85;padding:10px 0">
-    <b class="tabular">[ใบงานที่: ${r.reqNo}]</b> ทำรายการวันที่ ${fmtDateTime(r.createdAt)}<br>
-    • ผู้สั่งของ: ${escapeHtml(r.requestedBy)}<br>
-    • พื้นที่ใช้ของ: ${escapeHtml(r.area||'-')} | ประเภทงาน: ${escapeHtml(r.workType||'-')}<br>
-    • รายการของ: ${lines}<br>
+    <b class="tabular">[${tf('ใบงานที่:','Request:')} ${r.reqNo}]</b> ${tf('ทำรายการวันที่','created')} ${fmtDateTime(r.createdAt)}<br>
+    • ${tf('ผู้สั่งของ:','Requested by:')} ${escapeHtml(r.requestedBy)}<br>
+    • ${tf('พื้นที่ใช้ของ:','Area:')} ${escapeHtml(r.area||'-')} | ${tf('ประเภทงาน:','Work type:')} ${escapeHtml(r.workType||'-')}<br>
+    • ${tf('รายการของ:','Materials:')} ${lines}<br>
     ${approvalHtml}${procureHtml}
   </div>`;
 }
 function reportBodyHtml(date){
-  const log = state.logs.find(l=>l.date===date);
-  const summary = projectSummary(date);
+  const proj = P();
+  const log = proj.logs.find(l=>l.date===date);
+  const summary = proj.boq.length? projectSummary(date, proj.boq, proj.logs) : null;
   const dayReqs = reqsForDate(date);
   const c = state.contractor||{};
-  if(!state.boq.length){
-    return `<div class="rp-section"><div class="empty">ยังไม่มีข้อมูลแผนงานสำหรับสร้างรายงาน</div></div>`;
+  if(!proj.boq.length){
+    return `<div class="rp-section"><div class="empty">${tf('ยังไม่มีข้อมูลแผนงานสำหรับสร้างรายงาน','No plan data yet to build a report')}</div></div>`;
   }
-  const rows = state.boq.map(item=>{
-    const todayQty = todayQtyFor(item,date);
-    const planned = plannedCumAt(item,date), actual = actualCumAt(item,date);
+  const rows = proj.boq.map(item=>{
+    const todayQty = todayQtyFor(item,date,proj.logs);
+    const planned = plannedCumAt(item,date), actual = actualCumAt(item,date,proj.logs);
     const st = actual+1e-9>=planned ? 'ok' : 'bad';
     const pct = clamp((actual/item.qtyTotal)*100,0,100);
     const diff = actual-planned;
@@ -1482,49 +1956,57 @@ function reportBodyHtml(date){
       <td class="tabular">${fmtNum(todayQty,2)} ${escapeHtml(item.unit)}</td>
       <td class="tabular">${fmtNum(actual,2)} / ${fmtNum(planned,2)} ${escapeHtml(item.unit)}</td>
       <td style="min-width:120px"><div class="progress ${st}"><i style="width:${pct}%"></i></div></td>
-      <td>${st==='ok'? `<span class="badge ok">🟢 เร็วกว่า ${fmtNum(Math.abs(diff),1)}</span>` : `<span class="badge bad">🔴 ล่าช้า ${fmtNum(Math.abs(diff),1)}</span>`}</td>
+      <td>${st==='ok'? `<span class="badge ok">🟢 ${tf('เร็วกว่า','ahead by')} ${fmtNum(Math.abs(diff),1)}</span>` : `<span class="badge bad">🔴 ${tf('ล่าช้า','behind by')} ${fmtNum(Math.abs(diff),1)}</span>`}</td>
     </tr>`;
   }).join('');
   return `
     <div class="rp-head">
       <div class="tag">Site Progress Report</div>
-      <h1>รายงานความคืบหน้าและวิเคราะห์หน้างานตกแต่งภายใน</h1>
+      <h1>${tf('รายงานความคืบหน้าและวิเคราะห์หน้างานตกแต่งภายใน','Interior Fit-Out Progress & Analysis Report')}</h1>
     </div>
     <div class="rp-meta">
-      <div><b>โครงการ</b>${escapeHtml(state.project.name||'-')}${state.project.zone?' ('+escapeHtml(state.project.zone)+')':''}</div>
-      <div><b>ประจำวันที่</b>${fmtThai(date)}</div>
-      <div><b>ผู้รับเหมาดูแลหน้างาน</b>${escapeHtml(c.nickname||c.fullname||'-')}${c.phone?' | '+escapeHtml(c.phone):''}</div>
+      <div><b>${tf('โครงการ','Project')}</b>${escapeHtml(proj.name||'-')}${proj.zone?' ('+escapeHtml(proj.zone)+')':''}</div>
+      <div><b>${tf('ประจำวันที่','Report date')}</b>${fmtDate(date)}</div>
+      <div><b>${tf('ผู้รับเหมาดูแลหน้างาน','Site contractor')}</b>${escapeHtml(c.nickname||c.fullname||'-')}${c.phone?' | '+escapeHtml(c.phone):''}</div>
     </div>
     <div class="rp-section">
-      <h3>สรุปสถานะโครงการประจำวันนี้</h3>
+      <h3>${tf('สรุปสถานะโครงการประจำวันนี้','Today’s Project Status Summary')}</h3>
       <div class="rp-summary">
-        <div class="box"><div class="sub">ภาพรวมทั้งโปรเจกต์</div><div class="v" style="color:${summary.delta>=0?'#0D9668':'#DC3B3B'}">${summary.delta>=0?'เร็วกว่าแผนสะสม':'ล่าช้ากว่าแผนสะสม'} ${fmtNum(Math.abs(summary.delta),1)}%</div></div>
-        <div class="box"><div class="sub">คาดการณ์วันเสร็จสิ้น</div><div class="v" style="font-size:13px">${summary.anyPrediction? (summary.delayDays>0? `ช้ากว่าแผน ${summary.delayDays} วัน (${fmtThai(summary.predictedEnd)})` : summary.delayDays<0? `เร็วกว่าแผน ${Math.abs(summary.delayDays)} วัน (${fmtThai(summary.predictedEnd)})` : `ตรงตามแผน (${fmtThai(summary.predictedEnd)})`) : 'รอข้อมูลเพิ่มเติม'}</div></div>
+        <div class="box"><div class="sub">${tf('ภาพรวมทั้งโปรเจกต์','Overall project')}</div><div class="v" style="color:${summary.delta>=0?'#0D9668':'#DC3B3B'}">${summary.delta>=0?tf('เร็วกว่าแผนสะสม','Ahead of cumulative plan'):tf('ล่าช้ากว่าแผนสะสม','Behind cumulative plan')} ${fmtNum(Math.abs(summary.delta),1)}%</div></div>
+        <div class="box"><div class="sub">${tf('คาดการณ์วันเสร็จสิ้น','Completion forecast')}</div><div class="v" style="font-size:13px">${summary.anyPrediction? (summary.delayDays>0? tf('ช้ากว่าแผน ','behind plan by ')+summary.delayDays+tf(' วัน (',' day(s) (')+fmtDate(summary.predictedEnd)+')' : summary.delayDays<0? tf('เร็วกว่าแผน ','ahead of plan by ')+Math.abs(summary.delayDays)+tf(' วัน (',' day(s) (')+fmtDate(summary.predictedEnd)+')' : tf('ตรงตามแผน (','on plan (')+fmtDate(summary.predictedEnd)+')') : tf('รอข้อมูลเพิ่มเติม','awaiting more data')}</div></div>
       </div>
     </div>
     <div class="rp-section">
-      <h3>ตารางเปรียบเทียบปริมาณงาน (อ้างอิง Master Plan &amp; BOQ)</h3>
-      <div class="table-wrap"><table><thead><tr><th>รายการงาน</th><th>ทำได้วันนี้</th><th>ทำจริงสะสม / แผนสะสม</th><th>ความคืบหน้า</th><th>สถานะ</th></tr></thead><tbody>${rows}</tbody></table></div>
+      <h3>${tf('ตารางเปรียบเทียบปริมาณงาน (อ้างอิง Master Plan & BOQ)','Quantity Comparison (Master Plan & BOQ)')}</h3>
+      <div class="table-wrap"><table><thead><tr><th>${tf('รายการงาน','Work item')}</th><th>${tf('ทำได้วันนี้','Done today')}</th><th>${tf('ทำจริงสะสม / แผนสะสม','Actual / planned to date')}</th><th>${tf('ความคืบหน้า','Progress')}</th><th>${tf('สถานะ','Status')}</th></tr></thead><tbody>${rows}</tbody></table></div>
     </div>
-    ${log && log.note ? `<div class="rp-section"><h3>⚠️ บันทึกอุปสรรคหน้างาน</h3><p style="font-size:13px;line-height:1.7">${escapeHtml(log.note)}</p></div>` : ''}
-    ${dayReqs.length? `<div class="rp-section"><h3>🛒 รายงานการสั่งซื้อวัสดุหน้างาน (Material Request &amp; Procurement Status)</h3>${dayReqs.map(reqReportBlock).join('<hr style="border:none;border-top:1px dashed #E3E1F0;margin:2px 0">')}</div>` : ''}
+    ${log && (log.weather || (log.workforce&&log.workforce.length)) ? `<div class="rp-section"><h3>🌦️ ${tf('สภาพหน้างานและกำลังพล','Site Condition & Workforce')}</h3>
+      ${log.weather? `<p style="font-size:13px;line-height:1.7"><b>${tf('สภาพหน้างาน:','Condition:')}</b> ${escapeHtml(log.weather)}</p>` : ''}
+      ${(log.workforce&&log.workforce.length)? `<div class="table-wrap" style="margin-top:8px"><table><thead><tr><th>${tf('ทีมงาน','Team')}</th><th>${tf('จำนวนคน','Headcount')}</th><th>${tf('ประเภทงาน','Work type')}</th></tr></thead><tbody>${log.workforce.map(w=>`<tr><td>${escapeHtml(w.team||'-')}</td><td class="tabular">${escapeHtml(String(w.count||'-'))}</td><td>${escapeHtml(w.workType||'-')}</td></tr>`).join('')}</tbody></table></div>` : ''}
+    </div>` : ''}
+    ${log && log.issues && log.issues.length ? `<div class="rp-section"><h3>⚠️ ${tf('ปัญหาและอุปสรรคหน้างาน','Site Issues & Defect Log')}</h3>
+      ${log.issues.map(iss=>`<p style="font-size:13px;line-height:1.7">${severityInfo(iss.severity).ic} <b>${escapeHtml(iss.type||'')}</b> — ${escapeHtml(iss.detail||'')}</p>`).join('')}
+    </div>` : (log && log.note ? `<div class="rp-section"><h3>⚠️ ${tf('บันทึกอุปสรรคหน้างาน','Site Issues & Notes')}</h3><p style="font-size:13px;line-height:1.7">${escapeHtml(log.note)}</p></div>` : '')}
+    ${log && log.deliveryNote ? `<div class="rp-section"><h3>🚚 ${tf('การรับของหน้างานวันนี้','Today’s Material Deliveries')}</h3><p style="font-size:13px;line-height:1.7">${escapeHtml(log.deliveryNote)}</p></div>` : ''}
+    ${dayReqs.length? `<div class="rp-section"><h3>🛒 ${tf('รายงานการสั่งซื้อวัสดุหน้างาน (Material Request & Procurement Status)','Material Request & Procurement Status')}</h3>${dayReqs.map(reqReportBlock).join('<hr style="border:none;border-top:1px dashed #E3E1F0;margin:2px 0">')}</div>` : ''}
     <div class="rp-section" id="rp-photo-section">
-      <h3>📸 ภาพถ่ายความคืบหน้าหน้างานประจำวัน</h3>
-      <div class="rp-photogrid" id="rp-photogrid"><span class="sub">กำลังโหลดรูปภาพ...</span></div>
+      <h3>📸 ${tf('ภาพถ่ายความคืบหน้าหน้างานประจำวัน','Daily Site Progress Photos')}</h3>
+      <div class="rp-photogrid" id="rp-photogrid"><span class="sub">${tf('กำลังโหลดรูปภาพ...','Loading photos...')}</span></div>
     </div>
     <div class="rp-foot">
-      <span>${escapeHtml(c.company||'ชีพจรไซต์งาน')} · ${escapeHtml(c.fullname||'')}</span>
-      <span>สร้างรายงานเมื่อ ${fmtThai(todayStr())}</span>
+      <span>${escapeHtml(c.company||tf('ชีพจรไซต์งาน','Site Pulse'))} · ${escapeHtml(c.fullname||'')}</span>
+      <span>${tf('สร้างรายงานเมื่อ','Report generated')} ${fmtDate(todayStr())}</span>
     </div>
   `;
 }
 async function refreshReportPhotos(date){
-  const log = state.logs.find(l=>l.date===date);
+  const proj = P();
+  const log = proj.logs.find(l=>l.date===date);
   const reqs = reqsForDate(date);
   const photos = await loadReportPhotos(log, reqs);
   const grid = $('#rp-photogrid');
   if(!grid) return;
-  grid.innerHTML = photos.length? photos.map(p=>`<figure><img src="${p.dataUrl}"><figcaption>${escapeHtml(p.caption||'ภาพหน้างาน')}</figcaption></figure>`).join('') : `<span class="sub">ไม่มีรูปภาพสำหรับวันนี้</span>`;
+  grid.innerHTML = photos.length? photos.map(p=>`<figure><img src="${p.dataUrl}"><figcaption>${escapeHtml(p.caption||tf('ภาพหน้างาน','site photo'))}</figcaption></figure>`).join('') : `<span class="sub">${tf('ไม่มีรูปภาพสำหรับวันนี้','No photos for this day')}</span>`;
 }
 function wireReport(){
   refreshReportPhotos(state.reportDate);
@@ -1533,13 +2015,15 @@ function wireReport(){
   $('#btn-print').onclick = ()=> window.print();
   $('#btn-export-img').onclick = exportReportAsImage;
 }
-const IMG_FALLBACK_MSG = `<div class="card" style="margin-top:10px;background:var(--amber-50);border-color:var(--amber-500)">
-  <b style="font-family:var(--font-display);font-size:13px">สร้างรูปภาพอัตโนมัติไม่สำเร็จในเบราว์เซอร์นี้</b>
-  <p class="sub" style="margin-top:6px">เบราว์เซอร์บางตัวบล็อกการแปลงหน้าเว็บเป็นรูปภาพด้วยเหตุผลด้านความปลอดภัย วิธีสำรอง: (1) กดปุ่ม “พิมพ์ / บันทึกเป็น PDF” แล้วส่งไฟล์ PDF เข้ากลุ่ม LINE ได้โดยตรง หรือ (2) ใช้ฟีเจอร์ “จับภาพหน้าจอแบบเลื่อน (Scroll Capture / Long Screenshot)” ของมือถือถ่ายรายงานด้านล่างนี้แทน</p>
+function imgFallbackMsg(){
+  return `<div class="card" style="margin-top:10px;background:var(--amber-50);border-color:var(--amber-500)">
+  <b style="font-family:var(--font-display);font-size:13px">${tf('สร้างรูปภาพอัตโนมัติไม่สำเร็จในเบราว์เซอร์นี้','Automatic image generation failed in this browser')}</b>
+  <p class="sub" style="margin-top:6px">${tf('เบราว์เซอร์บางตัวบล็อกการแปลงหน้าเว็บเป็นรูปภาพด้วยเหตุผลด้านความปลอดภัย วิธีสำรอง: (1) กดปุ่ม “พิมพ์ / บันทึกเป็น PDF” แล้วส่งไฟล์ PDF เข้ากลุ่ม LINE ได้โดยตรง หรือ (2) ใช้ฟีเจอร์ “จับภาพหน้าจอแบบเลื่อน (Scroll Capture / Long Screenshot)” ของมือถือถ่ายรายงานด้านล่างนี้แทน','Some browsers block converting a page to an image for security reasons. Workarounds: (1) tap “Print / Save as PDF” and send the PDF straight into a LINE group, or (2) use your phone’s “Scroll Capture / Long Screenshot” feature on the report below instead.')}</p>
 </div>`;
+}
 async function exportReportAsImage(){
   const holder = $('#export-holder');
-  holder.innerHTML = `<div class="sub" style="margin-top:10px">กำลังสร้างรูปภาพ...</div>`;
+  holder.innerHTML = `<div class="sub" style="margin-top:10px">${tf('กำลังสร้างรูปภาพ...','Generating image...')}</div>`;
   try{
     const node = $('#reportPrintable');
     const w = Math.max(node.clientWidth,640);
@@ -1569,23 +2053,26 @@ async function exportReportAsImage(){
       try{
         ctx.drawImage(img,0,0,w,h);
         const pngUrl = canvas.toDataURL('image/png');
-        holder.innerHTML = `<div class="exported-wrap"><img src="${pngUrl}" alt="รายงาน"><p>กดค้างที่รูป (มือถือ) หรือคลิกขวา &rarr; บันทึกรูปภาพ (คอมพิวเตอร์) เพื่อบันทึกและส่งเข้ากลุ่ม LINE</p></div>`;
+        holder.innerHTML = `<div class="exported-wrap"><img src="${pngUrl}" alt="report"><p>${tf('กดค้างที่รูป (มือถือ) หรือคลิกขวา &rarr; บันทึกรูปภาพ (คอมพิวเตอร์) เพื่อบันทึกและส่งเข้ากลุ่ม LINE','Press and hold the image (mobile) or right-click &rarr; save image (desktop) to save and send it to a LINE group')}</p></div>`;
       }catch(err){
-        holder.innerHTML = IMG_FALLBACK_MSG;
+        holder.innerHTML = imgFallbackMsg();
       }
       URL.revokeObjectURL(url);
     };
-    img.onerror = ()=>{ holder.innerHTML = IMG_FALLBACK_MSG; URL.revokeObjectURL(url); };
+    img.onerror = ()=>{ holder.innerHTML = imgFallbackMsg(); URL.revokeObjectURL(url); };
     img.src = url;
   }catch(err){
-    holder.innerHTML = IMG_FALLBACK_MSG;
+    holder.innerHTML = imgFallbackMsg();
   }
 }
 
 /* ============================= WIRE SCREEN ROUTER ============================= */
 function wireScreen(){
-  if(state.tab==='profile') wireProfile();
-  else if(state.tab==='masterplan') wireMasterPlan();
+  if(FIELD_MODE){ if(state.currentProjectId) wireDailyLog(); return; }
+  if(state.view==='hub') return wireHub();
+  if(state.view==='profile') return wireProfile();
+  if(state.view!=='project') return;
+  if(state.tab==='masterplan') wireMasterPlan();
   else if(state.tab==='dailylog') wireDailyLog();
   else if(state.tab==='procure') wireProcure();
   else if(state.tab==='report') wireReport();
@@ -1595,11 +2082,11 @@ function wireScreen(){
 function updateNetStatus(){
   const dot = $('#net-dot');
   if(!dot) return;
-  if(navigator.onLine){ dot.classList.remove('offline'); dot.title='ออนไลน์'; }
-  else { dot.classList.add('offline'); dot.title='ออฟไลน์ — ใช้งานต่อได้ตามปกติ ข้อมูลบันทึกอยู่ในเครื่องนี้'; }
+  if(navigator.onLine){ dot.classList.remove('offline'); dot.title=tf('ออนไลน์','Online'); }
+  else { dot.classList.add('offline'); dot.title=tf('ออฟไลน์ — ใช้งานต่อได้ตามปกติ ข้อมูลบันทึกอยู่ในเครื่องนี้','Offline — you can keep working normally, data is saved on this device'); }
 }
-window.addEventListener('online', ()=>{ updateNetStatus(); toast('กลับมาออนไลน์แล้ว'); });
-window.addEventListener('offline', ()=>{ updateNetStatus(); toast('ออฟไลน์ — ใช้งานต่อได้ตามปกติ ข้อมูลจะถูกบันทึกในเครื่องนี้'); });
+window.addEventListener('online', ()=>{ updateNetStatus(); toast(tf('กลับมาออนไลน์แล้ว','Back online')); });
+window.addEventListener('offline', ()=>{ updateNetStatus(); toast(tf('ออฟไลน์ — ใช้งานต่อได้ตามปกติ ข้อมูลจะถูกบันทึกในเครื่องนี้','Offline — you can keep working normally, data will be saved on this device')); });
 
 /* ============================= INIT ============================= */
 bootstrap();
