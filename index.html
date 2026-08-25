@@ -245,8 +245,13 @@ tbody tr:hover{background:var(--surface-2)}
 .mp-thumb-count{position:absolute;bottom:1px;right:1px;background:rgba(20,18,36,.68);color:#fff;font-size:9px;padding:1px 4px;border-radius:6px;line-height:1.3}
 .mp-thumb[data-quick-attach]{cursor:pointer}
 .mp-thumb[data-quick-attach]:hover{border-color:var(--purple-500)}
-.mp-table tr.mp-cat-row td{background:var(--purple-50);color:var(--purple-700);font-family:var(--font-display);font-weight:600;font-size:12.5px;padding:9px 12px;white-space:normal}
+.mp-table tr.mp-cat-row{cursor:pointer;user-select:none}
+.mp-table tr.mp-cat-row td{background:var(--purple-50);color:var(--purple-700);font-family:var(--font-display);font-weight:600;font-size:12.5px;padding:9px 12px;white-space:normal;transition:background .12s}
+.mp-table tr.mp-cat-row:hover td{background:var(--purple-100,var(--purple-50))}
+.mp-table tr.mp-cat-row.open td{border-bottom:1px solid var(--purple-100,var(--line))}
+.mp-cat-chevron{display:inline-block;width:14px;margin-right:2px;font-size:11px;opacity:.7}
 .mp-cat-count{font-weight:400;opacity:.75;font-size:11.5px}
+.mp-expand-controls{display:flex;gap:8px;margin:0 0 12px}
 
 .empty{
   border:1.5px dashed var(--line);border-radius:var(--radius-md);
@@ -3530,14 +3535,20 @@ function renderMasterPlan(){
   const groups = boqCategoryGroups(P().boq);
   const bodyHtml = groups.map(g=>{
     const label = g.cat? escapeHtml(g.cat) : tf('ไม่ระบุหมวดหมู่','Uncategorized');
-    const header = `<tr class="mp-cat-row"><td colspan="15">📁 ${label} <span class="mp-cat-count">${g.items.length} ${tf('รายการ','item(s)')}</span></td></tr>`;
-    return header + g.items.map(itemRowHtml).join('');
+    const key = g.cat || '__uncategorized__';
+    const expanded = mpExpandedCats.has(key);
+    const header = `<tr class="mp-cat-row${expanded?' open':''}" data-toggle-cat="${escapeHtml(key)}"><td colspan="15"><span class="mp-cat-chevron">${expanded?'▾':'▸'}</span>📁 ${label} <span class="mp-cat-count">${g.items.length} ${tf('รายการ','item(s)')}</span></td></tr>`;
+    return header + (expanded? g.items.map(itemRowHtml).join('') : '');
   }).join('');
   return `
   <div class="page-head">
     <div><h2>${tf('แผนงานหลัก & BOQ','Master Plan & BOQ')}</h2><div class="sub">${tf('แยกตามหมวดงานหลักอ้างอิงตาม BOQ จริง ใส่โซน ทีมงาน ปริมาณรวมตามสัญญา และช่วงเวลาทำงาน ระบบคำนวณเป้าหมายรายวันให้อัตโนมัติ','Grouped by main work category from the real BOQ -- enter zone, team, contract quantity and date range, the daily target is calculated automatically.')}</div></div>
     <button class="btn primary" id="btn-add-item">+ ${tf('เพิ่มรายการงาน','Add work item')}</button>
   </div>
+  ${groups.length>1? `<div class="mp-expand-controls">
+    <button class="btn ghost sm" id="btn-expand-all-cat">${tf('ขยายทั้งหมด','Expand all')}</button>
+    <button class="btn ghost sm" id="btn-collapse-all-cat">${tf('ย่อทั้งหมด','Collapse all')}</button>
+  </div>` : ''}
   ${P().boq.length===0? `<div class="empty"><span class="ic">📋</span>${tf('ยังไม่มีรายการงานใน BOQ','No BOQ items yet')}<br>${tf('กด “เพิ่มรายการงาน” เพื่อเริ่มต้น','Tap “Add work item” to get started')}</div>` : `
   <div class="table-wrap mp-wrap"><table class="mp-table">
     <thead><tr><th>${tf('ภาพ','Photo')}</th><th>${tf('รายการงาน','Work item')}</th><th>${tf('โซน','Zone')}</th><th>${tf('ทีมงาน','Team')}</th><th>${tf('หัวหน้าทีม','Leader')}</th><th>${tf('จำนวนช่าง','Manpower')}</th><th>${tf('ประเภทงาน','Work type')}</th><th>${tf('ช่วงเวลาทำงาน','Allowed hours')}</th><th>${tf('ปริมาณรวม','Total qty')}</th><th>${tf('แผนงาน เริ่ม–เสร็จ','Planned start–end')}</th><th>${tf('แผนจริง เริ่ม–เสร็จ','Actual start–end')}</th><th>${tf('ระยะเวลา','Duration')}</th><th>${tf('เป้าหมาย/วัน','Daily target')}</th><th>${tf('หมายเหตุ','Notes')}</th><th></th></tr></thead>
@@ -3551,6 +3562,7 @@ function renderMasterPlan(){
   </div>
   `;
 }
+let mpExpandedCats=new Set(); // categories currently expanded on Master Plan & BOQ screen (collapsed by default for a tidier view)
 let editingItemId=null;
 let itemDraft=null; // {name,category,zone,team,qtyTotal,unit,startDate,endDate,actualStartDate,actualEndDate,notes,existingPhotoIds,pendingPhotos,removedPhotoIds} -- persists across re-renders (e.g. photo add/remove) so in-progress typing is never lost
 function openItemDraft(id){
@@ -3626,6 +3638,18 @@ function itemModalHtml(){
 }
 function wireMasterPlan(){
   $('#btn-add-item').onclick = ()=>{ openItemDraft('new'); render(); };
+  $$('[data-toggle-cat]').forEach(row=> row.onclick = ()=>{
+    const key = row.dataset.toggleCat;
+    if(mpExpandedCats.has(key)) mpExpandedCats.delete(key); else mpExpandedCats.add(key);
+    render();
+  });
+  const expandAllBtn = $('#btn-expand-all-cat');
+  if(expandAllBtn) expandAllBtn.onclick = ()=>{
+    boqCategoryGroups(P().boq).forEach(g=> mpExpandedCats.add(g.cat || '__uncategorized__'));
+    render();
+  };
+  const collapseAllBtn = $('#btn-collapse-all-cat');
+  if(collapseAllBtn) collapseAllBtn.onclick = ()=>{ mpExpandedCats.clear(); render(); };
   $$('[data-edit-item]').forEach(b=> b.onclick = ()=>{ openItemDraft(b.dataset.editItem); render(); });
   $$('[data-open-gallery]').forEach(el=> el.onclick = ()=>{ refGalleryItemId=el.dataset.openGallery; render(); });
   $$('[data-quick-attach]').forEach(el=> el.onclick = ()=>{
