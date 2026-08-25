@@ -252,22 +252,37 @@ tbody tr:hover{background:var(--surface-2)}
 .mp-table{table-layout:fixed;width:100%}
 .mp-table th,.mp-table td{white-space:normal;word-break:break-word;padding:9px 8px;vertical-align:top;font-size:12.5px}
 .mp-table th:nth-child(1),.mp-table td:nth-child(1){width:5%}
-.mp-table th:nth-child(2),.mp-table td:nth-child(2){width:17%}
-.mp-table th:nth-child(3),.mp-table td:nth-child(3){width:12%}
-.mp-table th:nth-child(4),.mp-table td:nth-child(4){width:12%}
-.mp-table th:nth-child(5),.mp-table td:nth-child(5){width:9%}
-.mp-table th:nth-child(6),.mp-table td:nth-child(6){width:10%}
-.mp-table th:nth-child(7),.mp-table td:nth-child(7){width:10%}
-.mp-table th:nth-child(8),.mp-table td:nth-child(8){width:6%}
-.mp-table th:nth-child(9),.mp-table td:nth-child(9){width:10%}
+.mp-table th:nth-child(2),.mp-table td:nth-child(2){width:15%}
+.mp-table th:nth-child(3),.mp-table td:nth-child(3){width:11%}
+.mp-table th:nth-child(4),.mp-table td:nth-child(4){width:11%}
+.mp-table th:nth-child(5),.mp-table td:nth-child(5){width:8%}
+.mp-table th:nth-child(6),.mp-table td:nth-child(6){width:9%}
+.mp-table th:nth-child(7),.mp-table td:nth-child(7){width:9%}
+.mp-table th:nth-child(8),.mp-table td:nth-child(8){width:5%}
+.mp-table th:nth-child(9),.mp-table td:nth-child(9){width:9%}
 .mp-table th:nth-child(10),.mp-table td:nth-child(10){width:9%}
-.mp-table td:nth-child(10){display:flex;gap:5px;flex-wrap:wrap}
-.mp-table td:nth-child(10) .btn{padding:6px 8px;min-width:0}
+.mp-table th:nth-child(11),.mp-table td:nth-child(11){width:9%}
+.mp-table td:nth-child(11){display:flex;gap:5px;flex-wrap:wrap}
+.mp-table td:nth-child(11) .btn{padding:6px 8px;min-width:0}
 .mp-sub{display:block;font-size:11px;color:var(--ink-500);margin-top:3px;line-height:1.35;font-weight:400}
 .mp-days-badge{display:inline-block;font-size:10px;color:var(--ink-500);background:var(--line-soft,var(--purple-50));padding:1px 6px;border-radius:8px;white-space:nowrap}
 .mp-date-input{width:100%;font-size:11px;padding:4px 3px;border-radius:6px;border:1px solid var(--line);font-family:var(--font-mono);color:var(--ink-700);background:var(--surface)}
 .mp-date-input:hover{border-color:var(--purple-400,var(--purple-500))}
 .mp-date-input:focus{outline:2px solid var(--purple-100,var(--purple-50));border-color:var(--purple-500)}
+.mp-progress-wrap{display:flex;flex-direction:column;gap:4px;width:100%}
+.mp-progress-input{width:100%;font-size:11px;padding:3px 4px;border-radius:6px;border:1px solid var(--line);text-align:center;font-family:var(--font-mono);color:var(--ink-700);background:var(--surface)}
+.mp-progress-input:hover{border-color:var(--purple-400,var(--purple-500))}
+.mp-progress-input:focus{outline:2px solid var(--purple-100,var(--purple-50));border-color:var(--purple-500)}
+.mp-progress-bar{height:6px;margin:0}
+.mp-table tr.mp-row-on-track td{background:var(--blue-50)}
+.mp-table tr.mp-row-near-due td{background:var(--amber-50)}
+.mp-table tr.mp-row-overdue td{background:var(--coral-50)}
+.mp-table tr.mp-row-done td{background:var(--mint-50)}
+.mp-status-dot{display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:5px;vertical-align:middle}
+.mp-status-dot.on-track{background:var(--blue-500)}
+.mp-status-dot.near-due{background:var(--amber-500)}
+.mp-status-dot.overdue{background:var(--coral-500)}
+.mp-status-dot.done{background:var(--mint-500)}
 .mp-cat-chevron{display:inline-block;width:14px;margin-right:2px;font-size:11px;opacity:.7}
 .mp-cat-count{font-weight:400;opacity:.75;font-size:11.5px}
 .mp-expand-controls{display:flex;gap:8px;margin:0 0 12px}
@@ -306,6 +321,9 @@ tbody tr:hover{background:var(--surface-2)}
 .photo-item img{width:100%;height:98px;object-fit:cover;display:block}
 .photo-item input,.photo-item select{border:none;border-top:1px solid var(--line);border-radius:0;font-size:10.5px;padding:5px 7px;background:var(--surface);width:100%;display:block}
 .photo-item .rm{position:absolute;top:5px;right:5px;width:22px;height:22px;border-radius:50%;background:rgba(20,18,36,.62);color:#fff;border:none;font-size:12px;line-height:1}
+.photo-pdf-icon{height:98px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;font-size:28px;background:var(--surface-2);color:var(--ink-500)}
+.photo-pdf-name{font-size:9.5px;padding:0 6px;text-align:center;word-break:break-word;line-height:1.2;max-height:2.4em;overflow:hidden}
+.photo-drop.drag-over{background:var(--purple-100,var(--purple-50));border-color:var(--purple-500)}
 .progressline{height:6px;background:var(--line-soft);border-radius:999px;overflow:hidden}
 .progressline i{display:block;height:100%;background:var(--purple-600)}
 
@@ -319,6 +337,7 @@ tbody tr:hover{background:var(--surface-2)}
 
 /* ---------- Report ---------- */
 #reportPrintable{background:#fff;color:#1E1B31;border-radius:var(--radius-lg);overflow:hidden;border:1px solid var(--line);box-shadow:var(--shadow-sm)}
+.rp-preview{background:#fff;color:#1E1B31;border-radius:var(--radius-lg);overflow-y:auto;overflow-x:hidden;border:1px solid var(--line);max-height:65vh}
 .rp-head{background:linear-gradient(135deg,#4F46E5,#6366F1);color:#fff;padding:26px 26px 22px}
 .rp-head .tag{font-size:11px;letter-spacing:.08em;text-transform:uppercase;opacity:.85;font-weight:700}
 .rp-head h1{font-size:20px;margin-top:6px;font-family:'Kanit',sans-serif}
@@ -334,6 +353,8 @@ tbody tr:hover{background:var(--surface-2)}
 .rp-photogrid figure{margin:0;border-radius:12px;overflow:hidden;border:1px solid #E3E1F0}
 .rp-photogrid img{width:100%;height:110px;object-fit:cover;display:block}
 .rp-photogrid figcaption{font-size:10.5px;padding:6px 8px;background:#F7F8FE;color:#3E3A57}
+.rp-pdf-figure{display:flex;flex-direction:column}
+.rp-pdf-icon{width:100%;height:110px;display:flex;align-items:center;justify-content:center;font-size:38px;background:#F7F8FE}
 .rp-foot{padding:16px 26px;font-size:11px;color:#6B6784;display:flex;justify-content:space-between;background:#F7F8FE}
 
 /* ---------- Role switcher ---------- */
@@ -371,6 +392,7 @@ tbody tr:hover{background:var(--surface-2)}
 .badge.approved{background:var(--mint-50);color:var(--mint-600)}
 .badge.rejected{background:var(--coral-50);color:var(--coral-600)}
 .badge.scheduled{background:var(--blue-50);color:var(--blue-600)}
+.badge.duesoon{background:var(--amber-50);color:var(--amber-600)}
 
 /* ---------- Kanban ---------- */
 .kanban{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px;align-items:start}
@@ -510,7 +532,7 @@ function loadData(){
   return null;
 }
 function saveData(){
-  try{ localStorage.setItem(LS_KEY, JSON.stringify({contractor:state.contractor,projects:state.projects,role:state.role,lang:state.lang})); }
+  try{ localStorage.setItem(LS_KEY, JSON.stringify({contractor:state.contractor,projects:state.projects,role:state.role,lang:state.lang,contractors:state.contractors,approvers:state.approvers})); }
   catch(e){ toast(tf('บันทึกไม่สำเร็จ (พื้นที่จัดเก็บเต็ม)','Save failed (storage is full)')); }
 }
 
@@ -572,6 +594,21 @@ function compressImage(file, maxDim, quality){
     img.onerror = (e)=>{ URL.revokeObjectURL(url); reject(e); };
     img.src = url;
   });
+}
+
+function fileToDataUrl(file){
+  return new Promise((resolve,reject)=>{
+    const reader = new FileReader();
+    reader.onload = ()=> resolve(reader.result);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+function dataUrlKind(dataUrl){
+  if(!dataUrl) return 'file';
+  if(dataUrl.indexOf('data:image/')===0) return 'image';
+  if(dataUrl.indexOf('data:application/pdf')===0) return 'pdf';
+  return 'file';
 }
 
 /* ============================= DEMO SEED ============================= */
@@ -2945,9 +2982,11 @@ function demoData(){
 
 /* ============================= STATE ============================= */
 let state = {
-  view:'hub',            // 'hub' | 'overview' | 'profile' | 'project'
+  view:'hub',            // 'hub' | 'overview' | 'profile' | 'contractors' | 'project'
   tab:'dashboard',        // active sub-tab when view==='project'
   contractor:null, projects:[], currentProjectId:null,
+  contractors:[],  // master roster of contractors/workers (shared across all projects), see SCREEN: CONTRACTORS
+  approvers:[],    // people with purchase-order approval rights, see SCREEN: PROCUREMENT settings
   role:'site', lang:'th',
   selectedLogDate: todayStr(),
   reportDate: todayStr(),
@@ -2991,6 +3030,13 @@ const PSTATUS = [
   {id:'scheduled', label:tf('นัดส่งแล้ว','Scheduled'), ic:'🔵'},
   {id:'rejected', label:tf('ปฏิเสธ','Rejected'), ic:'🔴'},
 ];
+const NECESSITY_TYPES = [
+  {v:'main', label:tf('งานหลัก','Main work')},
+  {v:'corrective', label:tf('งานแก้ไข','Corrective work')},
+  {v:'repair', label:tf('งานซ่อม','Repair work')},
+  {v:'additional', label:tf('งานเพิ่มเติม','Additional work')},
+  {v:'wrongorder', label:tf('เนื่องจากสั่งของผิด','Due to a wrong order')},
+];
 // NOTE: ROLE_LABEL/STATUS_LABEL/PSTATUS above are captured once at parse time
 // using tf(), which reads state.lang at that instant. rebuildLangConstants()
 // re-evaluates them after a language switch so labels update immediately.
@@ -3004,24 +3050,27 @@ function rebuildLangConstants(){
   STATUS_LABEL.scheduled = tf('🔵 นัดส่งแล้ว','🔵 Scheduled');
   PSTATUS[0].label=tf('รออนุมัติ','Pending'); PSTATUS[1].label=tf('อนุมัติแล้ว (รอจัดซื้อ)','Approved (awaiting procurement)');
   PSTATUS[2].label=tf('นัดส่งแล้ว','Scheduled'); PSTATUS[3].label=tf('ปฏิเสธ','Rejected');
+  NECESSITY_TYPES[0].label=tf('งานหลัก','Main work'); NECESSITY_TYPES[1].label=tf('งานแก้ไข','Corrective work');
+  NECESSITY_TYPES[2].label=tf('งานซ่อม','Repair work'); NECESSITY_TYPES[3].label=tf('งานเพิ่มเติม','Additional work');
+  NECESSITY_TYPES[4].label=tf('เนื่องจากสั่งของผิด','Due to a wrong order');
   rebuildDailyLogConstants();
 }
 
 function bootstrap(){
   const saved = loadData();
   if(saved && saved.contractor && Array.isArray(saved.projects)){
-    Object.assign(state,{contractor:saved.contractor, projects:saved.projects, role:saved.role||'site', lang:saved.lang||'th'});
+    Object.assign(state,{contractor:saved.contractor, projects:saved.projects, role:saved.role||'site', lang:saved.lang||'th', contractors:saved.contractors||[], approvers:saved.approvers||[]});
   } else if(saved && saved.contractor && saved.boq){
     // migrate an older single-project save into the new multi-project shape
     Object.assign(state,{
       contractor:saved.contractor,
       projects:[{id:uid(), name:(saved.project&&saved.project.name)||tf('โปรเจกต์ของฉัน','My project'), zone:(saved.project&&saved.project.zone)||'', boq:saved.boq||[], logs:saved.logs||[], materialRequests:saved.materialRequests||[], createdAt:new Date().toISOString()}],
-      role:saved.role||'site', lang:saved.lang||'th'
+      role:saved.role||'site', lang:saved.lang||'th', contractors:saved.contractors||[], approvers:saved.approvers||[]
     });
     saveData();
   } else {
     const d = demoData();
-    Object.assign(state,{contractor:d.contractor, projects:d.projects, role:'site', lang:'th'});
+    Object.assign(state,{contractor:d.contractor, projects:d.projects, role:'site', lang:'th', contractors:[], approvers:[]});
     saveData();
   }
   // one-time seed: make sure the Richmond example project (imported from the
@@ -3150,6 +3199,7 @@ const TOP_TABS = [
   {id:'hub', label:tf('โปรเจ็คทั้งหมด','All Projects'), ic:'🏠'},
   {id:'overview', label:tf('ภาพรวมทุกโปรเจ็ค','Overview'), ic:'📈'},
   {id:'profile', label:tf('ตั้งค่าบริษัท','Company'), ic:'🏢'},
+  {id:'contractors', label:tf('ข้อมูลผู้รับเหมา','Contractors'), ic:'👷'},
 ];
 const TABS = [
   {id:'masterplan',label:tf('แผนงานหลัก','Master Plan'),ic:'📋'},
@@ -3181,6 +3231,8 @@ function renderModalRoot(){
   if(procureDetailId) return detailModalHtml();
   if(refGalleryItemId) return refGalleryModalHtml();
   if(projectDraft) return projectModalHtml();
+  if(contractorDraft) return contractorModalHtml();
+  if(contractorHistoryId) return contractorHistoryModalHtml();
   return '';
 }
 
@@ -3245,6 +3297,7 @@ function renderScreen(){
   if(state.view==='hub') return renderHub();
   if(state.view==='overview') return renderOverview();
   if(state.view==='profile') return renderProfile();
+  if(state.view==='contractors') return renderContractors();
   switch(state.tab){
     case 'masterplan': return renderMasterPlan();
     case 'dailylog': return renderDailyLog();
@@ -3261,6 +3314,9 @@ function resetTransient(){
   creatingRequest=false; requestForm=null; procureDetailId=null; refGalleryItemId=null;
   projectDraft=null; editingProjectId=null;
   dailyDraft=null; dailyEntryDraft={zone:'',itemId:'',qty:'',note:''};
+  contractorDraft=null; editingContractorId=null; contractorHistoryId=null;
+  historyModalOpen=false; historyViewing=false;
+  procureTrashOpen=false;
 }
 function goToHub(){
   resetTransient();
@@ -3292,6 +3348,8 @@ function wireGlobal(){
   wireDetailModal();
   wireGalleryModal();
   wireProjectModal();
+  wireContractorModal();
+  wireContractorHistoryModal();
 }
 
 /* ============================= SCREEN: HUB (ALL PROJECTS) ============================= */
@@ -3378,6 +3436,175 @@ function wireHub(){
     const link = fieldLink(b.dataset.copyField);
     try{ await navigator.clipboard.writeText(link); toast(tf('คัดลอกลิงก์บันทึกประจำวันแล้ว','Daily log link copied')); }
     catch(err){ prompt(tf('คัดลอกลิงก์นี้:','Copy this link:'), link); }
+  });
+}
+
+/* ============================= SCREEN: CONTRACTORS (SHARED WORKER/CONTRACTOR ROSTER) ============================= */
+// Master roster of contractors/crews, shared across every project (state.contractors).
+// "Linked" work history is auto-derived by matching a contractor's name against
+// the team names typed into each project's Daily Log workforce entries -- no
+// duplicate data entry needed as long as the names match.
+function contractorLinkedStats(name){
+  const n = (name||'').trim();
+  if(!n) return {days:0, headcount:0, lastDate:null, projects:[]};
+  let days=0, headcount=0, lastDate=null;
+  const projSet = new Set();
+  state.projects.forEach(pr=>{
+    (pr.logs||[]).forEach(l=>{
+      const rows = (l.workforce||[]).filter(w=> (w.team||'').trim()===n);
+      if(rows.length){
+        days++;
+        headcount += rows.reduce((s,w)=> s+(Number(w.count)||0),0);
+        if(!lastDate || l.date>lastDate) lastDate=l.date;
+        projSet.add(pr.name || tf('(ไม่มีชื่อโปรเจ็ค)','(untitled project)'));
+      }
+    });
+  });
+  return {days, headcount, lastDate, projects:Array.from(projSet)};
+}
+function renderContractors(){
+  const list = state.contractors||[];
+  const cards = list.map(ct=>{
+    const stats = contractorLinkedStats(ct.name);
+    const noteCount = (ct.notes||[]).length;
+    const active = ct.active!==false;
+    return `<div class="card">
+      <div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start">
+        <div>
+          <b style="font-family:var(--font-display);font-size:15px">👷 ${escapeHtml(ct.name)}</b>
+          ${ct.specialty? `<div class="sub">${escapeHtml(ct.specialty)}</div>` : ''}
+        </div>
+        <span class="badge ${active?'ok':'idle'}">${active? '🟢 '+tf('ใช้งานอยู่','Active') : '⏸ '+tf('ไม่ใช้งาน','Inactive')}</span>
+      </div>
+      ${ct.phone? `<div class="sub" style="margin-top:8px">📞 ${escapeHtml(ct.phone)}</div>` : ''}
+      <div style="display:flex;flex-wrap:wrap;gap:10px 22px;margin-top:12px">
+        <div><div class="meta-lbl">${tf('วันที่ลงบันทึก','Days logged')}</div><b class="tabular">${stats.days}</b></div>
+        <div><div class="meta-lbl">${tf('กำลังคนสะสม','Total person-days')}</div><b class="tabular">${stats.headcount}</b></div>
+        <div><div class="meta-lbl">${tf('ทำงานล่าสุด','Last worked')}</div><b class="tabular">${stats.lastDate? fmtDate(stats.lastDate) : '-'}</b></div>
+      </div>
+      ${stats.projects.length? `<div class="sub" style="margin-top:8px">${tf('โปรเจ็คที่เกี่ยวข้อง','Linked projects')}: ${stats.projects.map(escapeHtml).join(', ')}</div>` : `<div class="hint" style="margin-top:8px">${tf('ยังไม่พบบันทึกประจำวันที่ตรงกับชื่อนี้','No Daily Log entries matched to this name yet')}</div>`}
+      ${noteCount? `<div class="sub" style="margin-top:6px">📝 ${tf('บันทึกประวัติ','History notes')}: ${noteCount}</div>` : ''}
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:14px">
+        <button class="btn ghost sm" data-view-contractor="${ct.id}">${tf('ดูประวัติช่าง','View worker history')}</button>
+        <button class="btn ghost sm" data-edit-contractor="${ct.id}">${tf('แก้ไข','Edit')}</button>
+        <button class="btn danger sm" data-del-contractor="${ct.id}">${tf('ลบ','Delete')}</button>
+      </div>
+    </div>`;
+  }).join('');
+  return `
+  <div class="page-head">
+    <div><h2>${tf('ข้อมูลผู้รับเหมา','Contractor Info')}</h2><div class="sub">${tf('รายชื่อทีมงาน/ผู้รับเหมาที่ใช้ร่วมกันทุกโปรเจ็ค พร้อมประวัติการทำงานที่เชื่อมโยงจากบันทึกประจำวันอัตโนมัติ (จับคู่ตามชื่อทีมงานที่กรอกในบันทึกประจำวัน)','Shared roster of contractors/crews across every project, with work history auto-linked from Daily Log entries (matched by team name).')}</div></div>
+    <button class="btn primary" id="btn-add-contractor">+ ${tf('เพิ่มผู้รับเหมา','Add contractor')}</button>
+  </div>
+  ${list.length===0? `<div class="empty"><span class="ic">👷</span>${tf('ยังไม่มีข้อมูลผู้รับเหมา','No contractors yet')}<br>${tf('กด “เพิ่มผู้รับเหมา” เพื่อเริ่มต้น — ตั้งชื่อให้ตรงกับชื่อทีมงานที่ใช้ในบันทึกประจำวันเพื่อให้ระบบเชื่อมโยงประวัติให้อัตโนมัติ','Tap “Add contractor” to get started -- use the same name as in Daily Log entries so history links up automatically')}</div>` : `<div class="grid cols-proj">${cards}</div>`}
+  `;
+}
+let contractorDraft=null, editingContractorId=null;
+function openContractorDraft(id){
+  if(id==='new'){ contractorDraft={name:'',phone:'',specialty:'',active:true}; editingContractorId='new'; }
+  else { const ct=state.contractors.find(c=>c.id===id); contractorDraft={name:ct.name,phone:ct.phone||'',specialty:ct.specialty||'',active:ct.active!==false}; editingContractorId=id; }
+}
+function contractorModalHtml(){
+  if(!contractorDraft) return '';
+  const d = contractorDraft;
+  const nameOptions = Array.from(new Set(STANDARD_TEAMS.concat(
+    state.projects.flatMap(pr=> (pr.logs||[]).flatMap(l=> (l.workforce||[]).map(w=>w.team||'')))
+  ).filter(Boolean)));
+  return `<div class="modal-bg" id="contractor-modal-bg"><div class="modal">
+    <div class="modal-head"><h3>${editingContractorId==='new'? tf('เพิ่มผู้รับเหมา','Add contractor') : tf('แก้ไขผู้รับเหมา','Edit contractor')}</h3><button class="iconbtn" id="contractor-modal-close">✕</button></div>
+    <div class="field"><label>${tf('ชื่อทีมงาน/ผู้รับเหมา','Contractor / team name')} <span class="hint">${tf('ใช้ชื่อเดียวกับที่กรอกในบันทึกประจำวันเพื่อเชื่อมโยงประวัติอัตโนมัติ','use the same name entered in Daily Log so history links up automatically')}</span></label>
+      <input type="text" id="cm-name" list="cm-name-list" value="${escapeHtml(d.name)}" placeholder="${tf('เช่น ทีมไฟฟ้า','e.g. Electrical team')}">
+      <datalist id="cm-name-list">${nameOptions.map(n=>`<option value="${escapeHtml(n)}">`).join('')}</datalist>
+    </div>
+    <div class="grid cols-2" style="margin-top:12px">
+      <div class="field"><label>${tf('เบอร์ติดต่อ (ไม่บังคับ)','Contact phone (optional)')}</label><input type="tel" id="cm-phone" value="${escapeHtml(d.phone)}" placeholder="08X-XXX-XXXX"></div>
+      <div class="field"><label>${tf('ความชำนาญ (ไม่บังคับ)','Specialty (optional)')}</label><input type="text" id="cm-specialty" value="${escapeHtml(d.specialty)}" placeholder="${tf('เช่น งานไฟฟ้า','e.g. Electrical work')}"></div>
+    </div>
+    <label style="display:flex;align-items:center;gap:8px;margin-top:14px;font-size:13px;cursor:pointer"><input type="checkbox" id="cm-active" ${d.active?'checked':''}> ${tf('ยังใช้งานอยู่ (รับงานต่อได้)','Active (available for new work)')}</label>
+    <button class="btn primary block" style="margin-top:16px" id="cm-save">${tf('บันทึกข้อมูลผู้รับเหมา','Save contractor')}</button>
+  </div></div>`;
+}
+function closeContractorModal(){ contractorDraft=null; editingContractorId=null; render(); }
+function wireContractorModal(){
+  const bg=$('#contractor-modal-bg'); if(!bg) return;
+  $('#contractor-modal-close').onclick = closeContractorModal;
+  bg.addEventListener('click', e=>{ if(e.target===bg) closeContractorModal(); });
+  $('#cm-save').onclick = ()=>{
+    const name=$('#cm-name').value.trim(), phone=$('#cm-phone').value.trim(), specialty=$('#cm-specialty').value.trim(), active=$('#cm-active').checked;
+    if(!name){ toast(tf('กรุณาระบุชื่อผู้รับเหมา','Please enter a contractor name')); return; }
+    if(editingContractorId==='new'){
+      state.contractors.push({id:uid(), name, phone, specialty, active, notes:[]});
+      saveData(); closeContractorModal(); toast(tf('เพิ่มผู้รับเหมาแล้ว','Contractor added'));
+    } else {
+      const ct=state.contractors.find(c=>c.id===editingContractorId);
+      Object.assign(ct,{name,phone,specialty,active});
+      saveData(); closeContractorModal(); toast(tf('บันทึกข้อมูลผู้รับเหมาแล้ว','Contractor saved'));
+    }
+  };
+}
+let contractorHistoryId=null;
+function contractorHistoryModalHtml(){
+  if(!contractorHistoryId) return '';
+  const ct = (state.contractors||[]).find(c=>c.id===contractorHistoryId);
+  if(!ct) return '';
+  const stats = contractorLinkedStats(ct.name);
+  const notes = (ct.notes||[]).slice().sort((a,b)=> (a.date<b.date?1:-1));
+  const noteRows = notes.length? notes.map(n=>`
+    <div class="mini-row">
+      <div class="txt">
+        <span class="t1">${fmtDate(n.date)}</span>
+        <span class="t2">${escapeHtml(n.text)}</span>
+      </div>
+      <button class="iconbtn" data-rm-contractor-note="${n.id}">✕</button>
+    </div>`).join('') : `<div class="hint" style="padding:6px 2px">${tf('ยังไม่มีบันทึกประวัติ','No history notes yet')}</div>`;
+  return `<div class="modal-bg" id="contractor-history-modal-bg"><div class="modal" style="max-width:640px">
+    <div class="modal-head"><h3>👷 ${tf('ประวัติช่าง','Worker History')} — ${escapeHtml(ct.name)}</h3><button class="iconbtn" id="contractor-history-close">✕</button></div>
+    <div style="display:flex;flex-wrap:wrap;gap:10px 22px;margin-bottom:14px">
+      <div><div class="meta-lbl">${tf('วันที่ลงบันทึก','Days logged')}</div><b class="tabular">${stats.days}</b></div>
+      <div><div class="meta-lbl">${tf('กำลังคนสะสม','Total person-days')}</div><b class="tabular">${stats.headcount}</b></div>
+      <div><div class="meta-lbl">${tf('ทำงานล่าสุด','Last worked')}</div><b class="tabular">${stats.lastDate? fmtDate(stats.lastDate) : '-'}</b></div>
+    </div>
+    ${stats.projects.length? `<div class="sub" style="margin-bottom:12px">${tf('โปรเจ็คที่เกี่ยวข้อง','Linked projects')}: ${stats.projects.map(escapeHtml).join(', ')}</div>` : ''}
+    <div class="field"><label>${tf('เพิ่มบันทึกประวัติ (เช่น ผลงาน ความประพฤติ)','Add a history note (e.g. performance, conduct)')}</label>
+      <div style="display:flex;gap:8px">
+        <input type="text" id="ch-note-text" placeholder="${tf('เช่น ทำงานตรงเวลา คุณภาพดี','e.g. on time, good quality')}" style="flex:1">
+        <button class="btn primary sm" id="ch-note-add">${tf('เพิ่ม','Add')}</button>
+      </div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:8px;margin-top:14px">${noteRows}</div>
+  </div></div>`;
+}
+function wireContractorHistoryModal(){
+  const bg=$('#contractor-history-modal-bg'); if(!bg) return;
+  const closeIt = ()=>{ contractorHistoryId=null; render(); };
+  $('#contractor-history-close').onclick = closeIt;
+  bg.addEventListener('click', e=>{ if(e.target===bg) closeIt(); });
+  const addBtn = $('#ch-note-add');
+  if(addBtn) addBtn.onclick = ()=>{
+    const txt = $('#ch-note-text').value.trim();
+    if(!txt) return;
+    const ct = (state.contractors||[]).find(c=>c.id===contractorHistoryId);
+    if(!ct) return;
+    ct.notes = ct.notes||[];
+    ct.notes.push({id:uid(), date:todayStr(), text:txt});
+    saveData(); render(); toast(tf('เพิ่มบันทึกประวัติแล้ว','History note added'));
+  };
+  $$('[data-rm-contractor-note]').forEach(b=> b.onclick = ()=>{
+    const ct = (state.contractors||[]).find(c=>c.id===contractorHistoryId);
+    if(!ct) return;
+    ct.notes = (ct.notes||[]).filter(n=>n.id!==b.dataset.rmContractorNote);
+    saveData(); render();
+  });
+}
+function wireContractors(){
+  $('#btn-add-contractor').onclick = ()=>{ openContractorDraft('new'); render(); };
+  $$('[data-edit-contractor]').forEach(b=> b.onclick = ()=>{ openContractorDraft(b.dataset.editContractor); render(); });
+  $$('[data-view-contractor]').forEach(b=> b.onclick = ()=>{ contractorHistoryId=b.dataset.viewContractor; render(); });
+  $$('[data-del-contractor]').forEach(b=> b.onclick = ()=>{
+    const ct = (state.contractors||[]).find(c=>c.id===b.dataset.delContractor);
+    if(!confirm(tf('ลบข้อมูลผู้รับเหมา "'+(ct?ct.name:'')+'" หรือไม่?','Delete contractor "'+(ct?ct.name:'')+'"?'))) return;
+    state.contractors = (state.contractors||[]).filter(c=>c.id!==b.dataset.delContractor);
+    saveData(); render(); toast(tf('ลบข้อมูลผู้รับเหมาแล้ว','Contractor deleted'));
   });
 }
 
@@ -3521,25 +3748,49 @@ function boqCategoryGroups(boq){
   if(uncategorized.length) groups.push({cat:'', items:uncategorized});
   return groups;
 }
+const SCHEDULE_STATUS_LABEL = {
+  'on-track': ['อยู่ในแผน','On track'],
+  'near-due': ['ใกล้ครบกำหนด','Near due'],
+  'overdue': ['เกินกำหนด','Overdue'],
+  'done': ['เสร็จแล้ว','Done']
+};
+function itemScheduleStatus(item){
+  const progress = (item.progress==null || item.progress==='')? 0 : Number(item.progress);
+  if(progress>=100) return 'done';
+  if(!item.endDate) return 'on-track';
+  const daysLeft = daysBetween(todayStr(), item.endDate); // endDate - today; negative = past due
+  if(daysLeft<0) return 'overdue';
+  if(daysLeft<=3) return 'near-due';
+  return 'on-track';
+}
 function itemRowHtml(item){
   const days = daysBetween(item.startDate,item.endDate)+1;
   const photoCount = (item.refPhotoIds||[]).length;
   const hasActual = item.actualStartDate && item.actualEndDate;
   const teamSub = [item.leader?escapeHtml(item.leader):'', item.manpower?fmtNum(item.manpower,0)+' '+tf('คน','ppl'):''].filter(Boolean).join(' · ');
   const workTypeMain = item.workType? (()=>{const w=workTypeInfo(item.workType); return w? w.ic+' '+escapeHtml(tf(w.th,w.en)) : '<span class="hint">-</span>';})() : '<span class="hint">-</span>';
-  return `<tr>
+  const progress = (item.progress==null || item.progress==='')? 0 : Number(item.progress);
+  const status = itemScheduleStatus(item);
+  const statusLabel = tf(SCHEDULE_STATUS_LABEL[status][0], SCHEDULE_STATUS_LABEL[status][1]);
+  return `<tr class="mp-row-${status}">
     <td data-label="${tf('ภาพ','Photo')}">
       <div class="mp-thumb" ${photoCount? `data-open-gallery="${item.id}"` : `data-quick-attach="${item.id}"`}>
         ${photoCount? `<img data-mp-thumb="${item.id}" alt="">${photoCount>1?`<span class="mp-thumb-count">+${photoCount-1}</span>`:''}` : `<span class="mp-thumb-empty">📷</span>`}
       </div>
     </td>
-    <td data-label="${tf('รายการงาน','Work item')}" class="mp-name-cell">${escapeHtml(item.name)}${item.zone? `<span class="mp-sub">📍 ${escapeHtml(item.zone)}</span>` : ''}</td>
+    <td data-label="${tf('รายการงาน','Work item')}" class="mp-name-cell"><span class="mp-status-dot ${status}" title="${statusLabel}"></span>${escapeHtml(item.name)}${item.zone? `<span class="mp-sub">📍 ${escapeHtml(item.zone)}</span>` : ''}</td>
     <td data-label="${tf('ทีมงาน','Team')}">${item.team? escapeHtml(item.team) : '<span class="hint">-</span>'}${teamSub? `<span class="mp-sub">${teamSub}</span>` : ''}</td>
     <td data-label="${tf('ลักษณะงาน','Work type')}">${workTypeMain}${item.allowedHours? `<span class="mp-sub">${escapeHtml(item.allowedHours)}</span>` : ''}</td>
     <td data-label="${tf('ปริมาณรวม','Total qty')}" class="tabular">${fmtNum(item.qtyTotal,2)} ${escapeHtml(item.unit)}<span class="mp-sub">${tf('เป้าหมาย','Target')} ${fmtNum(dailyTarget(item),2)}/${tf('วัน','day')}</span></td>
     <td data-label="${tf('วันเริ่ม','Start date')}" class="tabular"><input type="date" class="mp-date-input" data-date-item="${item.id}" data-date-field="startDate" value="${item.startDate}">${hasActual? `<span class="mp-sub">${tf('จริง','Actual')}: ${fmtDate(item.actualStartDate)}</span>` : ''}</td>
     <td data-label="${tf('วันเสร็จ','End date')}" class="tabular"><input type="date" class="mp-date-input" data-date-item="${item.id}" data-date-field="endDate" value="${item.endDate}">${hasActual? `<span class="mp-sub">${tf('จริง','Actual')}: ${fmtDate(item.actualEndDate)}</span>` : ''}</td>
     <td data-label="${tf('จำนวนวัน','Days')}" class="tabular"><span class="mp-days-badge">${days} ${tf('วัน','d')}</span></td>
+    <td data-label="${tf('ความคืบหน้า','Progress')}" class="tabular">
+      <div class="mp-progress-wrap">
+        <input type="number" min="0" max="100" step="5" class="mp-progress-input" data-progress-item="${item.id}" value="${progress}">
+        <div class="progress mp-progress-bar"><i style="width:${clamp(progress,0,100)}%"></i></div>
+      </div>
+    </td>
     <td data-label="${tf('หมายเหตุ','Notes')}">${item.notes? escapeHtml(item.notes) : '<span class="hint">-</span>'}</td>
     <td data-label="">
       <button class="btn ghost sm" data-edit-item="${item.id}" title="${tf('แก้ไข','Edit')}">✏️</button>
@@ -3553,7 +3804,7 @@ function renderMasterPlan(){
     const label = g.cat? escapeHtml(g.cat) : tf('ไม่ระบุหมวดหมู่','Uncategorized');
     const key = g.cat || '__uncategorized__';
     const expanded = mpExpandedCats.has(key);
-    const header = `<tr class="mp-cat-row${expanded?' open':''}" data-toggle-cat="${escapeHtml(key)}"><td colspan="10"><span class="mp-cat-chevron">${expanded?'▾':'▸'}</span>📁 ${label} <span class="mp-cat-count">${g.items.length} ${tf('รายการ','item(s)')}</span></td></tr>`;
+    const header = `<tr class="mp-cat-row${expanded?' open':''}" data-toggle-cat="${escapeHtml(key)}"><td colspan="11"><span class="mp-cat-chevron">${expanded?'▾':'▸'}</span>📁 ${label} <span class="mp-cat-count">${g.items.length} ${tf('รายการ','item(s)')}</span></td></tr>`;
     return header + (expanded? g.items.map(itemRowHtml).join('') : '');
   }).join('');
   return `
@@ -3561,13 +3812,19 @@ function renderMasterPlan(){
     <div><h2>${tf('แผนงานหลัก & BOQ','Master Plan & BOQ')}</h2><div class="sub">${tf('แยกตามหมวดงานหลักอ้างอิงตาม BOQ จริง ใส่โซน ทีมงาน ปริมาณรวมตามสัญญา และช่วงเวลาทำงาน ระบบคำนวณเป้าหมายรายวันให้อัตโนมัติ','Grouped by main work category from the real BOQ -- enter zone, team, contract quantity and date range, the daily target is calculated automatically.')}</div></div>
     <button class="btn primary" id="btn-add-item">+ ${tf('เพิ่มรายการงาน','Add work item')}</button>
   </div>
+  <div class="legend" style="margin-bottom:12px">
+    <span><i style="background:var(--blue-500)"></i>${tf('อยู่ในแผน','On track')}</span>
+    <span><i style="background:var(--amber-500)"></i>${tf('ใกล้ครบกำหนด (≤3 วัน)','Near due (≤3 days)')}</span>
+    <span><i style="background:var(--coral-500)"></i>${tf('เกินกำหนด','Overdue')}</span>
+    <span><i style="background:var(--mint-500)"></i>${tf('เสร็จแล้ว (100%)','Done (100%)')}</span>
+  </div>
   ${groups.length>1? `<div class="mp-expand-controls">
     <button class="btn ghost sm" id="btn-expand-all-cat">${tf('ขยายทั้งหมด','Expand all')}</button>
     <button class="btn ghost sm" id="btn-collapse-all-cat">${tf('ย่อทั้งหมด','Collapse all')}</button>
   </div>` : ''}
   ${P().boq.length===0? `<div class="empty"><span class="ic">📋</span>${tf('ยังไม่มีรายการงานใน BOQ','No BOQ items yet')}<br>${tf('กด “เพิ่มรายการงาน” เพื่อเริ่มต้น','Tap “Add work item” to get started')}</div>` : `
   <div class="table-wrap mp-wrap"><table class="mp-table">
-    <thead><tr><th>${tf('ภาพ','Photo')}</th><th>${tf('รายการงาน','Work item')}</th><th>${tf('ทีมงาน','Team')}</th><th>${tf('ลักษณะงาน','Work type')}</th><th>${tf('ปริมาณรวม','Total qty')}</th><th>${tf('วันเริ่ม','Start date')}</th><th>${tf('วันเสร็จ','End date')}</th><th>${tf('จำนวนวัน','Days')}</th><th>${tf('หมายเหตุ','Notes')}</th><th></th></tr></thead>
+    <thead><tr><th>${tf('ภาพ','Photo')}</th><th>${tf('รายการงาน','Work item')}</th><th>${tf('ทีมงาน','Team')}</th><th>${tf('ลักษณะงาน','Work type')}</th><th>${tf('ปริมาณรวม','Total qty')}</th><th>${tf('วันเริ่ม','Start date')}</th><th>${tf('วันเสร็จ','End date')}</th><th>${tf('จำนวนวัน','Days')}</th><th>${tf('ความคืบหน้า','Progress')}</th><th>${tf('หมายเหตุ','Notes')}</th><th></th></tr></thead>
     <tbody>${bodyHtml}</tbody>
   </table></div>`}
   <div class="card tint">
@@ -3675,6 +3932,15 @@ function wireMasterPlan(){
     if(field==='endDate' && otherVal && inp.value<otherVal){ toast(tf('วันสิ้นสุดต้องไม่ก่อนวันเริ่ม','End date cannot be before start date')); render(); return; }
     it[field] = inp.value;
     saveData(); render(); toast(tf('อัปเดตวันที่แล้ว','Date updated'));
+  });
+  $$('[data-progress-item]').forEach(inp=> inp.onchange = ()=>{
+    const it = P().boq.find(i=>i.id===inp.dataset.progressItem);
+    if(!it) return;
+    let v = parseInt(inp.value,10);
+    if(isNaN(v)) v=0;
+    v = clamp(v,0,100);
+    it.progress = v;
+    saveData(); render(); toast(tf('อัปเดตความคืบหน้าแล้ว','Progress updated'));
   });
   $$('[data-edit-item]').forEach(b=> b.onclick = ()=>{ openItemDraft(b.dataset.editItem); render(); });
   $$('[data-open-gallery]').forEach(el=> el.onclick = ()=>{ refGalleryItemId=el.dataset.openGallery; render(); });
@@ -3813,6 +4079,7 @@ async function refreshGalleryPhotos(){
 let pendingPhotos = []; // {dataUrl, caption, tag}
 let dailyDraft = null;  // {date, weather, workforce:[], entries:[], issues:[], deliveryNote} -- persists across re-renders
 let dailyEntryDraft = {category:'', itemId:'', qty:'', note:''}; // the "not yet added" progress-entry composer row
+let historyModalOpen=false, historyDate=null, historyViewing=false; // Daily Log "history" viewer: pick a date, list saved logs, view read-only without touching today's draft
 const PHOTO_MAX = 30;
 const STANDARD_WORKTYPES = [
   'งานโครงสร้าง/รื้อถอน','งานผนัง/ฝ้าเพดาน','งานปูพื้น/กระเบื้อง','งานไฟฟ้า','งานประปา/สุขภัณฑ์',
@@ -3950,10 +4217,14 @@ function renderDailyLog(){
     return `
     <div class="page-head">
       <div><h2>${tf('บันทึกงานประจำวัน','Daily Work Log')}</h2><div class="sub">${tf('กรอกปริมาณจริงที่ทำได้ พร้อมแนบรูปถ่ายหน้างาน','Enter the actual quantity completed and attach site photos.')}</div></div>
-      <div class="field" style="min-width:180px"><input type="date" id="log-date" value="${date}"></div>
+      <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap">
+        <div class="field" style="min-width:180px"><input type="date" id="log-date" value="${date}"></div>
+        <button class="btn ghost sm" id="btn-log-history">🕘 ${tf('ประวัติบันทึก','History')}</button>
+      </div>
     </div>
     ${metaCard}
-    <div class="empty"><span class="ic">📋</span>${tf('ยังไม่มีรายการงานใน BOQ กรุณาเพิ่มในหน้า “แผนงานหลัก” ก่อน','No BOQ items yet -- add some on the “Master Plan” page first')}</div>`;
+    <div class="empty"><span class="ic">📋</span>${tf('ยังไม่มีรายการงานใน BOQ กรุณาเพิ่มในหน้า “แผนงานหลัก” ก่อน','No BOQ items yet -- add some on the “Master Plan” page first')}</div>
+    ${historyModalHtml()}`;
   }
 
   /* ---- Section 2: site environment & workforce ---- */
@@ -4079,7 +4350,10 @@ function renderDailyLog(){
   return `
   <div class="page-head">
     <div><h2>${tf('บันทึกงานประจำวัน','Daily Work Log')}</h2><div class="sub">${tf('กรอกความคืบหน้า สภาพหน้างาน ปัญหา และรูปถ่ายประจำวัน','Log today’s progress, site condition, issues and photos.')}</div></div>
-    <div class="field" style="min-width:180px"><input type="date" id="log-date" value="${date}"></div>
+    <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap">
+      <div class="field" style="min-width:180px"><input type="date" id="log-date" value="${date}"></div>
+      <button class="btn ghost sm" id="btn-log-history">🕘 ${tf('ประวัติบันทึก','History')}</button>
+    </div>
   </div>
   ${metaCard}
   ${logSummaryCardHtml(proj, date)}
@@ -4094,7 +4368,54 @@ function renderDailyLog(){
     <button class="btn ghost" id="btn-export-img-log" style="flex:1;min-width:160px">🖼️ ${tf('ส่งออกรูปภาพ','Export image')}</button>
     <button class="btn danger" id="btn-clear-log" style="flex:1;min-width:160px">🗑️ ${tf('เคลียร์ฟอร์ม','Clear form')}</button>
   </div>
+  ${historyModalHtml()}
   `;
+}
+function historyModalHtml(){
+  if(!historyModalOpen) return '';
+  const date = historyDate || state.selectedLogDate || todayStr();
+  const proj = P();
+  const logsForDate = proj.logs.filter(l=>l.date===date).sort((a,b)=> (a.recordedAt||'')<(b.recordedAt||'')?1:-1);
+  if(historyViewing){
+    return `<div class="modal-bg" id="history-modal-bg">
+      <div class="modal" style="max-width:760px">
+        <div class="modal-head"><h3>🕘 ${tf('บันทึกย้อนหลัง','Past Log')} — ${fmtDate(date)}</h3><button class="iconbtn" id="history-modal-close">✕</button></div>
+        <button class="btn ghost sm" id="history-back-btn" style="margin-bottom:12px">← ${tf('กลับไปเลือกวันที่','Back to date list')}</button>
+        <div class="rp-preview">${reportBodyHtml(date)}</div>
+      </div>
+    </div>`;
+  }
+  const listHtml = logsForDate.length? logsForDate.map(l=>{
+    const s = sumLogsRange([l]);
+    return `<div class="mini-row" data-history-view-log="${l.id}" style="cursor:pointer">
+      <div class="txt">
+        <span class="t1">📅 ${fmtDate(l.date)}</span>
+        <span class="t2">${tf('กำลังคน','manpower')} ${s.headcount} · ${tf('รายการ','entries')} ${s.entries} · ${tf('รูป','photos')} ${s.photos} · ${tf('ปัญหา','issues')} ${s.issues}${l.recordedAt? ' · '+tf('บันทึกเมื่อ','saved')+' '+fmtDateTime(l.recordedAt) : ''}</span>
+      </div>
+      <span class="btn ghost sm" style="pointer-events:none">${tf('ดู','View')} →</span>
+    </div>`;
+  }).join('') : `<div class="hint" style="padding:10px 2px">${tf('ไม่มีบันทึกในวันที่นี้','No log saved for this date')}</div>`;
+  return `<div class="modal-bg" id="history-modal-bg">
+    <div class="modal">
+      <div class="modal-head"><h3>🕘 ${tf('ประวัติบันทึกประจำวัน','Daily Log History')}</h3><button class="iconbtn" id="history-modal-close">✕</button></div>
+      <div class="sub" style="margin-bottom:10px">${tf('เลือกวันที่เพื่อดูรายการที่บันทึกไว้ — ดูได้ทันทีโดยไม่กระทบฟอร์มที่กำลังกรอกอยู่','Pick a date to see saved log(s) — view instantly without affecting the form you’re currently filling in.')}</div>
+      <div class="field"><label>${tf('เลือกวันที่','Choose a date')}</label><input type="date" id="history-date-input" value="${date}"></div>
+      <div style="display:flex;flex-direction:column;gap:8px;margin-top:14px">${listHtml}</div>
+    </div>
+  </div>`;
+}
+function wireHistoryModal(){
+  const bg = $('#history-modal-bg');
+  if(!bg) return;
+  const closeIt = ()=>{ historyModalOpen=false; historyViewing=false; render(); };
+  $('#history-modal-close').onclick = closeIt;
+  bg.addEventListener('click', e=>{ if(e.target===bg) closeIt(); });
+  const dateInput = $('#history-date-input');
+  if(dateInput) dateInput.onchange = ()=>{ historyDate = dateInput.value; historyViewing=false; render(); };
+  $$('[data-history-view-log]').forEach(row=> row.onclick = ()=>{ historyViewing=true; render(); });
+  const backBtn = $('#history-back-btn');
+  if(backBtn) backBtn.onclick = ()=>{ historyViewing=false; render(); };
+  if(historyViewing) refreshReportPhotos(historyDate || state.selectedLogDate || todayStr());
 }
 async function saveDailyLogAndReturnDate(){
   syncDailyDraftFromDom();
@@ -4121,6 +4442,9 @@ async function saveDailyLogAndReturnDate(){
 function wireDailyLog(){
   const dateInput = $('#log-date');
   if(dateInput) dateInput.onchange = ()=>{ state.selectedLogDate = dateInput.value; pendingPhotos=[]; dailyDraft=null; render(); };
+  const historyBtn = $('#btn-log-history');
+  if(historyBtn) historyBtn.onclick = ()=>{ historyModalOpen=true; historyDate=state.selectedLogDate; historyViewing=false; render(); };
+  wireHistoryModal();
 
   const photoInput = $('#photo-input');
   if(photoInput) photoInput.onchange = async (e)=>{
@@ -4221,8 +4545,9 @@ function wireDailyLog(){
 /* ============================= SCREEN: PROCUREMENT ============================= */
 let creatingRequest=false, requestForm=null, procureDetailId=null;
 function newRequestForm(){
-  return { requestedBy:(state.contractor&&state.contractor.nickname)||'', area:'', workType:'', lines:[{name:'',qty:'',unit:'',neededDate:addDays(todayStr(),2)}], photos:[] };
+  return { requestedBy:(state.contractor&&state.contractor.nickname)||'', area:'', workType:'', necessityType:'', approverName:'', lines:[{name:'',qty:'',unit:'',neededDate:addDays(todayStr(),2)}], photos:[] };
 }
+function necessityLabel(v){ const n=NECESSITY_TYPES.find(x=>x.v===v); return n? n.label : ''; }
 function genReqNo(dateStr){
   const ymd = dateStr.replace(/-/g,'');
   const countToday = P().materialRequests.filter(r=>r.createdAt.slice(0,10)===dateStr).length + 1;
@@ -4232,7 +4557,7 @@ function currentActorName(){
   const nick = (state.contractor&&state.contractor.nickname) || tf('ผู้ใช้งาน','User');
   return nick+' ('+ROLE_LABEL[state.role]+')';
 }
-function reqsForDate(date){ return P().materialRequests.filter(r=> r.createdAt.slice(0,10)===date); }
+function reqsForDate(date){ return P().materialRequests.filter(r=> r.createdAt.slice(0,10)===date && !r.trashed); }
 
 function isoWeekKey(dateStr){
   const dt = new Date(dateStr+'T00:00:00');
@@ -4243,6 +4568,24 @@ function isoWeekKey(dateStr){
   const wk = 1+Math.round((diff-((firstThu.getDay()+6)%7))/7);
   return dt.getFullYear()+'-W'+String(wk).padStart(2,'0');
 }
+// Delivery-due reminder: flags a request 'overdue' or 'dueSoon' (within 3 days)
+// based on its confirmed delivery date once scheduled, or the earliest
+// "needed by" date on its material lines while still pending/approved.
+// Rejected requests are never flagged.
+function procureDueDate(r){
+  if(r.status==='scheduled' && r.procurement && r.procurement.deliveryDate) return r.procurement.deliveryDate;
+  return (r.lines||[]).reduce((min,l)=> (!min || (l.neededDate && l.neededDate<min)) ? l.neededDate : min, null);
+}
+function procureDueStatus(r){
+  if(r.status==='rejected') return null;
+  const due = procureDueDate(r);
+  if(!due) return null;
+  const daysLeft = daysBetween(todayStr(), due);
+  if(daysLeft<0) return 'overdue';
+  if(daysLeft<=3) return 'dueSoon';
+  return null;
+}
+let approverSettingsOpen=false;
 function procureSummary(requests){
   const todayKey = todayStr();
   const curWeek = isoWeekKey(todayKey);
@@ -4254,11 +4597,59 @@ function procureSummary(requests){
     week:{count:weekReqs.length, lines:sumLines(weekReqs), pending:weekReqs.filter(r=>r.status==='pending').length}
   };
 }
+function approverRowHtml(a){
+  const active = a.active!==false;
+  return `<div class="mini-row">
+    <div class="txt"><span class="t1">${escapeHtml(a.name)}</span></div>
+    <div style="display:flex;gap:12px;align-items:center">
+      <label style="font-size:11.5px;display:flex;align-items:center;gap:4px;cursor:pointer"><input type="checkbox" data-apv-active="${a.id}" ${active?'checked':''}> ${tf('ใช้งาน','active')}</label>
+      <button class="iconbtn" data-apv-remove="${a.id}">✕</button>
+    </div>
+  </div>`;
+}
+function approverSettingsCardHtml(){
+  const approvers = state.approvers||[];
+  return `<div class="card" style="margin-bottom:16px">
+    <div style="display:flex;justify-content:space-between;align-items:center;cursor:pointer" data-toggle-approver-settings>
+      <b style="font-family:var(--font-display)">⚙️ ${tf('ผู้มีสิทธิ์อนุมัติใบสั่งของ','Purchase-Order Approvers')}<span class="mp-cat-count" style="margin-left:6px">${approvers.length}</span></b>
+      <span class="mp-cat-chevron">${approverSettingsOpen?'▾':'▸'}</span>
+    </div>
+    ${approverSettingsOpen? `
+    <div class="sub" style="margin:8px 0 10px">${tf('รายชื่อผู้มีสิทธิ์อนุมัติใบสั่งของ จะปรากฏเป็นตัวเลือกในหน้าจอตอนกดอนุมัติ','People allowed to approve requests -- shown as a choice on the approve screen.')}</div>
+    <div style="display:flex;flex-direction:column;gap:8px">
+      ${approvers.length? approvers.map(approverRowHtml).join('') : `<div class="hint" style="padding:4px 2px">${tf('ยังไม่มีรายชื่อผู้อนุมัติ','No approvers configured yet')}</div>`}
+    </div>
+    <div style="display:flex;gap:8px;margin-top:10px">
+      <input type="text" id="apv-new-name" placeholder="${tf('ชื่อผู้มีสิทธิ์อนุมัติ','Approver name')}" style="flex:1">
+      <button class="btn ghost sm" id="apv-add">+ ${tf('เพิ่ม','Add')}</button>
+    </div>` : ''}
+  </div>`;
+}
+let procureTrashOpen=false;
+function trashRowHtml(r){
+  const firstLine = r.lines[0]||{name:'-',qty:0,unit:''};
+  const moreCount = r.lines.length-1;
+  return `<div class="mini-row">
+    <div class="txt">
+      <span class="t1">${r.reqNo} — ${escapeHtml(firstLine.name)}${moreCount>0?tf(` +${moreCount} รายการ`,` +${moreCount} more`):''}</span>
+      <span class="t2">${tf('ลบเมื่อ','deleted')} ${r.trashedAt? fmtDateTime(r.trashedAt) : '-'}${r.trashedBy? ' · '+tf('โดย ','by ')+escapeHtml(r.trashedBy) : ''}</span>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn ghost sm" data-restore-req="${r.id}">♻️ ${tf('กู้คืน','Restore')}</button>
+      <button class="btn danger sm" data-delete-forever-req="${r.id}">🗑️ ${tf('ลบถาวร','Delete forever')}</button>
+    </div>
+  </div>`;
+}
 function renderProcure(){
   const canCreate = state.role==='site';
-  const summary = procureSummary(P().materialRequests);
+  const canTrash = state.role==='pm' || state.role==='procurement';
+  const activeRequests = P().materialRequests.filter(r=>!r.trashed);
+  const trashedRequests = P().materialRequests.filter(r=>r.trashed);
+  const summary = procureSummary(activeRequests);
+  const dueCount = activeRequests.filter(r=> procureDueStatus(r)==='dueSoon').length;
+  const overdueCount = activeRequests.filter(r=> procureDueStatus(r)==='overdue').length;
   const cols = PSTATUS.map(col=>{
-    const items = P().materialRequests.filter(r=>r.status===col.id).sort((a,b)=> a.createdAt<b.createdAt?1:-1);
+    const items = activeRequests.filter(r=>r.status===col.id).sort((a,b)=> a.createdAt<b.createdAt?1:-1);
     return `<div class="kcol">
       <div class="kcol-head"><b>${col.ic} ${col.label}</b><span class="count">${items.length}</span></div>
       ${items.length? items.map(reqCardHtml).join('') : `<div class="empty-col">${tf('ไม่มีรายการ','No items')}</div>`}
@@ -4267,27 +4658,54 @@ function renderProcure(){
   return `
   <div class="page-head">
     <div><h2>${tf('จัดซื้อวัสดุ & อนุมัติ','Material Procurement & Approval')}</h2><div class="sub">${tf('สั่งวัสดุหน้างานรายวัน ผ่านขั้นตอนอนุมัติและนัดส่งของ พร้อมประทับเวลาอัตโนมัติทุกขั้นตอน','Request site materials day-to-day through approval and delivery scheduling, with an automatic timestamp at every step.')}</div></div>
-    ${canCreate? `<button class="btn primary" id="btn-new-request">+ ${tf('สร้างใบสั่งของ','New request')}</button>` : ''}
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      ${canTrash? `<button class="btn ghost sm" id="btn-toggle-trash">🗑️ ${tf('ถังขยะ','Trash')} (${trashedRequests.length})</button>` : ''}
+      ${canCreate? `<button class="btn primary" id="btn-new-request">+ ${tf('สร้างใบสั่งของ','New request')}</button>` : ''}
+    </div>
   </div>
-  ${P().materialRequests.length? `
+  ${procureTrashOpen? `
+  <div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center">
+      <b style="font-family:var(--font-display)">🗑️ ${tf('ถังขยะใบสั่งของ','Deleted Requests')}</b>
+      <button class="btn ghost sm" id="btn-close-trash">← ${tf('กลับ','Back')}</button>
+    </div>
+    <div class="sub" style="margin:6px 0 12px">${tf('รายการที่ถูกลบจะเก็บไว้ที่นี่จนกว่าจะกู้คืนหรือลบถาวร','Deleted requests stay here until restored or permanently deleted.')}</div>
+    <div style="display:flex;flex-direction:column;gap:8px">
+      ${trashedRequests.length? trashedRequests.map(trashRowHtml).join('') : `<div class="hint" style="padding:6px 2px">${tf('ถังขยะว่างเปล่า','Trash is empty')}</div>`}
+    </div>
+  </div>
+  ` : `
+  ${(overdueCount||dueCount)? `<div class="role-note" style="background:${overdueCount?'var(--coral-50)':'var(--amber-50)'};border-color:${overdueCount?'var(--coral-500)':'var(--amber-500)'}">🔔 ${overdueCount? `${overdueCount} ${tf('ใบสั่งของเกินกำหนดส่งมอบแล้ว','request(s) past their delivery due date')}` : ''}${overdueCount&&dueCount? ' · ' : ''}${dueCount? `${dueCount} ${tf('ใบสั่งของใกล้ถึงกำหนดส่งมอบ (ภายใน 3 วัน)','request(s) due within 3 days')}` : ''}</div>` : ''}
+  ${approverSettingsCardHtml()}
+  ${activeRequests.length? `
   <div class="grid cols-auto" style="margin-bottom:16px">
     <div class="card kpi"><div class="stat"><span class="lbl">📅 ${tf('ใบสั่งของวันนี้','Requests today')}</span><span class="num">${summary.today.count}</span></div><div class="sub" style="margin-top:4px">${summary.today.lines} ${tf('รายการวัสดุ','material line(s)')} · ${summary.today.pending} ${tf('รอการอนุมัติ','pending')}</div></div>
     <div class="card kpi"><div class="stat"><span class="lbl">🗓️ ${tf('ใบสั่งของสัปดาห์นี้','Requests this week')}</span><span class="num">${summary.week.count}</span></div><div class="sub" style="margin-top:4px">${summary.week.lines} ${tf('รายการวัสดุ','material line(s)')} · ${summary.week.pending} ${tf('รอการอนุมัติ','pending')}</div></div>
   </div>` : ''}
   <div class="role-note">👁️ ${tf('มุมมองปัจจุบัน:','Current view:')} <b>${ROLE_LABEL[state.role]}</b> — ${tf('สลับมุมมองจากปุ่มมุมบนขวาเพื่อจำลองสิทธิ์แต่ละบทบาท (ข้อมูลทั้งหมดอยู่ในเบราว์เซอร์เครื่องนี้ ยังไม่ใช่ระบบล็อกอินผู้ใช้หลายคนจริง)','switch views from the top-right buttons to try each role’s permissions (all data lives in this browser -- this is not yet a real multi-user login system).')}</div>
-  ${P().materialRequests.length===0? `<div class="empty"><span class="ic">🛒</span>${tf('ยังไม่มีใบสั่งของ','No material requests yet')}${canCreate? tf(' กด “สร้างใบสั่งของ” เพื่อเริ่มต้น',' -- tap “New request” to get started'):''}</div>` : `<div class="kanban">${cols}</div>`}
+  ${activeRequests.length===0? `<div class="empty"><span class="ic">🛒</span>${tf('ยังไม่มีใบสั่งของ','No material requests yet')}${canCreate? tf(' กด “สร้างใบสั่งของ” เพื่อเริ่มต้น',' -- tap “New request” to get started'):''}</div>` : `<div class="kanban">${cols}</div>`}
+  `}
   `;
 }
 function reqCardHtml(r){
   const firstLine = r.lines[0]||{name:'-',qty:0,unit:''};
   const moreCount = r.lines.length-1;
   const quickApprove = (r.status==='pending' && state.role==='pm');
+  const canTrash = state.role==='pm' || state.role==='procurement';
+  const dueStatus = procureDueStatus(r);
+  const dueBadge = dueStatus==='overdue'? `<span class="badge bad" style="margin-top:6px;display:inline-block">🔴 ${tf('เกินกำหนดส่งมอบ','Overdue')}</span>`
+    : dueStatus==='dueSoon'? `<span class="badge duesoon" style="margin-top:6px;display:inline-block">🟡 ${tf('ใกล้ถึงกำหนดส่งมอบ','Due soon')}</span>` : '';
   return `<div class="kcard ${r.status}" data-open-req="${r.id}">
-    <div class="reqno">${r.reqNo}</div>
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:6px">
+      <div class="reqno">${r.reqNo}</div>
+      ${canTrash? `<button class="iconbtn" data-trash-req="${r.id}" data-stop-card-open title="${tf('ลบ','Delete')}" style="width:22px;height:22px;font-size:11px;flex:none">🗑️</button>` : ''}
+    </div>
     <div class="title">${escapeHtml(firstLine.name)}${moreCount>0?tf(` +${moreCount} รายการ`,` +${moreCount} more`):''}</div>
     <div class="meta">📍 ${escapeHtml(r.area||'-')} · ${escapeHtml(r.workType||'-')}</div>
     <div class="meta">${tf('ต้องการใช้:','Needed by:')} <b class="tabular">${fmtDate(firstLine.neededDate)}</b></div>
     <div class="meta">${tf('โดย','by')} ${escapeHtml(r.requestedBy)} · ${fmtDateTime(r.createdAt)}</div>
+    ${r.approverName? `<div class="meta">${tf('ผู้อนุมัติที่ระบุ:','Approver:')} ${escapeHtml(r.approverName)}</div>` : ''}
+    ${dueBadge}
     ${quickApprove? `<div class="action-row" style="margin-top:10px" data-stop-card-open>
       <button class="btn approve sm" data-quick-approve="${r.id}">✅ ${tf('ส่งอนุมัติ','Approve')}</button>
       <button class="btn reject sm" data-quick-reject="${r.id}">🚫 ${tf('ปฏิเสธ','Reject')}</button>
@@ -4304,7 +4722,11 @@ function requestModalHtml(){
       <input type="date" data-line="neededDate" data-idx="${idx}" value="${ln.neededDate}">
       <button class="iconbtn" data-rm-line="${idx}">✕</button>
     </div>`).join('');
-  const photoCards = f.photos.map((p,idx)=>`<div class="photo-item"><img src="${p.dataUrl}" alt=""><button class="rm" data-rm-req-photo="${idx}">✕</button></div>`).join('');
+  const photoCards = f.photos.map((p,idx)=> (p.kind==='pdf')?
+    `<div class="photo-item"><div class="photo-pdf-icon">📄<span class="photo-pdf-name">${escapeHtml(p.name||'PDF')}</span></div><button class="rm" data-rm-req-photo="${idx}">✕</button></div>`
+    : `<div class="photo-item"><img src="${p.dataUrl}" alt=""><button class="rm" data-rm-req-photo="${idx}">✕</button></div>`
+  ).join('');
+  const activeApprovers = (state.approvers||[]).filter(a=>a.active!==false);
   return `
   <div class="modal-bg" id="req-modal-bg">
     <div class="modal">
@@ -4313,14 +4735,24 @@ function requestModalHtml(){
         <div class="field"><label>${tf('ผู้สั่งของ','Requested by')}</label><input type="text" id="rq-by" value="${escapeHtml(f.requestedBy)}" placeholder="${tf('ชื่อช่าง/ทีมงาน','crew / team name')}"></div>
         <div class="field"><label>${tf('ประเภทงาน','Work type')}</label><input type="text" id="rq-worktype" value="${escapeHtml(f.workType)}" placeholder="${tf('เช่น งานฝ้า, งานสี','e.g. ceiling, painting')}"></div>
         <div class="field" style="grid-column:1/-1"><label>${tf('พื้นที่ที่ต้องใช้ของ','Area needed')}</label><input type="text" id="rq-area" value="${escapeHtml(f.area)}" placeholder="${tf('เช่น ห้องนอนใหญ่ ชั้น 3','e.g. Master bedroom, 3rd floor')}"></div>
+        <div class="field"><label>${tf('ประเภทความจำเป็น','Necessity type')}</label><select id="rq-necessity">
+          <option value="">${tf('-- เลือกประเภทความจำเป็น --','-- choose necessity type --')}</option>
+          ${NECESSITY_TYPES.map(n=>`<option value="${n.v}" ${f.necessityType===n.v?'selected':''}>${escapeHtml(n.label)}</option>`).join('')}
+        </select></div>
+        <div class="field"><label>${tf('ผู้อนุมัติ','Approver')} <span class="hint">${tf('ระบุชื่อผู้ที่จะอนุมัติใบสั่งของนี้','name the person who should approve this request')}</span></label>
+          ${activeApprovers.length? `<select id="rq-approver">
+            <option value="">${tf('-- เลือกผู้อนุมัติ --','-- choose an approver --')}</option>
+            ${activeApprovers.map(a=>`<option value="${escapeHtml(a.name)}" ${f.approverName===a.name?'selected':''}>${escapeHtml(a.name)}</option>`).join('')}
+          </select>` : `<input type="text" id="rq-approver-text" value="${escapeHtml(f.approverName)}" placeholder="${tf('ชื่อผู้อนุมัติ','approver name')}">`}
+        </div>
       </div>
       <div class="field" style="margin-top:14px"><label>${tf('รายการวัสดุ','Material lines')}</label>
         <div class="rq-lines" id="rq-lines">${lineRows}</div>
         <button class="btn ghost sm" style="margin-top:8px" id="rq-add-line">+ ${tf('เพิ่มรายการวัสดุ','Add material line')}</button>
       </div>
-      <div class="field" style="margin-top:14px"><label>${tf('แนบรูปภาพ (วัสดุ / ตัวอย่างสี / แคปสเปกจาก LINE)','Attach photos (material / colour sample / spec screenshot)')}</label>
-        <label class="photo-drop" for="rq-photo-input">📷 ${tf('แตะเพื่อเลือกรูปภาพ','Tap to choose photos')}</label>
-        <input type="file" id="rq-photo-input" accept="image/*" multiple style="display:none">
+      <div class="field" style="margin-top:14px"><label>${tf('แนบไฟล์ (รูปภาพ / PDF — เช่น วัสดุ ตัวอย่างสี สเปกหรือใบเสนอราคา)','Attach files (images / PDF -- material, colour sample, spec or quotation)')}</label>
+        <label class="photo-drop" for="rq-photo-input" id="rq-drop-zone">📎 ${tf('แตะเพื่อเลือกไฟล์ หรือลากไฟล์มาวางที่นี่','Tap to choose files, or drag & drop here')}</label>
+        <input type="file" id="rq-photo-input" accept="image/*,application/pdf" multiple style="display:none">
         ${f.photos.length? `<div class="photo-grid" style="margin-top:10px">${photoCards}</div>`:''}
       </div>
       <button class="btn primary block" style="margin-top:16px" id="rq-submit">${tf('ส่งใบสั่งของ','Submit request')}</button>
@@ -4334,25 +4766,53 @@ function wireRequestModal(){
   $('#rq-add-line').onclick=()=>{ requestForm.lines.push({name:'',qty:'',unit:'',neededDate:addDays(todayStr(),2)}); render(); };
   $$('[data-rm-line]').forEach(b=> b.onclick=()=>{ if(requestForm.lines.length>1){ requestForm.lines.splice(Number(b.dataset.rmLine),1); render(); } else toast(tf('ต้องมีอย่างน้อย 1 รายการ','At least one line is required')); });
   $$('[data-line]').forEach(inp=> inp.oninput=()=>{ requestForm.lines[Number(inp.dataset.idx)][inp.dataset.line] = inp.value; });
+  const processRequestFiles = async (fileList)=>{
+    const files = Array.from(fileList||[]);
+    let skipped = 0;
+    for(const f of files){
+      try{
+        if(f.type==='application/pdf'){
+          const dataUrl = await fileToDataUrl(f);
+          requestForm.photos.push({dataUrl, name:f.name, kind:'pdf'});
+        } else if(f.type.indexOf('image/')===0){
+          const dataUrl = await compressImage(f);
+          requestForm.photos.push({dataUrl, name:f.name, kind:'image'});
+        } else { skipped++; }
+      }catch(err){ skipped++; }
+      await new Promise(r=>setTimeout(r,0));
+    }
+    if(skipped) toast(tf('ข้าม ','Skipped ')+skipped+tf(' ไฟล์ที่ไม่รองรับ (รองรับเฉพาะรูปภาพและ PDF)',' unsupported file(s) -- only images and PDF are supported'));
+  };
+  const dropZone = $('#rq-drop-zone');
+  if(dropZone){
+    dropZone.ondragover = (e)=>{ e.preventDefault(); dropZone.classList.add('drag-over'); };
+    dropZone.ondragleave = ()=>{ dropZone.classList.remove('drag-over'); };
+    dropZone.ondrop = async (e)=>{ e.preventDefault(); dropZone.classList.remove('drag-over'); await processRequestFiles(e.dataTransfer.files); render(); };
+  }
   const photoInput=$('#rq-photo-input');
   if(photoInput) photoInput.onchange = async (e)=>{
-    const files=Array.from(e.target.files||[]);
-    for(const f of files){ try{ const dataUrl=await compressImage(f); requestForm.photos.push({dataUrl}); }catch(err){} await new Promise(r=>setTimeout(r,0)); }
+    await processRequestFiles(e.target.files);
     photoInput.value=''; render();
   };
   $$('[data-rm-req-photo]').forEach(b=> b.onclick=()=>{ requestForm.photos.splice(Number(b.dataset.rmReqPhoto),1); render(); });
   $('#rq-submit').onclick = async ()=>{
     const by=$('#rq-by').value.trim(), area=$('#rq-area').value.trim(), wt=$('#rq-worktype').value.trim();
+    const necessityType = $('#rq-necessity') ? $('#rq-necessity').value : '';
+    const approverSel = $('#rq-approver'), approverText = $('#rq-approver-text');
+    const approverName = (approverSel? approverSel.value : (approverText? approverText.value : '')).trim();
     const lines = requestForm.lines.filter(l=>l.name.trim() && parseFloat(l.qty)>0 && l.unit.trim() && l.neededDate);
     if(!by || !area || lines.length===0){ toast(tf('กรอกผู้สั่งของ พื้นที่ และรายการวัสดุอย่างน้อย 1 รายการ','Please fill in requester, area, and at least one material line')); return; }
+    if(!approverName){ toast(tf('กรุณาระบุชื่อผู้อนุมัติ','Please specify an approver')); return; }
     const date = todayStr();
     const reqNo = genReqNo(date);
-    const photoIds=[];
-    for(const p of requestForm.photos){ const id=uid(); await idbPut(id,p.dataUrl); photoIds.push(id); }
+    const photoIds=[]; const photoMeta={};
+    for(const p of requestForm.photos){ const id=uid(); await idbPut(id,p.dataUrl); photoIds.push(id); photoMeta[id]={name:p.name||'', kind:p.kind||'image'}; }
     P().materialRequests.push({
       id:uid(), reqNo, createdAt:new Date().toISOString(), requestedBy:by, area, workType:wt,
+      necessityType, approverName,
       lines: lines.map(l=>({name:l.name.trim(),qty:parseFloat(l.qty),unit:l.unit.trim(),neededDate:l.neededDate})),
-      photoIds, status:'pending', approval:null, procurement:null
+      photoIds, photoMeta, status:'pending', approval:null, procurement:null,
+      trashed:false
     });
     saveData(); creatingRequest=false; requestForm=null; toast(tf('ส่งใบสั่งของแล้ว รอการอนุมัติ','Request submitted, awaiting approval')); render();
   };
@@ -4361,18 +4821,32 @@ function detailModalHtml(){
   const r = P().materialRequests.find(x=>x.id===procureDetailId);
   if(!r) return '';
   const lines = r.lines.map(l=>`<tr><td>${escapeHtml(l.name)}</td><td class="tabular">${fmtNum(l.qty,2)} ${escapeHtml(l.unit)}</td><td class="tabular">${fmtDate(l.neededDate)}</td></tr>`).join('');
+  // Note: r.approval / r.procurement can be missing even when r.status is
+  // 'approved'/'rejected'/'scheduled' if the status was set via the manual
+  // procurement status-override control below -- every access here is
+  // guarded so the timeline never assumes they exist.
   const steps=[{state:'done',title:tf('สร้างใบสั่งของ','Request created'),sub:escapeHtml(r.requestedBy)+' · '+fmtDateTime(r.createdAt)}];
-  if(r.status==='pending') steps.push({state:'wait',title:tf('รอการอนุมัติ','Awaiting approval'),sub:tf('PM / ผู้บริหารยังไม่ได้ตัดสินใจ','PM / owner has not decided yet')});
-  else if(r.status==='rejected') steps.push({state:'rej',title:tf('ปฏิเสธ','Rejected'),sub:tf('โดย ','by ')+escapeHtml(r.approval.by)+' · '+fmtDateTime(r.approval.at)+(r.approval.reason?' — '+escapeHtml(r.approval.reason):'')});
-  else {
-    steps.push({state:'done',title:tf('อนุมัติแล้ว','Approved'),sub:tf('โดย ','by ')+escapeHtml(r.approval.by)+' · '+fmtDateTime(r.approval.at)+(r.approval.reason?' — '+escapeHtml(r.approval.reason):'')});
+  if(r.status==='pending'){
+    steps.push({state:'wait',title:tf('รอการอนุมัติ','Awaiting approval'),sub:tf('PM / ผู้บริหารยังไม่ได้ตัดสินใจ','PM / owner has not decided yet')});
+  } else if(r.status==='rejected'){
+    steps.push({state:'rej',title:tf('ปฏิเสธ','Rejected'),sub: r.approval? (tf('โดย ','by ')+escapeHtml(r.approval.by)+' · '+fmtDateTime(r.approval.at)+(r.approval.reason?' — '+escapeHtml(r.approval.reason):'')) : tf('ปรับสถานะโดยฝ่ายจัดซื้อ','Status changed by procurement')});
+  } else {
+    steps.push({state:'done',title:tf('อนุมัติแล้ว','Approved'),sub: r.approval? (tf('โดย ','by ')+escapeHtml(r.approval.by)+' · '+fmtDateTime(r.approval.at)+(r.approval.reason?' — '+escapeHtml(r.approval.reason):'')) : tf('ปรับสถานะโดยฝ่ายจัดซื้อ (ไม่มีบันทึกการอนุมัติ)','Status changed by procurement (no approval record)')});
     if(r.status==='approved') steps.push({state:'wait',title:tf('รอฝ่ายจัดซื้อนัดส่ง','Awaiting delivery schedule'),sub:tf('ยังไม่ได้ระบุวันส่งมอบ','Delivery date not set yet')});
-    else steps.push({state:'done',title:tf('ยืนยันวันจัดส่งแล้ว','Delivery confirmed'),sub:tf('โดย ','by ')+escapeHtml(r.procurement.by)+' · '+fmtDateTime(r.procurement.at)+tf(' — ของถึงหน้างาน ',' — arriving on site ')+fmtDate(r.procurement.deliveryDate)});
+    else steps.push({state:'done',title:tf('ยืนยันวันจัดส่งแล้ว','Delivery confirmed'),sub: r.procurement? (tf('โดย ','by ')+escapeHtml(r.procurement.by)+' · '+fmtDateTime(r.procurement.at)+tf(' — ของถึงหน้างาน ',' — arriving on site ')+fmtDate(r.procurement.deliveryDate)) : tf('ปรับสถานะโดยฝ่ายจัดซื้อ (ไม่มีบันทึกการจัดส่ง)','Status changed by procurement (no delivery record)')});
   }
   const timeline = steps.map(s=>`<div class="tl-step"><div class="tl-dot ${s.state}">${s.state==='done'?'✓':s.state==='rej'?'✕':'…'}</div><div class="tl-body"><b>${s.title}</b><span>${s.sub}</span></div></div>`).join('');
+  const dueStatus = procureDueStatus(r);
+  const dueDate = procureDueDate(r);
+  const dueNote = dueStatus? `<div class="role-note" style="margin-top:12px;background:${dueStatus==='overdue'?'var(--coral-50)':'var(--amber-50)'};border-color:${dueStatus==='overdue'?'var(--coral-500)':'var(--amber-500)'}">🔔 ${dueStatus==='overdue'? tf('เกินกำหนดส่งมอบแล้ว','Past the delivery due date') : tf('ใกล้ถึงกำหนดส่งมอบ (ภายใน 3 วัน)','Due within 3 days')} — ${fmtDate(dueDate)}</div>` : '';
+  const activeApprovers = (state.approvers||[]).filter(a=>a.active!==false);
   let actions='';
   if(r.status==='pending' && state.role==='pm'){
-    actions = `<div class="field" style="margin-top:14px"><label>${tf('เหตุผล (จำเป็นเมื่อกดปฏิเสธ)','Reason (required to reject)')}</label><input type="text" id="dt-reason" placeholder="${tf('เช่น อนุมัติด่วนที่สุด / ปฏิเสธเนื่องจากสั่งซ้ำ','e.g. approved, urgent / rejected -- duplicate order')}"></div>
+    actions = `<div class="field" style="margin-top:14px"><label>${tf('ผู้อนุมัติ','Approver')}</label>
+        ${activeApprovers.length? `<select id="dt-approver">${activeApprovers.map(a=>`<option value="${escapeHtml(a.name)}" ${r.approverName===a.name?'selected':''}>${escapeHtml(a.name)}</option>`).join('')}</select>`
+          : `<input type="text" id="dt-approver-text" value="${escapeHtml(currentActorName())}" placeholder="${tf('ชื่อผู้อนุมัติ','approver name')}">`}
+      </div>
+      <div class="field" style="margin-top:14px"><label>${tf('เหตุผล (จำเป็นเมื่อกดปฏิเสธ)','Reason (required to reject)')}</label><input type="text" id="dt-reason" placeholder="${tf('เช่น อนุมัติด่วนที่สุด / ปฏิเสธเนื่องจากสั่งซ้ำ','e.g. approved, urgent / rejected -- duplicate order')}"></div>
       <div class="action-row"><button class="btn approve" id="dt-approve">✅ ${tf('อนุมัติ (Approve)','Approve')}</button><button class="btn reject" id="dt-reject">🚫 ${tf('ปฏิเสธ (Reject)','Reject')}</button></div>`;
   } else if(r.status==='approved' && state.role==='procurement'){
     actions = `<div class="grid cols-2" style="margin-top:14px"><div class="field"><label>${tf('วันที่ของถึงหน้างานจริง','Actual delivery date')}</label><input type="date" id="dt-delivery" value="${addDays(todayStr(),2)}"></div><div class="field"><label>${tf('หมายเหตุ (ไม่บังคับ)','Note (optional)')}</label><input type="text" id="dt-note" placeholder="${tf('เช่น ช่วงบ่าย','e.g. afternoon')}"></div></div>
@@ -4382,12 +4856,24 @@ function detailModalHtml(){
   } else if(r.status==='approved'){
     actions = `<div class="role-note" style="margin-top:14px">${tf('รอฝ่ายจัดซื้อระบุวันจัดส่ง (สลับมุมมองเป็น “จัดซื้อ” เพื่อทดสอบขั้นตอนนี้)','Waiting for procurement to set a delivery date (switch view to “Buy” to try this step)')}</div>`;
   }
+  if(state.role==='procurement'){
+    actions += `<div class="field" style="margin-top:14px"><label>${tf('เปลี่ยนสถานะใบสั่งของ (ฝ่ายจัดซื้อ)','Change order status (procurement)')}</label>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <select id="dt-status-override" style="flex:1;min-width:160px">${PSTATUS.map(s=>`<option value="${s.id}" ${r.status===s.id?'selected':''}>${s.ic} ${s.label}</option>`).join('')}</select>
+        <button class="btn ghost sm" id="dt-status-apply">${tf('อัปเดตสถานะ','Update status')}</button>
+      </div>
+    </div>`;
+  }
+  const canTrashDetail = state.role==='pm' || state.role==='procurement';
   return `<div class="modal-bg" id="dt-modal-bg"><div class="modal">
-    <div class="modal-head"><h3>${r.reqNo}</h3><button class="iconbtn" id="dt-modal-close">✕</button></div>
+    <div class="modal-head"><h3>${r.reqNo}</h3><div style="display:flex;gap:6px">${canTrashDetail? `<button class="iconbtn" id="dt-trash" title="${tf('ลบ (ย้ายไปถังขยะ)','Delete (move to trash)')}">🗑️</button>` : ''}<button class="iconbtn" id="dt-modal-close">✕</button></div></div>
     <span class="badge ${r.status}">${STATUS_LABEL[r.status]}</span>
+    ${dueNote}
     <div class="grid cols-2" style="margin-top:12px">
       <div class="field"><label class="hint">${tf('ผู้สั่งของ','Requested by')}</label><b>${escapeHtml(r.requestedBy)}</b></div>
       <div class="field"><label class="hint">${tf('ประเภทงาน','Work type')}</label><b>${escapeHtml(r.workType||'-')}</b></div>
+      <div class="field"><label class="hint">${tf('ประเภทความจำเป็น','Necessity type')}</label><b>${r.necessityType? escapeHtml(necessityLabel(r.necessityType)) : '-'}</b></div>
+      <div class="field"><label class="hint">${tf('ผู้อนุมัติที่ระบุ','Named approver')}</label><b>${escapeHtml(r.approverName||'-')}</b></div>
       <div class="field" style="grid-column:1/-1"><label class="hint">${tf('พื้นที่ที่ต้องใช้ของ','Area needed')}</label><b>${escapeHtml(r.area||'-')}</b></div>
     </div>
     <div class="table-wrap" style="margin-top:12px"><table><thead><tr><th>${tf('วัสดุ','Material')}</th><th>${tf('จำนวน','Qty')}</th><th>${tf('วันที่ต้องใช้','Needed by')}</th></tr></thead><tbody>${lines}</tbody></table></div>
@@ -4398,11 +4884,23 @@ function detailModalHtml(){
 function wireDetailModal(){
   const bg=$('#dt-modal-bg'); if(!bg) return;
   $('#dt-modal-close').onclick=()=>{ procureDetailId=null; render(); };
+  const trashBtn = $('#dt-trash');
+  if(trashBtn) trashBtn.onclick = ()=>{
+    const r = P().materialRequests.find(x=>x.id===procureDetailId); if(!r) return;
+    if(!confirm(tf('ย้ายใบสั่งของ "'+r.reqNo+'" ไปที่ถังขยะหรือไม่?','Move request "'+r.reqNo+'" to the trash?'))) return;
+    r.trashed=true; r.trashedAt=new Date().toISOString(); r.trashedBy=currentActorName();
+    saveData(); procureDetailId=null; toast(tf('ย้ายไปถังขยะแล้ว','Moved to trash')); render();
+  };
   bg.addEventListener('click', e=>{ if(e.target===bg){ procureDetailId=null; render(); } });
+  const selectedApproverName = ()=>{
+    const sel=$('#dt-approver'); if(sel) return sel.value;
+    const txt=$('#dt-approver-text'); if(txt) return txt.value.trim()||currentActorName();
+    return currentActorName();
+  };
   const approveBtn=$('#dt-approve');
   if(approveBtn) approveBtn.onclick=()=>{
     const r = P().materialRequests.find(x=>x.id===procureDetailId);
-    r.status='approved'; r.approval={by:currentActorName(), at:new Date().toISOString(), reason:$('#dt-reason').value.trim()};
+    r.status='approved'; r.approval={by:selectedApproverName(), at:new Date().toISOString(), reason:$('#dt-reason').value.trim()};
     saveData(); procureDetailId=null; toast(tf('อนุมัติใบสั่งของแล้ว','Request approved')); render();
   };
   const rejectBtn=$('#dt-reject');
@@ -4410,7 +4908,7 @@ function wireDetailModal(){
     const reason=$('#dt-reason').value.trim();
     if(!reason){ toast(tf('กรุณาระบุเหตุผลการปฏิเสธ','Please enter a reason for rejecting')); return; }
     const r = P().materialRequests.find(x=>x.id===procureDetailId);
-    r.status='rejected'; r.approval={by:currentActorName(), at:new Date().toISOString(), reason};
+    r.status='rejected'; r.approval={by:selectedApproverName(), at:new Date().toISOString(), reason};
     saveData(); procureDetailId=null; toast(tf('ปฏิเสธใบสั่งของแล้ว','Request rejected')); render();
   };
   const schedBtn=$('#dt-schedule');
@@ -4420,15 +4918,74 @@ function wireDetailModal(){
     r.status='scheduled'; r.procurement={by:currentActorName(), at:new Date().toISOString(), deliveryDate:dd, note:$('#dt-note').value.trim()};
     saveData(); procureDetailId=null; toast(tf('ยืนยันวันจัดส่งแล้ว','Delivery date confirmed')); render();
   };
+  const statusApplyBtn=$('#dt-status-apply');
+  if(statusApplyBtn) statusApplyBtn.onclick=()=>{
+    const newStatus = $('#dt-status-override').value;
+    const r = P().materialRequests.find(x=>x.id===procureDetailId); if(!r) return;
+    if(newStatus===r.status){ toast(tf('สถานะเดิมอยู่แล้ว','Already at that status')); return; }
+    // Synthesize a minimal approval/procurement record when jumping straight
+    // into a status that other screens (timeline, PDF report) assume carries
+    // one -- keeps every existing r.approval.*/r.procurement.* access safe.
+    const note = tf('(ปรับสถานะโดยฝ่ายจัดซื้อ)','(status changed by procurement)');
+    if((newStatus==='approved'||newStatus==='scheduled'||newStatus==='rejected') && !r.approval){
+      r.approval = {by:currentActorName(), at:new Date().toISOString(), reason:note};
+    }
+    if(newStatus==='scheduled' && !r.procurement){
+      r.procurement = {by:currentActorName(), at:new Date().toISOString(), deliveryDate:addDays(todayStr(),2), note:note};
+    }
+    r.status = newStatus;
+    saveData(); procureDetailId=null; toast(tf('อัปเดตสถานะแล้ว','Status updated')); render();
+  };
 }
 function wireProcure(){
   const newBtn=$('#btn-new-request');
   if(newBtn) newBtn.onclick=()=>{ creatingRequest=true; requestForm=newRequestForm(); render(); };
   $$('[data-open-req]').forEach(c=> c.onclick=(e)=>{ if(e.target.closest('[data-stop-card-open]')) return; procureDetailId=c.dataset.openReq; render(); });
+  const trashToggleBtn = $('#btn-toggle-trash');
+  if(trashToggleBtn) trashToggleBtn.onclick = ()=>{ procureTrashOpen=true; render(); };
+  const trashCloseBtn = $('#btn-close-trash');
+  if(trashCloseBtn) trashCloseBtn.onclick = ()=>{ procureTrashOpen=false; render(); };
+  $$('[data-trash-req]').forEach(b=> b.onclick=(e)=>{
+    e.stopPropagation();
+    const r = P().materialRequests.find(x=>x.id===b.dataset.trashReq); if(!r) return;
+    if(!confirm(tf('ย้ายใบสั่งของ "'+r.reqNo+'" ไปที่ถังขยะหรือไม่?','Move request "'+r.reqNo+'" to the trash?'))) return;
+    r.trashed=true; r.trashedAt=new Date().toISOString(); r.trashedBy=currentActorName();
+    saveData(); toast(tf('ย้ายไปถังขยะแล้ว','Moved to trash')); render();
+  });
+  $$('[data-restore-req]').forEach(b=> b.onclick=()=>{
+    const r = P().materialRequests.find(x=>x.id===b.dataset.restoreReq); if(!r) return;
+    r.trashed=false; r.trashedAt=null; r.trashedBy=null;
+    saveData(); toast(tf('กู้คืนใบสั่งของแล้ว','Request restored')); render();
+  });
+  $$('[data-delete-forever-req]').forEach(b=> b.onclick= async ()=>{
+    const r = P().materialRequests.find(x=>x.id===b.dataset.deleteForeverReq); if(!r) return;
+    if(!confirm(tf('ลบใบสั่งของ "'+r.reqNo+'" ถาวร ไม่สามารถกู้คืนได้อีก ยืนยันหรือไม่?','Permanently delete request "'+r.reqNo+'"? This cannot be undone.'))) return;
+    for(const pid of (r.photoIds||[])){ try{ await idbDelete(pid); }catch(err){} }
+    P().materialRequests = P().materialRequests.filter(x=>x.id!==r.id);
+    saveData(); toast(tf('ลบถาวรแล้ว','Permanently deleted')); render();
+  });
+  const toggleApvBtn = $('[data-toggle-approver-settings]');
+  if(toggleApvBtn) toggleApvBtn.onclick = ()=>{ approverSettingsOpen=!approverSettingsOpen; render(); };
+  const apvAddBtn = $('#apv-add');
+  if(apvAddBtn) apvAddBtn.onclick = ()=>{
+    const name = $('#apv-new-name').value.trim();
+    if(!name){ toast(tf('กรุณาระบุชื่อผู้อนุมัติ','Please enter an approver name')); return; }
+    state.approvers = state.approvers||[];
+    state.approvers.push({id:uid(), name, active:true});
+    saveData(); render(); toast(tf('เพิ่มผู้อนุมัติแล้ว','Approver added'));
+  };
+  $$('[data-apv-active]').forEach(cb=> cb.onchange = ()=>{
+    const a = (state.approvers||[]).find(x=>x.id===cb.dataset.apvActive); if(!a) return;
+    a.active = cb.checked; saveData();
+  });
+  $$('[data-apv-remove]').forEach(b=> b.onclick = ()=>{
+    state.approvers = (state.approvers||[]).filter(a=>a.id!==b.dataset.apvRemove);
+    saveData(); render(); toast(tf('ลบผู้อนุมัติแล้ว','Approver removed'));
+  });
   $$('[data-quick-approve]').forEach(b=> b.onclick=(e)=>{
     e.stopPropagation();
     const r = P().materialRequests.find(x=>x.id===b.dataset.quickApprove); if(!r) return;
-    r.status='approved'; r.approval={by:currentActorName(), at:new Date().toISOString(), reason:tf('อนุมัติด่วนจากหน้าจัดซื้อ','Quick-approved from procurement board')};
+    r.status='approved'; r.approval={by:r.approverName||currentActorName(), at:new Date().toISOString(), reason:tf('อนุมัติด่วนจากหน้าจัดซื้อ','Quick-approved from procurement board')};
     saveData(); toast(tf('อนุมัติใบสั่งของแล้ว','Request approved')); render();
   });
   $$('[data-quick-reject]').forEach(b=> b.onclick=(e)=>{
@@ -4545,13 +5102,17 @@ async function loadReportPhotos(log, reqs){
     if(reportPhotoCache[pid]){
       const meta = (log.photoMeta&&log.photoMeta[pid]) || (log._captions? {caption:log._captions[pid]} : {});
       const caption = (meta.tag? '['+meta.tag+'] ' : '') + (meta.caption || tf('ภาพหน้างาน','site photo'));
-      out.push({id:pid, dataUrl:reportPhotoCache[pid], caption});
+      out.push({id:pid, dataUrl:reportPhotoCache[pid], kind:'image', caption});
     }
   }
   for(const r of (reqs||[])){
     for(const pid of (r.photoIds||[])){
       if(!reportPhotoCache[pid]) reportPhotoCache[pid] = await idbGet(pid);
-      if(reportPhotoCache[pid]) out.push({id:pid, dataUrl:reportPhotoCache[pid], caption:tf('อ้างอิงวัสดุ: ','material reference: ')+((r.lines[0]&&r.lines[0].name)||r.reqNo)});
+      if(reportPhotoCache[pid]){
+        const meta = (r.photoMeta&&r.photoMeta[pid]) || {};
+        const kind = meta.kind || dataUrlKind(reportPhotoCache[pid]);
+        out.push({id:pid, dataUrl:reportPhotoCache[pid], kind, name:meta.name||'', caption:tf('อ้างอิงวัสดุ: ','material reference: ')+((r.lines[0]&&r.lines[0].name)||r.reqNo)});
+      }
     }
   }
   return out;
@@ -4675,7 +5236,10 @@ async function refreshReportPhotos(date){
   const photos = await loadReportPhotos(log, reqs);
   const grid = $('#rp-photogrid');
   if(!grid) return;
-  grid.innerHTML = photos.length? photos.map(p=>`<figure><img src="${p.dataUrl}"><figcaption>${escapeHtml(p.caption||tf('ภาพหน้างาน','site photo'))}</figcaption></figure>`).join('') : `<span class="sub">${tf('ไม่มีรูปภาพสำหรับวันนี้','No photos for this day')}</span>`;
+  grid.innerHTML = photos.length? photos.map(p=> p.kind==='pdf'?
+    `<figure class="rp-pdf-figure"><a href="${p.dataUrl}" target="_blank" rel="noopener" download="${escapeHtml(p.name||'document.pdf')}"><div class="rp-pdf-icon">📄</div></a><figcaption>${escapeHtml(p.name||'PDF')}${p.caption? ' — '+escapeHtml(p.caption) : ''}</figcaption></figure>`
+    : `<figure><img src="${p.dataUrl}"><figcaption>${escapeHtml(p.caption||tf('ภาพหน้างาน','site photo'))}</figcaption></figure>`
+  ).join('') : `<span class="sub">${tf('ไม่มีรูปภาพสำหรับวันนี้','No photos for this day')}</span>`;
 }
 function wireReport(){
   refreshReportPhotos(state.reportDate);
@@ -4740,6 +5304,7 @@ function wireScreen(){
   if(FIELD_MODE){ if(state.currentProjectId) wireDailyLog(); return; }
   if(state.view==='hub') return wireHub();
   if(state.view==='profile') return wireProfile();
+  if(state.view==='contractors') return wireContractors();
   if(state.view!=='project') return;
   if(state.tab==='masterplan') wireMasterPlan();
   else if(state.tab==='dailylog') wireDailyLog();
@@ -4758,6 +5323,12 @@ window.addEventListener('online', ()=>{ updateNetStatus(); toast(tf('กลั�
 window.addEventListener('offline', ()=>{ updateNetStatus(); toast(tf('ออฟไลน์ — ใช้งานต่อได้ตามปกติ ข้อมูลจะถูกบันทึกในเครื่องนี้','Offline — you can keep working normally, data will be saved on this device')); });
 
 /* ============================= INIT ============================= */
+// Safety net: without this, dropping a file anywhere outside an actual drop
+// zone makes the browser navigate away to that file, discarding whatever the
+// user had open (e.g. a half-filled material request). Drop zones themselves
+// call preventDefault() in their own handlers, so this never blocks them.
+window.addEventListener('dragover', e=> e.preventDefault());
+window.addEventListener('drop', e=> e.preventDefault());
 bootstrap();
 render();
 updateNetStatus();
