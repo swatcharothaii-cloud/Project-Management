@@ -147,10 +147,11 @@ a{color:inherit}
 .topbar .brand .mark{
   width:38px;height:38px;border-radius:11px;background:rgba(255,255,255,.16);
   display:flex;align-items:center;justify-content:center;font-size:19px;flex:none;
-  border:1px solid rgba(255,255,255,.28);
+  border:1px solid rgba(255,255,255,.28);overflow:hidden;
 }
-.topbar .brand .txt{min-width:0}
-.topbar .brand .txt b{font-family:var(--font-display);font-weight:600;font-size:15.5px;display:block;line-height:1.2}
+.topbar .brand .mark img{width:100%;height:100%;object-fit:contain;background:#fff;border-radius:9px}
+.topbar .brand .txt{min-width:64px;flex-shrink:1}
+.topbar .brand .txt b{font-family:var(--font-display);font-weight:600;font-size:15.5px;line-height:1.2;display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical;overflow:hidden}
 .topbar .brand .txt span{font-size:12px;opacity:.82;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .topbar .spacer{flex:1}
 .status-pill{
@@ -242,6 +243,10 @@ tbody tr:hover{background:var(--surface-2)}
 .mp-thumb img{width:100%;height:100%;object-fit:cover;display:block}
 .mp-thumb-empty{font-size:17px;opacity:.35}
 .mp-thumb-count{position:absolute;bottom:1px;right:1px;background:rgba(20,18,36,.68);color:#fff;font-size:9px;padding:1px 4px;border-radius:6px;line-height:1.3}
+.mp-thumb[data-quick-attach]{cursor:pointer}
+.mp-thumb[data-quick-attach]:hover{border-color:var(--purple-500)}
+.mp-table tr.mp-cat-row td{background:var(--purple-50);color:var(--purple-700);font-family:var(--font-display);font-weight:600;font-size:12.5px;padding:9px 12px;white-space:normal}
+.mp-cat-count{font-weight:400;opacity:.75;font-size:11.5px}
 
 .empty{
   border:1.5px dashed var(--line);border-radius:var(--radius-md);
@@ -394,10 +399,35 @@ tbody tr:hover{background:var(--surface-2)}
 .exported-wrap p{font-size:11.5px;color:var(--ink-500);margin-top:8px}
 
 @media (max-width:640px){
-  .topbar{padding:12px 14px}
+  .topbar{padding:12px 14px;gap:8px}
   .topbar .status-pill{display:none}
+  .topbar .brand .txt span{display:none}
+  .topbar .lang-switch,.topbar .role-switch{gap:2px;padding:3px}
+  .topbar .lang-switch button,.topbar .role-switch button{padding:5px 8px;font-size:11px}
   main{padding:16px 12px 90px}
   .rp-head,.rp-meta,.rp-section,.rp-foot{padding-left:16px;padding-right:16px}
+}
+@media (max-width:400px){
+  .topbar .brand .mark{width:32px;height:32px}
+  .topbar .brand .txt b{font-size:13.5px}
+}
+
+/* Master Plan / BOQ table -> stacked cards on narrow screens, so long item
+   names and 7 data columns never force horizontal scrolling. */
+@media (max-width:760px){
+  .mp-wrap{overflow-x:visible;border:none;border-radius:0}
+  .mp-table, .mp-table tbody{display:block;width:100%}
+  .mp-table thead{display:none}
+  .mp-table tr{display:block;background:var(--surface);border:1px solid var(--line);border-radius:var(--radius-sm);margin-bottom:10px;padding:4px 14px;box-shadow:var(--shadow-sm)}
+  .mp-table td{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;white-space:normal;text-align:right;border-bottom:1px solid var(--line);padding:9px 0}
+  .mp-table tr td:last-child{border-bottom:none}
+  .mp-table td[data-label]:not([data-label=""])::before{content:attr(data-label);flex:none;color:var(--ink-500);font-size:12px;text-align:left;padding-top:1px}
+  .mp-table td:first-child{justify-content:center;padding:12px 0}
+  .mp-table td.mp-name-cell{text-align:left;justify-content:flex-start;font-weight:600}
+  .mp-table td:last-child{justify-content:flex-end;gap:8px}
+  .mp-table tr.mp-cat-row{display:block;background:none;border:none;box-shadow:none;padding:0;margin:18px 2px 8px}
+  .mp-table tr.mp-cat-row td{display:block;background:var(--purple-50);color:var(--purple-700);border:none;border-radius:var(--radius-sm);padding:9px 12px}
+  .mp-table tr.mp-cat-row td::before{content:none}
 }
 </style>
 
@@ -522,6 +552,7 @@ function compressImage(file, maxDim, quality){
 
 /* ============================= DEMO SEED ============================= */
 function logEntryFor(date,entries,note){ return {id:uid(),date,entries,note:note||'',photoIds:[]}; }
+const TRIOC_LOGO = "data:image/png;base64,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";
 function richmondProject(){
   return {
   "id": "richmond-2602",
@@ -535,7 +566,9 @@ function richmondProject(){
       "qtyTotal": 1.0,
       "unit": "L/S",
       "startDate": "2026-07-27",
-      "endDate": "2026-08-02"
+      "endDate": "2026-08-02",
+      "category": "1. งานเตรียมการ/ป้องกัน/รื้อถอน",
+      "team": "ทีมเตรียมการ/ป้องกันหน้างาน"
     },
     {
       "id": "rc-1_1",
@@ -544,7 +577,9 @@ function richmondProject(){
       "qtyTotal": 1.0,
       "unit": "-",
       "startDate": "2026-07-27",
-      "endDate": "2026-08-09"
+      "endDate": "2026-08-09",
+      "category": "1. งานเตรียมการ/ป้องกัน/รื้อถอน",
+      "team": "ทีมประสานงาน/เอกสาร"
     },
     {
       "id": "rc-2",
@@ -553,7 +588,9 @@ function richmondProject(){
       "qtyTotal": 1.0,
       "unit": "L/S",
       "startDate": "2026-08-03",
-      "endDate": "2026-08-16"
+      "endDate": "2026-08-16",
+      "category": "1. งานเตรียมการ/ป้องกัน/รื้อถอน",
+      "team": "ทีมรื้อถอน"
     },
     {
       "id": "rc-3_1",
@@ -562,7 +599,9 @@ function richmondProject(){
       "qtyTotal": 100.0,
       "unit": "SQM",
       "startDate": "2026-08-17",
-      "endDate": "2026-09-20"
+      "endDate": "2026-09-20",
+      "category": "2. งานฝ้าเพดาน",
+      "team": "ทีม Finishing (ฉาบ/สี)"
     },
     {
       "id": "rc-3_2",
@@ -571,7 +610,9 @@ function richmondProject(){
       "qtyTotal": 11.0,
       "unit": "SQM",
       "startDate": "2026-08-17",
-      "endDate": "2026-09-20"
+      "endDate": "2026-09-20",
+      "category": "2. งานฝ้าเพดาน",
+      "team": "ทีม Finishing (ฉาบ/สี)"
     },
     {
       "id": "rc-3_4",
@@ -580,7 +621,9 @@ function richmondProject(){
       "qtyTotal": 8.0,
       "unit": "M",
       "startDate": "2026-08-17",
-      "endDate": "2026-09-20"
+      "endDate": "2026-09-20",
+      "category": "2. งานฝ้าเพดาน",
+      "team": "ทีม Finishing (ฉาบ/สี)"
     },
     {
       "id": "rc-3_5",
@@ -589,7 +632,9 @@ function richmondProject(){
       "qtyTotal": 3.0,
       "unit": "SQM",
       "startDate": "2026-08-17",
-      "endDate": "2026-09-20"
+      "endDate": "2026-09-20",
+      "category": "2. งานฝ้าเพดาน",
+      "team": "ทีม Finishing (ฉาบ/สี)"
     },
     {
       "id": "rc-3_6",
@@ -598,7 +643,9 @@ function richmondProject(){
       "qtyTotal": 119.0,
       "unit": "SQM",
       "startDate": "2026-08-17",
-      "endDate": "2026-09-20"
+      "endDate": "2026-09-20",
+      "category": "2. งานฝ้าเพดาน",
+      "team": "ทีม Finishing (ฉาบ/สี)"
     },
     {
       "id": "rc-3_7",
@@ -607,7 +654,9 @@ function richmondProject(){
       "qtyTotal": 119.0,
       "unit": "SQM",
       "startDate": "2026-08-17",
-      "endDate": "2026-09-20"
+      "endDate": "2026-09-20",
+      "category": "2. งานฝ้าเพดาน",
+      "team": "ทีม Finishing (ฉาบ/สี)"
     },
     {
       "id": "rc-4_1",
@@ -616,7 +665,9 @@ function richmondProject(){
       "qtyTotal": 15.0,
       "unit": "SQM",
       "startDate": "2026-08-24",
-      "endDate": "2026-09-20"
+      "endDate": "2026-09-20",
+      "category": "3. งานผนัง/กั้นห้อง",
+      "team": "ทีม Finishing (ฉาบ/สี)"
     },
     {
       "id": "rc-4_2",
@@ -625,7 +676,9 @@ function richmondProject(){
       "qtyTotal": 4.0,
       "unit": "SQM",
       "startDate": "2026-08-24",
-      "endDate": "2026-09-20"
+      "endDate": "2026-09-20",
+      "category": "3. งานผนัง/กั้นห้อง",
+      "team": "ทีม Finishing (ฉาบ/สี)"
     },
     {
       "id": "rc-4_3",
@@ -634,7 +687,9 @@ function richmondProject(){
       "qtyTotal": 0.5,
       "unit": "SQM",
       "startDate": "2026-08-24",
-      "endDate": "2026-09-20"
+      "endDate": "2026-09-20",
+      "category": "3. งานผนัง/กั้นห้อง",
+      "team": "ทีม Finishing (ฉาบ/สี)"
     },
     {
       "id": "rc-4_4",
@@ -643,7 +698,9 @@ function richmondProject(){
       "qtyTotal": 8.0,
       "unit": "SQM",
       "startDate": "2026-08-24",
-      "endDate": "2026-09-20"
+      "endDate": "2026-09-20",
+      "category": "3. งานผนัง/กั้นห้อง",
+      "team": "ทีม Finishing (ฉาบ/สี)"
     },
     {
       "id": "rc-4_5",
@@ -652,7 +709,9 @@ function richmondProject(){
       "qtyTotal": 27.0,
       "unit": "SQM",
       "startDate": "2026-08-24",
-      "endDate": "2026-09-20"
+      "endDate": "2026-09-20",
+      "category": "3. งานผนัง/กั้นห้อง",
+      "team": "ทีม Finishing (ฉาบ/สี)"
     },
     {
       "id": "rc-4_6",
@@ -661,7 +720,9 @@ function richmondProject(){
       "qtyTotal": 67.0,
       "unit": "SQM",
       "startDate": "2026-08-24",
-      "endDate": "2026-09-20"
+      "endDate": "2026-09-20",
+      "category": "3. งานผนัง/กั้นห้อง",
+      "team": "ทีม Finishing (ฉาบ/สี)"
     },
     {
       "id": "rc-4_7",
@@ -670,7 +731,9 @@ function richmondProject(){
       "qtyTotal": 15.0,
       "unit": "M",
       "startDate": "2026-08-24",
-      "endDate": "2026-09-20"
+      "endDate": "2026-09-20",
+      "category": "3. งานผนัง/กั้นห้อง",
+      "team": "ทีม Finishing (ฉาบ/สี)"
     },
     {
       "id": "rc-5_1",
@@ -679,7 +742,9 @@ function richmondProject(){
       "qtyTotal": 139.0,
       "unit": "SQM",
       "startDate": "2026-09-07",
-      "endDate": "2026-10-11"
+      "endDate": "2026-10-11",
+      "category": "4. งานกระเบื้อง",
+      "team": "ทีม Finishing (ฉาบ/สี)"
     },
     {
       "id": "rc-5_2",
@@ -688,7 +753,9 @@ function richmondProject(){
       "qtyTotal": 84.0,
       "unit": "SQM",
       "startDate": "2026-09-07",
-      "endDate": "2026-10-11"
+      "endDate": "2026-10-11",
+      "category": "4. งานกระเบื้อง",
+      "team": "ทีม Finishing (ฉาบ/สี)"
     },
     {
       "id": "rc-5_3",
@@ -697,7 +764,9 @@ function richmondProject(){
       "qtyTotal": 38.0,
       "unit": "SQM",
       "startDate": "2026-09-07",
-      "endDate": "2026-10-11"
+      "endDate": "2026-10-11",
+      "category": "4. งานกระเบื้อง",
+      "team": "ทีม Finishing (ฉาบ/สี)"
     },
     {
       "id": "rc-5_4",
@@ -706,7 +775,9 @@ function richmondProject(){
       "qtyTotal": 53.0,
       "unit": "SQM",
       "startDate": "2026-09-07",
-      "endDate": "2026-10-11"
+      "endDate": "2026-10-11",
+      "category": "4. งานกระเบื้อง",
+      "team": "ทีม Finishing (ฉาบ/สี)"
     },
     {
       "id": "rc-5_5",
@@ -715,7 +786,9 @@ function richmondProject(){
       "qtyTotal": 4.0,
       "unit": "SQM",
       "startDate": "2026-09-07",
-      "endDate": "2026-10-11"
+      "endDate": "2026-10-11",
+      "category": "4. งานกระเบื้อง",
+      "team": "ทีม Finishing (ฉาบ/สี)"
     },
     {
       "id": "rc-5_6",
@@ -724,7 +797,9 @@ function richmondProject(){
       "qtyTotal": 6.0,
       "unit": "SQM",
       "startDate": "2026-09-07",
-      "endDate": "2026-10-11"
+      "endDate": "2026-10-11",
+      "category": "4. งานกระเบื้อง",
+      "team": "ทีม Finishing (ฉาบ/สี)"
     },
     {
       "id": "rc-5_7",
@@ -733,7 +808,9 @@ function richmondProject(){
       "qtyTotal": 25.0,
       "unit": "SQM",
       "startDate": "2026-09-07",
-      "endDate": "2026-10-11"
+      "endDate": "2026-10-11",
+      "category": "4. งานกระเบื้อง",
+      "team": "ทีม Finishing (ฉาบ/สี)"
     },
     {
       "id": "rc-5_8",
@@ -742,7 +819,9 @@ function richmondProject(){
       "qtyTotal": 5.0,
       "unit": "SQM",
       "startDate": "2026-09-07",
-      "endDate": "2026-10-11"
+      "endDate": "2026-10-11",
+      "category": "4. งานกระเบื้อง",
+      "team": "ทีม Finishing (ฉาบ/สี)"
     },
     {
       "id": "rc-5_9",
@@ -751,7 +830,9 @@ function richmondProject(){
       "qtyTotal": 5.0,
       "unit": "SQM",
       "startDate": "2026-09-07",
-      "endDate": "2026-10-11"
+      "endDate": "2026-10-11",
+      "category": "4. งานกระเบื้อง",
+      "team": "ทีม Finishing (ฉาบ/สี)"
     },
     {
       "id": "rc-5_10",
@@ -760,7 +841,9 @@ function richmondProject(){
       "qtyTotal": 7.0,
       "unit": "SQM",
       "startDate": "2026-09-07",
-      "endDate": "2026-10-11"
+      "endDate": "2026-10-11",
+      "category": "4. งานกระเบื้อง",
+      "team": "ทีม Finishing (ฉาบ/สี)"
     },
     {
       "id": "rc-5_11",
@@ -769,7 +852,9 @@ function richmondProject(){
       "qtyTotal": 7.0,
       "unit": "SQM",
       "startDate": "2026-09-07",
-      "endDate": "2026-10-11"
+      "endDate": "2026-10-11",
+      "category": "4. งานกระเบื้อง",
+      "team": "ทีม Finishing (ฉาบ/สี)"
     },
     {
       "id": "rc-5_12",
@@ -778,7 +863,9 @@ function richmondProject(){
       "qtyTotal": 7.0,
       "unit": "SQM",
       "startDate": "2026-09-07",
-      "endDate": "2026-10-11"
+      "endDate": "2026-10-11",
+      "category": "4. งานกระเบื้อง",
+      "team": "ทีม Finishing (ฉาบ/สี)"
     },
     {
       "id": "rc-5_13",
@@ -787,7 +874,9 @@ function richmondProject(){
       "qtyTotal": 7.0,
       "unit": "M",
       "startDate": "2026-09-07",
-      "endDate": "2026-10-11"
+      "endDate": "2026-10-11",
+      "category": "4. งานกระเบื้อง",
+      "team": "ทีม Finishing (ฉาบ/สี)"
     },
     {
       "id": "rc-5_14",
@@ -796,7 +885,9 @@ function richmondProject(){
       "qtyTotal": 69.0,
       "unit": "SQM",
       "startDate": "2026-09-07",
-      "endDate": "2026-10-11"
+      "endDate": "2026-10-11",
+      "category": "4. งานกระเบื้อง",
+      "team": "ทีม Finishing (ฉาบ/สี)"
     },
     {
       "id": "rc-6_1",
@@ -805,7 +896,9 @@ function richmondProject(){
       "qtyTotal": 1.0,
       "unit": "SET",
       "startDate": "2026-09-14",
-      "endDate": "2026-10-18"
+      "endDate": "2026-10-18",
+      "category": "5. งานประตู",
+      "team": "ทีมประตู-อลูมิเนียม / Door & Aluminium Team"
     },
     {
       "id": "rc-6_2",
@@ -814,7 +907,9 @@ function richmondProject(){
       "qtyTotal": 1.0,
       "unit": "SET",
       "startDate": "2026-09-14",
-      "endDate": "2026-10-18"
+      "endDate": "2026-10-18",
+      "category": "5. งานประตู",
+      "team": "ทีมประตู-อลูมิเนียม / Door & Aluminium Team"
     },
     {
       "id": "rc-6_3",
@@ -823,7 +918,9 @@ function richmondProject(){
       "qtyTotal": 1.0,
       "unit": "SET",
       "startDate": "2026-09-14",
-      "endDate": "2026-10-18"
+      "endDate": "2026-10-18",
+      "category": "5. งานประตู",
+      "team": "ทีมประตู-อลูมิเนียม / Door & Aluminium Team"
     },
     {
       "id": "rc-6_4",
@@ -832,7 +929,9 @@ function richmondProject(){
       "qtyTotal": 1.0,
       "unit": "SET",
       "startDate": "2026-09-14",
-      "endDate": "2026-10-18"
+      "endDate": "2026-10-18",
+      "category": "5. งานประตู",
+      "team": "ทีมประตู-อลูมิเนียม / Door & Aluminium Team"
     },
     {
       "id": "rc-6_5",
@@ -841,7 +940,9 @@ function richmondProject(){
       "qtyTotal": 1.0,
       "unit": "SET",
       "startDate": "2026-09-14",
-      "endDate": "2026-10-18"
+      "endDate": "2026-10-18",
+      "category": "5. งานประตู",
+      "team": "ทีมประตู-อลูมิเนียม / Door & Aluminium Team"
     },
     {
       "id": "rc-6_6",
@@ -850,7 +951,9 @@ function richmondProject(){
       "qtyTotal": 1.0,
       "unit": "SET",
       "startDate": "2026-09-14",
-      "endDate": "2026-10-18"
+      "endDate": "2026-10-18",
+      "category": "5. งานประตู",
+      "team": "ทีมประตู-อลูมิเนียม / Door & Aluminium Team"
     },
     {
       "id": "rc-6_7",
@@ -859,7 +962,9 @@ function richmondProject(){
       "qtyTotal": 5.0,
       "unit": "SQM",
       "startDate": "2026-09-14",
-      "endDate": "2026-10-18"
+      "endDate": "2026-10-18",
+      "category": "5. งานประตู",
+      "team": "ทีมประตู-อลูมิเนียม / Door & Aluminium Team"
     },
     {
       "id": "rc-6_8",
@@ -868,7 +973,9 @@ function richmondProject(){
       "qtyTotal": 2.8,
       "unit": "SQM",
       "startDate": "2026-09-14",
-      "endDate": "2026-10-18"
+      "endDate": "2026-10-18",
+      "category": "5. งานประตู",
+      "team": "ทีมประตู-อลูมิเนียม / Door & Aluminium Team"
     },
     {
       "id": "rc-6_9",
@@ -877,7 +984,9 @@ function richmondProject(){
       "qtyTotal": 3.6,
       "unit": "SQM",
       "startDate": "2026-09-14",
-      "endDate": "2026-10-18"
+      "endDate": "2026-10-18",
+      "category": "5. งานประตู",
+      "team": "ทีมประตู-อลูมิเนียม / Door & Aluminium Team"
     },
     {
       "id": "rc-6_10",
@@ -886,7 +995,9 @@ function richmondProject(){
       "qtyTotal": 3.6,
       "unit": "SQM",
       "startDate": "2026-09-14",
-      "endDate": "2026-10-18"
+      "endDate": "2026-10-18",
+      "category": "5. งานประตู",
+      "team": "ทีมประตู-อลูมิเนียม / Door & Aluminium Team"
     },
     {
       "id": "rc-6_11",
@@ -895,7 +1006,9 @@ function richmondProject(){
       "qtyTotal": 6.3,
       "unit": "SQM",
       "startDate": "2026-09-14",
-      "endDate": "2026-10-18"
+      "endDate": "2026-10-18",
+      "category": "5. งานประตู",
+      "team": "ทีมประตู-อลูมิเนียม / Door & Aluminium Team"
     },
     {
       "id": "rc-6_12",
@@ -904,7 +1017,9 @@ function richmondProject(){
       "qtyTotal": 1.0,
       "unit": "SET",
       "startDate": "2026-09-14",
-      "endDate": "2026-10-18"
+      "endDate": "2026-10-18",
+      "category": "5. งานประตู",
+      "team": "ทีมประตู-อลูมิเนียม / Door & Aluminium Team"
     },
     {
       "id": "rc-6_13",
@@ -913,7 +1028,9 @@ function richmondProject(){
       "qtyTotal": 2.4,
       "unit": "SQM",
       "startDate": "2026-09-14",
-      "endDate": "2026-10-18"
+      "endDate": "2026-10-18",
+      "category": "5. งานประตู",
+      "team": "ทีมประตู-อลูมิเนียม / Door & Aluminium Team"
     },
     {
       "id": "rc-6_14",
@@ -922,7 +1039,9 @@ function richmondProject(){
       "qtyTotal": 22.0,
       "unit": "SQM",
       "startDate": "2026-09-14",
-      "endDate": "2026-10-18"
+      "endDate": "2026-10-18",
+      "category": "5. งานประตู",
+      "team": "ทีมประตู-อลูมิเนียม / Door & Aluminium Team"
     },
     {
       "id": "rc-7_1",
@@ -931,7 +1050,9 @@ function richmondProject(){
       "qtyTotal": 40.0,
       "unit": "PCS",
       "startDate": "2026-09-28",
-      "endDate": "2026-10-25"
+      "endDate": "2026-10-25",
+      "category": "6. งานไฟฟ้าแสงสว่าง",
+      "team": "ทีมไฟฟ้า"
     },
     {
       "id": "rc-7_2",
@@ -940,7 +1061,9 @@ function richmondProject(){
       "qtyTotal": 1.0,
       "unit": "PCS",
       "startDate": "2026-09-28",
-      "endDate": "2026-10-25"
+      "endDate": "2026-10-25",
+      "category": "6. งานไฟฟ้าแสงสว่าง",
+      "team": "ทีมไฟฟ้า"
     },
     {
       "id": "rc-7_3",
@@ -949,7 +1072,9 @@ function richmondProject(){
       "qtyTotal": 1.0,
       "unit": "PCS",
       "startDate": "2026-09-28",
-      "endDate": "2026-10-25"
+      "endDate": "2026-10-25",
+      "category": "6. งานไฟฟ้าแสงสว่าง",
+      "team": "ทีมไฟฟ้า"
     },
     {
       "id": "rc-7_4",
@@ -958,7 +1083,9 @@ function richmondProject(){
       "qtyTotal": 2.0,
       "unit": "PCS",
       "startDate": "2026-09-28",
-      "endDate": "2026-10-25"
+      "endDate": "2026-10-25",
+      "category": "6. งานไฟฟ้าแสงสว่าง",
+      "team": "ทีมไฟฟ้า"
     },
     {
       "id": "rc-7_5",
@@ -967,7 +1094,9 @@ function richmondProject(){
       "qtyTotal": 2.0,
       "unit": "PCS",
       "startDate": "2026-09-28",
-      "endDate": "2026-10-25"
+      "endDate": "2026-10-25",
+      "category": "6. งานไฟฟ้าแสงสว่าง",
+      "team": "ทีมไฟฟ้า"
     },
     {
       "id": "rc-7_6",
@@ -976,7 +1105,9 @@ function richmondProject(){
       "qtyTotal": 43.0,
       "unit": "M",
       "startDate": "2026-09-28",
-      "endDate": "2026-10-25"
+      "endDate": "2026-10-25",
+      "category": "6. งานไฟฟ้าแสงสว่าง",
+      "team": "ทีมไฟฟ้า"
     },
     {
       "id": "rc-7_7",
@@ -985,7 +1116,9 @@ function richmondProject(){
       "qtyTotal": 30.0,
       "unit": "SET",
       "startDate": "2026-09-28",
-      "endDate": "2026-10-25"
+      "endDate": "2026-10-25",
+      "category": "6. งานไฟฟ้าแสงสว่าง",
+      "team": "ทีมไฟฟ้า"
     },
     {
       "id": "rc-7_8",
@@ -994,7 +1127,9 @@ function richmondProject(){
       "qtyTotal": 1.0,
       "unit": "SET",
       "startDate": "2026-09-28",
-      "endDate": "2026-10-25"
+      "endDate": "2026-10-25",
+      "category": "6. งานไฟฟ้าแสงสว่าง",
+      "team": "ทีมไฟฟ้า"
     },
     {
       "id": "rc-7_9",
@@ -1003,7 +1138,9 @@ function richmondProject(){
       "qtyTotal": 1.0,
       "unit": "JOB",
       "startDate": "2026-09-28",
-      "endDate": "2026-10-25"
+      "endDate": "2026-10-25",
+      "category": "6. งานไฟฟ้าแสงสว่าง",
+      "team": "ทีมไฟฟ้า"
     },
     {
       "id": "rc-8_1",
@@ -1012,7 +1149,9 @@ function richmondProject(){
       "qtyTotal": 25.0,
       "unit": "PCS",
       "startDate": "2026-08-10",
-      "endDate": "2026-08-30"
+      "endDate": "2026-08-30",
+      "category": "7. งานปลั๊ก/สายไฟ",
+      "team": "ทีมไฟฟ้า"
     },
     {
       "id": "rc-8_2",
@@ -1021,7 +1160,9 @@ function richmondProject(){
       "qtyTotal": 350.0,
       "unit": "M",
       "startDate": "2026-08-10",
-      "endDate": "2026-08-30"
+      "endDate": "2026-08-30",
+      "category": "7. งานปลั๊ก/สายไฟ",
+      "team": "ทีมไฟฟ้า"
     },
     {
       "id": "rc-8_3",
@@ -1030,7 +1171,9 @@ function richmondProject(){
       "qtyTotal": 900.0,
       "unit": "M",
       "startDate": "2026-08-10",
-      "endDate": "2026-08-30"
+      "endDate": "2026-08-30",
+      "category": "7. งานปลั๊ก/สายไฟ",
+      "team": "ทีมไฟฟ้า"
     },
     {
       "id": "rc-8_4",
@@ -1039,7 +1182,9 @@ function richmondProject(){
       "qtyTotal": 320.0,
       "unit": "JOB",
       "startDate": "2026-08-10",
-      "endDate": "2026-08-30"
+      "endDate": "2026-08-30",
+      "category": "7. งานปลั๊ก/สายไฟ",
+      "team": "ทีมไฟฟ้า"
     },
     {
       "id": "rc-8_5",
@@ -1048,7 +1193,9 @@ function richmondProject(){
       "qtyTotal": 1.0,
       "unit": "JOB",
       "startDate": "2026-08-10",
-      "endDate": "2026-08-30"
+      "endDate": "2026-08-30",
+      "category": "7. งานปลั๊ก/สายไฟ",
+      "team": "ทีมไฟฟ้า"
     },
     {
       "id": "rc-8_6",
@@ -1057,7 +1204,9 @@ function richmondProject(){
       "qtyTotal": 1.0,
       "unit": "SET",
       "startDate": "2026-08-10",
-      "endDate": "2026-08-30"
+      "endDate": "2026-08-30",
+      "category": "7. งานปลั๊ก/สายไฟ",
+      "team": "ทีมไฟฟ้า"
     },
     {
       "id": "rc-9_1",
@@ -1066,7 +1215,9 @@ function richmondProject(){
       "qtyTotal": 2.0,
       "unit": "SET",
       "startDate": "2026-10-05",
-      "endDate": "2026-11-01"
+      "endDate": "2026-11-01",
+      "category": "8. งานสุขภัณฑ์",
+      "team": "ทีมประปา / Plumbing Team"
     },
     {
       "id": "rc-9_2",
@@ -1075,7 +1226,9 @@ function richmondProject(){
       "qtyTotal": 2.0,
       "unit": "SET",
       "startDate": "2026-10-05",
-      "endDate": "2026-11-01"
+      "endDate": "2026-11-01",
+      "category": "8. งานสุขภัณฑ์",
+      "team": "ทีมประปา / Plumbing Team"
     },
     {
       "id": "rc-9_3",
@@ -1084,7 +1237,9 @@ function richmondProject(){
       "qtyTotal": 2.0,
       "unit": "SET",
       "startDate": "2026-10-05",
-      "endDate": "2026-11-01"
+      "endDate": "2026-11-01",
+      "category": "8. งานสุขภัณฑ์",
+      "team": "ทีมประปา / Plumbing Team"
     },
     {
       "id": "rc-9_4",
@@ -1093,7 +1248,9 @@ function richmondProject(){
       "qtyTotal": 2.0,
       "unit": "SET",
       "startDate": "2026-10-05",
-      "endDate": "2026-11-01"
+      "endDate": "2026-11-01",
+      "category": "8. งานสุขภัณฑ์",
+      "team": "ทีมประปา / Plumbing Team"
     },
     {
       "id": "rc-9_5",
@@ -1102,7 +1259,9 @@ function richmondProject(){
       "qtyTotal": 2.0,
       "unit": "SET",
       "startDate": "2026-10-05",
-      "endDate": "2026-11-01"
+      "endDate": "2026-11-01",
+      "category": "8. งานสุขภัณฑ์",
+      "team": "ทีมประปา / Plumbing Team"
     },
     {
       "id": "rc-9_8",
@@ -1111,7 +1270,9 @@ function richmondProject(){
       "qtyTotal": 7.0,
       "unit": "SET",
       "startDate": "2026-10-05",
-      "endDate": "2026-11-01"
+      "endDate": "2026-11-01",
+      "category": "8. งานสุขภัณฑ์",
+      "team": "ทีมประปา / Plumbing Team"
     },
     {
       "id": "rc-9_9",
@@ -1120,7 +1281,9 @@ function richmondProject(){
       "qtyTotal": 1.0,
       "unit": "SET",
       "startDate": "2026-10-05",
-      "endDate": "2026-11-01"
+      "endDate": "2026-11-01",
+      "category": "8. งานสุขภัณฑ์",
+      "team": "ทีมประปา / Plumbing Team"
     },
     {
       "id": "rc-9_10",
@@ -1129,7 +1292,9 @@ function richmondProject(){
       "qtyTotal": 1.0,
       "unit": "SET",
       "startDate": "2026-10-05",
-      "endDate": "2026-11-01"
+      "endDate": "2026-11-01",
+      "category": "8. งานสุขภัณฑ์",
+      "team": "ทีมประปา / Plumbing Team"
     },
     {
       "id": "rc-9_11",
@@ -1138,7 +1303,9 @@ function richmondProject(){
       "qtyTotal": 2.0,
       "unit": "SET",
       "startDate": "2026-10-05",
-      "endDate": "2026-11-01"
+      "endDate": "2026-11-01",
+      "category": "8. งานสุขภัณฑ์",
+      "team": "ทีมประปา / Plumbing Team"
     },
     {
       "id": "rc-9_12",
@@ -1147,7 +1314,9 @@ function richmondProject(){
       "qtyTotal": 2.0,
       "unit": "SET",
       "startDate": "2026-10-05",
-      "endDate": "2026-11-01"
+      "endDate": "2026-11-01",
+      "category": "8. งานสุขภัณฑ์",
+      "team": "ทีมประปา / Plumbing Team"
     },
     {
       "id": "rc-9_13",
@@ -1156,7 +1325,9 @@ function richmondProject(){
       "qtyTotal": 2.0,
       "unit": "SET",
       "startDate": "2026-10-05",
-      "endDate": "2026-11-01"
+      "endDate": "2026-11-01",
+      "category": "8. งานสุขภัณฑ์",
+      "team": "ทีมประปา / Plumbing Team"
     },
     {
       "id": "rc-9_14",
@@ -1165,7 +1336,9 @@ function richmondProject(){
       "qtyTotal": 4.0,
       "unit": "SET",
       "startDate": "2026-10-05",
-      "endDate": "2026-11-01"
+      "endDate": "2026-11-01",
+      "category": "8. งานสุขภัณฑ์",
+      "team": "ทีมประปา / Plumbing Team"
     },
     {
       "id": "rc-9_15",
@@ -1174,7 +1347,9 @@ function richmondProject(){
       "qtyTotal": 3.0,
       "unit": "M",
       "startDate": "2026-10-05",
-      "endDate": "2026-11-01"
+      "endDate": "2026-11-01",
+      "category": "8. งานสุขภัณฑ์",
+      "team": "ทีมประปา / Plumbing Team"
     },
     {
       "id": "rc-9_16",
@@ -1183,7 +1358,9 @@ function richmondProject(){
       "qtyTotal": 1.0,
       "unit": "M",
       "startDate": "2026-10-05",
-      "endDate": "2026-11-01"
+      "endDate": "2026-11-01",
+      "category": "8. งานสุขภัณฑ์",
+      "team": "ทีมประปา / Plumbing Team"
     },
     {
       "id": "rc-9_17",
@@ -1192,7 +1369,9 @@ function richmondProject(){
       "qtyTotal": 1.0,
       "unit": "M",
       "startDate": "2026-10-05",
-      "endDate": "2026-11-01"
+      "endDate": "2026-11-01",
+      "category": "8. งานสุขภัณฑ์",
+      "team": "ทีมประปา / Plumbing Team"
     },
     {
       "id": "rc-9_18",
@@ -1201,7 +1380,9 @@ function richmondProject(){
       "qtyTotal": 15.0,
       "unit": "M",
       "startDate": "2026-10-05",
-      "endDate": "2026-11-01"
+      "endDate": "2026-11-01",
+      "category": "8. งานสุขภัณฑ์",
+      "team": "ทีมประปา / Plumbing Team"
     },
     {
       "id": "rc-10_1",
@@ -1210,7 +1391,9 @@ function richmondProject(){
       "qtyTotal": 1.0,
       "unit": "SET",
       "startDate": "2026-10-12",
-      "endDate": "2026-12-06"
+      "endDate": "2026-12-06",
+      "category": "9. งานเฟอร์นิเจอร์บิลท์อิน (ไม้)",
+      "team": "ทีมเฟอร์นิเจอร์ Built-in / Built-in Furniture Team"
     },
     {
       "id": "rc-10_2",
@@ -1219,7 +1402,9 @@ function richmondProject(){
       "qtyTotal": 1.0,
       "unit": "SET",
       "startDate": "2026-10-12",
-      "endDate": "2026-12-06"
+      "endDate": "2026-12-06",
+      "category": "9. งานเฟอร์นิเจอร์บิลท์อิน (ไม้)",
+      "team": "ทีมเฟอร์นิเจอร์ Built-in / Built-in Furniture Team"
     },
     {
       "id": "rc-10_3",
@@ -1228,7 +1413,9 @@ function richmondProject(){
       "qtyTotal": 1.0,
       "unit": "SET",
       "startDate": "2026-10-12",
-      "endDate": "2026-12-06"
+      "endDate": "2026-12-06",
+      "category": "9. งานเฟอร์นิเจอร์บิลท์อิน (ไม้)",
+      "team": "ทีมเฟอร์นิเจอร์ Built-in / Built-in Furniture Team"
     },
     {
       "id": "rc-10_4",
@@ -1237,7 +1424,9 @@ function richmondProject(){
       "qtyTotal": 1.0,
       "unit": "SET",
       "startDate": "2026-10-12",
-      "endDate": "2026-12-06"
+      "endDate": "2026-12-06",
+      "category": "9. งานเฟอร์นิเจอร์บิลท์อิน (ไม้)",
+      "team": "ทีมเฟอร์นิเจอร์ Built-in / Built-in Furniture Team"
     },
     {
       "id": "rc-10_5",
@@ -1246,7 +1435,9 @@ function richmondProject(){
       "qtyTotal": 1.0,
       "unit": "SET",
       "startDate": "2026-10-12",
-      "endDate": "2026-12-06"
+      "endDate": "2026-12-06",
+      "category": "9. งานเฟอร์นิเจอร์บิลท์อิน (ไม้)",
+      "team": "ทีมเฟอร์นิเจอร์ Built-in / Built-in Furniture Team"
     },
     {
       "id": "rc-10_6",
@@ -1255,7 +1446,9 @@ function richmondProject(){
       "qtyTotal": 1.0,
       "unit": "SET",
       "startDate": "2026-10-12",
-      "endDate": "2026-12-06"
+      "endDate": "2026-12-06",
+      "category": "9. งานเฟอร์นิเจอร์บิลท์อิน (ไม้)",
+      "team": "ทีมเฟอร์นิเจอร์ Built-in / Built-in Furniture Team"
     },
     {
       "id": "rc-10_7",
@@ -1264,7 +1457,9 @@ function richmondProject(){
       "qtyTotal": 1.0,
       "unit": "SET",
       "startDate": "2026-10-12",
-      "endDate": "2026-12-06"
+      "endDate": "2026-12-06",
+      "category": "9. งานเฟอร์นิเจอร์บิลท์อิน (ไม้)",
+      "team": "ทีมเฟอร์นิเจอร์ Built-in / Built-in Furniture Team"
     },
     {
       "id": "rc-10_8",
@@ -1273,7 +1468,9 @@ function richmondProject(){
       "qtyTotal": 1.0,
       "unit": "SET",
       "startDate": "2026-10-12",
-      "endDate": "2026-12-06"
+      "endDate": "2026-12-06",
+      "category": "9. งานเฟอร์นิเจอร์บิลท์อิน (ไม้)",
+      "team": "ทีมเฟอร์นิเจอร์ Built-in / Built-in Furniture Team"
     },
     {
       "id": "rc-10_9",
@@ -1282,7 +1479,9 @@ function richmondProject(){
       "qtyTotal": 1.0,
       "unit": "SET",
       "startDate": "2026-10-12",
-      "endDate": "2026-12-06"
+      "endDate": "2026-12-06",
+      "category": "9. งานเฟอร์นิเจอร์บิลท์อิน (ไม้)",
+      "team": "ทีมเฟอร์นิเจอร์ Built-in / Built-in Furniture Team"
     },
     {
       "id": "rc-10_10",
@@ -1291,7 +1490,9 @@ function richmondProject(){
       "qtyTotal": 1.0,
       "unit": "SET",
       "startDate": "2026-10-12",
-      "endDate": "2026-12-06"
+      "endDate": "2026-12-06",
+      "category": "9. งานเฟอร์นิเจอร์บิลท์อิน (ไม้)",
+      "team": "ทีมเฟอร์นิเจอร์ Built-in / Built-in Furniture Team"
     },
     {
       "id": "rc-10_11",
@@ -1300,7 +1501,9 @@ function richmondProject(){
       "qtyTotal": 1.0,
       "unit": "SET",
       "startDate": "2026-10-12",
-      "endDate": "2026-12-06"
+      "endDate": "2026-12-06",
+      "category": "9. งานเฟอร์นิเจอร์บิลท์อิน (ไม้)",
+      "team": "ทีมเฟอร์นิเจอร์ Built-in / Built-in Furniture Team"
     },
     {
       "id": "rc-10_14",
@@ -1309,7 +1512,9 @@ function richmondProject(){
       "qtyTotal": 1.0,
       "unit": "SET",
       "startDate": "2026-10-12",
-      "endDate": "2026-12-06"
+      "endDate": "2026-12-06",
+      "category": "9. งานเฟอร์นิเจอร์บิลท์อิน (ไม้)",
+      "team": "ทีมเฟอร์นิเจอร์ Built-in / Built-in Furniture Team"
     },
     {
       "id": "rc-10_15",
@@ -1318,7 +1523,9 @@ function richmondProject(){
       "qtyTotal": 1.0,
       "unit": "SET",
       "startDate": "2026-10-12",
-      "endDate": "2026-12-06"
+      "endDate": "2026-12-06",
+      "category": "9. งานเฟอร์นิเจอร์บิลท์อิน (ไม้)",
+      "team": "ทีมเฟอร์นิเจอร์ Built-in / Built-in Furniture Team"
     },
     {
       "id": "rc-10_16",
@@ -1327,7 +1534,9 @@ function richmondProject(){
       "qtyTotal": 1.0,
       "unit": "SET",
       "startDate": "2026-10-12",
-      "endDate": "2026-12-06"
+      "endDate": "2026-12-06",
+      "category": "9. งานเฟอร์นิเจอร์บิลท์อิน (ไม้)",
+      "team": "ทีมเฟอร์นิเจอร์ Built-in / Built-in Furniture Team"
     },
     {
       "id": "rc-10_17",
@@ -1336,7 +1545,9 @@ function richmondProject(){
       "qtyTotal": 1.0,
       "unit": "SET",
       "startDate": "2026-10-12",
-      "endDate": "2026-12-06"
+      "endDate": "2026-12-06",
+      "category": "9. งานเฟอร์นิเจอร์บิลท์อิน (ไม้)",
+      "team": "ทีมเฟอร์นิเจอร์ Built-in / Built-in Furniture Team"
     },
     {
       "id": "rc-10_18",
@@ -1345,7 +1556,9 @@ function richmondProject(){
       "qtyTotal": 1.0,
       "unit": "SET",
       "startDate": "2026-10-12",
-      "endDate": "2026-12-06"
+      "endDate": "2026-12-06",
+      "category": "9. งานเฟอร์นิเจอร์บิลท์อิน (ไม้)",
+      "team": "ทีมเฟอร์นิเจอร์ Built-in / Built-in Furniture Team"
     },
     {
       "id": "rc-10_19",
@@ -1354,7 +1567,9 @@ function richmondProject(){
       "qtyTotal": 1.0,
       "unit": "SET",
       "startDate": "2026-10-12",
-      "endDate": "2026-12-06"
+      "endDate": "2026-12-06",
+      "category": "9. งานเฟอร์นิเจอร์บิลท์อิน (ไม้)",
+      "team": "ทีมเฟอร์นิเจอร์ Built-in / Built-in Furniture Team"
     },
     {
       "id": "rc-10_20",
@@ -1363,7 +1578,9 @@ function richmondProject(){
       "qtyTotal": 1.0,
       "unit": "SET",
       "startDate": "2026-10-12",
-      "endDate": "2026-12-06"
+      "endDate": "2026-12-06",
+      "category": "9. งานเฟอร์นิเจอร์บิลท์อิน (ไม้)",
+      "team": "ทีมเฟอร์นิเจอร์ Built-in / Built-in Furniture Team"
     },
     {
       "id": "rc-10_21",
@@ -1372,7 +1589,9 @@ function richmondProject(){
       "qtyTotal": 1.0,
       "unit": "SET",
       "startDate": "2026-10-12",
-      "endDate": "2026-12-06"
+      "endDate": "2026-12-06",
+      "category": "9. งานเฟอร์นิเจอร์บิลท์อิน (ไม้)",
+      "team": "ทีมเฟอร์นิเจอร์ Built-in / Built-in Furniture Team"
     },
     {
       "id": "rc-10_22",
@@ -1381,7 +1600,9 @@ function richmondProject(){
       "qtyTotal": 1.0,
       "unit": "SET",
       "startDate": "2026-10-12",
-      "endDate": "2026-12-06"
+      "endDate": "2026-12-06",
+      "category": "9. งานเฟอร์นิเจอร์บิลท์อิน (ไม้)",
+      "team": "ทีมเฟอร์นิเจอร์ Built-in / Built-in Furniture Team"
     },
     {
       "id": "rc-10_23",
@@ -1390,7 +1611,9 @@ function richmondProject(){
       "qtyTotal": 1.0,
       "unit": "SET",
       "startDate": "2026-10-12",
-      "endDate": "2026-12-06"
+      "endDate": "2026-12-06",
+      "category": "9. งานเฟอร์นิเจอร์บิลท์อิน (ไม้)",
+      "team": "ทีมเฟอร์นิเจอร์ Built-in / Built-in Furniture Team"
     },
     {
       "id": "rc-10_24",
@@ -1399,7 +1622,9 @@ function richmondProject(){
       "qtyTotal": 1.0,
       "unit": "SET",
       "startDate": "2026-10-12",
-      "endDate": "2026-12-06"
+      "endDate": "2026-12-06",
+      "category": "9. งานเฟอร์นิเจอร์บิลท์อิน (ไม้)",
+      "team": "ทีมเฟอร์นิเจอร์ Built-in / Built-in Furniture Team"
     },
     {
       "id": "rc-10_25",
@@ -1408,7 +1633,9 @@ function richmondProject(){
       "qtyTotal": 1.0,
       "unit": "SET",
       "startDate": "2026-10-12",
-      "endDate": "2026-12-06"
+      "endDate": "2026-12-06",
+      "category": "9. งานเฟอร์นิเจอร์บิลท์อิน (ไม้)",
+      "team": "ทีมเฟอร์นิเจอร์ Built-in / Built-in Furniture Team"
     },
     {
       "id": "rc-10_26",
@@ -1417,7 +1644,9 @@ function richmondProject(){
       "qtyTotal": 1.0,
       "unit": "SET",
       "startDate": "2026-10-12",
-      "endDate": "2026-12-06"
+      "endDate": "2026-12-06",
+      "category": "9. งานเฟอร์นิเจอร์บิลท์อิน (ไม้)",
+      "team": "ทีมเฟอร์นิเจอร์ Built-in / Built-in Furniture Team"
     },
     {
       "id": "rc-10_27",
@@ -1426,7 +1655,9 @@ function richmondProject(){
       "qtyTotal": 1.0,
       "unit": "SET",
       "startDate": "2026-10-12",
-      "endDate": "2026-12-06"
+      "endDate": "2026-12-06",
+      "category": "9. งานเฟอร์นิเจอร์บิลท์อิน (ไม้)",
+      "team": "ทีมเฟอร์นิเจอร์ Built-in / Built-in Furniture Team"
     },
     {
       "id": "rc-10_28",
@@ -1435,7 +1666,9 @@ function richmondProject(){
       "qtyTotal": 1.0,
       "unit": "SET",
       "startDate": "2026-10-12",
-      "endDate": "2026-12-06"
+      "endDate": "2026-12-06",
+      "category": "9. งานเฟอร์นิเจอร์บิลท์อิน (ไม้)",
+      "team": "ทีมเฟอร์นิเจอร์ Built-in / Built-in Furniture Team"
     },
     {
       "id": "rc-11_1",
@@ -1444,7 +1677,9 @@ function richmondProject(){
       "qtyTotal": 3.0,
       "unit": "SQM",
       "startDate": "2026-11-23",
-      "endDate": "2026-12-06"
+      "endDate": "2026-12-06",
+      "category": "10. งานผ้าม่าน",
+      "team": "ทีมผ้าม่าน / Curtain Team"
     },
     {
       "id": "rc-11_2",
@@ -1453,7 +1688,9 @@ function richmondProject(){
       "qtyTotal": 25.0,
       "unit": "SQM",
       "startDate": "2026-11-23",
-      "endDate": "2026-12-06"
+      "endDate": "2026-12-06",
+      "category": "10. งานผ้าม่าน",
+      "team": "ทีมผ้าม่าน / Curtain Team"
     },
     {
       "id": "rc-11_3",
@@ -1462,7 +1699,9 @@ function richmondProject(){
       "qtyTotal": 25.0,
       "unit": "SQM",
       "startDate": "2026-11-23",
-      "endDate": "2026-12-06"
+      "endDate": "2026-12-06",
+      "category": "10. งานผ้าม่าน",
+      "team": "ทีมผ้าม่าน / Curtain Team"
     },
     {
       "id": "rc-12_1",
@@ -1471,7 +1710,9 @@ function richmondProject(){
       "qtyTotal": 2.0,
       "unit": "Set",
       "startDate": "2026-08-17",
-      "endDate": "2026-09-06"
+      "endDate": "2026-09-06",
+      "category": "11. งานเครื่องปรับอากาศ",
+      "team": "ทีมแอร์ / Air-con Team"
     },
     {
       "id": "rc-12_2",
@@ -1480,7 +1721,9 @@ function richmondProject(){
       "qtyTotal": 3.0,
       "unit": "Set",
       "startDate": "2026-08-17",
-      "endDate": "2026-09-06"
+      "endDate": "2026-09-06",
+      "category": "11. งานเครื่องปรับอากาศ",
+      "team": "ทีมแอร์ / Air-con Team"
     },
     {
       "id": "rc-12_3",
@@ -1489,7 +1732,9 @@ function richmondProject(){
       "qtyTotal": 18.0,
       "unit": "M",
       "startDate": "2026-08-17",
-      "endDate": "2026-09-06"
+      "endDate": "2026-09-06",
+      "category": "11. งานเครื่องปรับอากาศ",
+      "team": "ทีมแอร์ / Air-con Team"
     },
     {
       "id": "rc-12_4",
@@ -1498,7 +1743,9 @@ function richmondProject(){
       "qtyTotal": 2.0,
       "unit": "Set",
       "startDate": "2026-08-17",
-      "endDate": "2026-09-06"
+      "endDate": "2026-09-06",
+      "category": "11. งานเครื่องปรับอากาศ",
+      "team": "ทีมแอร์ / Air-con Team"
     },
     {
       "id": "rc-13_1",
@@ -1507,7 +1754,9 @@ function richmondProject(){
       "qtyTotal": 6.0,
       "unit": "Set",
       "startDate": "2026-08-24",
-      "endDate": "2026-08-30"
+      "endDate": "2026-08-30",
+      "category": "12. งานระบบแจ้งเหตุเพลิงไหม้",
+      "team": "ทีมไฟฟ้า"
     },
     {
       "id": "rc-13_2",
@@ -1516,7 +1765,9 @@ function richmondProject(){
       "qtyTotal": 6.0,
       "unit": "Set",
       "startDate": "2026-08-24",
-      "endDate": "2026-08-30"
+      "endDate": "2026-08-30",
+      "category": "12. งานระบบแจ้งเหตุเพลิงไหม้",
+      "team": "ทีมไฟฟ้า"
     },
     {
       "id": "rc-14_1",
@@ -1525,7 +1776,9 @@ function richmondProject(){
       "qtyTotal": 1.0,
       "unit": "Set",
       "startDate": "2026-08-03",
-      "endDate": "2026-11-22"
+      "endDate": "2026-11-22",
+      "category": "13. งานจัดซื้อวัสดุ/อุปกรณ์แทน",
+      "team": "ทีมจัดซื้อ / Procurement Team"
     },
     {
       "id": "rc-14_2",
@@ -1534,7 +1787,9 @@ function richmondProject(){
       "qtyTotal": 2.0,
       "unit": "Set",
       "startDate": "2026-08-03",
-      "endDate": "2026-11-22"
+      "endDate": "2026-11-22",
+      "category": "13. งานจัดซื้อวัสดุ/อุปกรณ์แทน",
+      "team": "ทีมจัดซื้อ / Procurement Team"
     },
     {
       "id": "rc-14_4",
@@ -1543,7 +1798,9 @@ function richmondProject(){
       "qtyTotal": 1.0,
       "unit": "Set",
       "startDate": "2026-08-03",
-      "endDate": "2026-11-22"
+      "endDate": "2026-11-22",
+      "category": "13. งานจัดซื้อวัสดุ/อุปกรณ์แทน",
+      "team": "ทีมจัดซื้อ / Procurement Team"
     },
     {
       "id": "rc-14_5",
@@ -1552,7 +1809,9 @@ function richmondProject(){
       "qtyTotal": 1.0,
       "unit": "Set",
       "startDate": "2026-08-03",
-      "endDate": "2026-11-22"
+      "endDate": "2026-11-22",
+      "category": "13. งานจัดซื้อวัสดุ/อุปกรณ์แทน",
+      "team": "ทีมจัดซื้อ / Procurement Team"
     },
     {
       "id": "rc-15_1",
@@ -1561,7 +1820,9 @@ function richmondProject(){
       "qtyTotal": 1.0,
       "unit": "Job",
       "startDate": "2026-07-27",
-      "endDate": "2026-12-27"
+      "endDate": "2026-12-27",
+      "category": "14. ค่าบริหารจัดการโครงการ",
+      "team": "ทีมบริหารโครงการ / Project Management Team"
     }
   ],
   "logs": [
@@ -2120,7 +2381,6 @@ function richmondProject(){
   "createdAt": "2026-07-27T09:00:00.000Z"
 };
 }
-
 function demoData(){
   const today = todayStr();
   /* ---- Project 1: townhome renovation (mixed pace -- one item behind) ---- */
@@ -2190,7 +2450,7 @@ function demoData(){
     }
   ];
   return {
-    contractor:{nickname:'ช่างตั้ม',fullname:'ธนกร ตั้มไพศาล',phone:'081-234-5678',company:'ตั้มไพศาล อินทีเรีย',logo:''},
+    contractor:{nickname:'ทีมงาน Trio-C',fullname:'บริษัท ทริโอ-ซี โซลูชั่น จำกัด',phone:'',company:'Trio-C Solution Co., Ltd. (บริษัท ทริโอ-ซี โซลูชั่น จำกัด)',logo:TRIOC_LOGO,address:'104 หมู่ 5 ตำบลธาตุทอง อำเภอบ่อทอง จังหวัดชลบุรี 20270',taxId:'0205556022443',email:'triocsolution@gmail.com'},
     projects:[
       {id:'demo-proj-1', name:'รีโนเวททาวน์โฮม 3 ชั้น', zone:'Master Bedroom & Living Room', boq:boq1, logs:logs1, materialRequests:materialRequests1, createdAt:isoAt(addDays(today,-10),9,0)},
       {id:'demo-proj-2', name:'ตกแต่งภายในคอนโด The Breeze', zone:'ห้องน้ำ & ฝ้าเพดาน', boq:boq2, logs:logs2, materialRequests:materialRequests2, createdAt:isoAt(addDays(today,-7),9,0)},
@@ -2285,6 +2545,25 @@ function bootstrap(){
   // already had saved data before this project existed.
   if(!state.projects.find(p=>p.id==='richmond-2602')){
     state.projects.push(richmondProject());
+    saveData();
+  }
+  // one-time branding update: replace the placeholder demo company profile
+  // with the client's real company info + logo (Trio-C Solution Co., Ltd.).
+  // Guarded by a marker flag so it only runs once and never overwrites a
+  // profile the user has since customized themselves.
+  if(!state.contractor || !state.contractor._triocBranded){
+    const wasDemoOrEmpty = !state.contractor || !state.contractor.company || state.contractor.company==='ตั้มไพศาล อินทีเรีย';
+    if(wasDemoOrEmpty){
+      state.contractor = {
+        nickname:'ทีมงาน Trio-C', fullname:'บริษัท ทริโอ-ซี โซลูชั่น จำกัด',
+        phone:'', company:'Trio-C Solution Co., Ltd. (บริษัท ทริโอ-ซี โซลูชั่น จำกัด)',
+        address:'104 หมู่ 5 ตำบลธาตุทอง อำเภอบ่อทอง จังหวัดชลบุรี 20270',
+        taxId:'0205556022443', email:'triocsolution@gmail.com',
+        logo:TRIOC_LOGO, _triocBranded:true
+      };
+    } else {
+      state.contractor._triocBranded = true;
+    }
     saveData();
   }
   rebuildLangConstants();
@@ -2439,7 +2718,7 @@ function renderTopbar(){
   return `
   <header class="topbar">
     <div class="brand">
-      <div class="mark">🏗️</div>
+      <div class="mark">${state.contractor&&state.contractor.logo? `<img src="${state.contractor.logo}" alt="">` : '🏗️'}</div>
       <div class="txt">
         <b>${tf('ชีพจรไซต์งาน','Site Pulse')} <span class="net-dot" id="net-dot" title="${tf('ออนไลน์','Online')}"></span></b>
         <span>${escapeHtml(titleText)}</span>
@@ -2676,6 +2955,9 @@ function renderProfile(){
       <div class="field"><label>${tf('ชื่อ-นามสกุลจริง','Full name')}</label><input type="text" id="f-fullname" value="${escapeHtml(c.fullname||'')}" placeholder="${tf('ชื่อ นามสกุล','First Last')}"></div>
       <div class="field"><label>${tf('เบอร์โทรศัพท์','Phone number')}</label><input type="tel" id="f-phone" value="${escapeHtml(c.phone||'')}" placeholder="08X-XXX-XXXX"></div>
       <div class="field"><label>${tf('ชื่อบริษัท / ทีมช่าง','Company / crew name')}</label><input type="text" id="f-company" value="${escapeHtml(c.company||'')}" placeholder="${tf('ชื่อบริษัท','Company name')}"></div>
+      <div class="field" style="grid-column:1/-1"><label>${tf('ที่อยู่บริษัท (ไม่บังคับ)','Company address (optional)')}</label><input type="text" id="f-address" value="${escapeHtml(c.address||'')}" placeholder="${tf('ที่อยู่สำหรับออกเอกสาร/รายงาน','Address shown on documents/reports')}"></div>
+      <div class="field"><label>${tf('เลขประจำตัวผู้เสียภาษี (ไม่บังคับ)','Tax ID (optional)')}</label><input type="text" id="f-taxid" value="${escapeHtml(c.taxId||'')}" placeholder="0-0000-00000-00-0"></div>
+      <div class="field"><label>${tf('อีเมลบริษัท (ไม่บังคับ)','Company email (optional)')}</label><input type="email" id="f-email" value="${escapeHtml(c.email||'')}" placeholder="company@email.com"></div>
     </div>
     <div class="field" style="margin-top:14px">
       <label>${tf('โลโก้ (ไม่บังคับ)','Logo (optional)')}</label>
@@ -2704,6 +2986,9 @@ function wireProfile(){
       fullname: $('#f-fullname').value.trim(),
       phone: $('#f-phone').value.trim(),
       company: $('#f-company').value.trim(),
+      address: $('#f-address').value.trim(),
+      taxId: $('#f-taxid').value.trim(),
+      email: $('#f-email').value.trim(),
       logo: (state.contractor&&state.contractor.logo)||''
     };
     saveData(); toast(tf('บันทึกข้อมูลบริษัทแล้ว','Company info saved')); render();
@@ -2725,54 +3010,84 @@ function wireProfile(){
 }
 
 /* ============================= SCREEN: MASTER PLAN ============================= */
+const BOQ_CATEGORIES = [
+  '1. งานเตรียมการ/ป้องกัน/รื้อถอน','2. งานฝ้าเพดาน','3. งานผนัง/กั้นห้อง','4. งานกระเบื้อง',
+  '5. งานประตู','6. งานไฟฟ้าแสงสว่าง','7. งานปลั๊ก/สายไฟ','8. งานสุขภัณฑ์',
+  '9. งานเฟอร์นิเจอร์บิลท์อิน (ไม้)','10. งานผ้าม่าน','11. งานเครื่องปรับอากาศ',
+  '12. งานระบบแจ้งเหตุเพลิงไหม้','13. งานจัดซื้อวัสดุ/อุปกรณ์แทน','14. ค่าบริหารจัดการโครงการ'
+];
+const STANDARD_TEAMS = [
+  'ทีมเตรียมการ/ป้องกันหน้างาน','ทีมประสานงาน/เอกสาร','ทีมรื้อถอน','ทีมโครงสร้าง/ผนังเบา',
+  'ทีม Finishing (ฉาบ/สี)','ทีมกระเบื้อง/พื้น','ทีมประตู-หน้าต่าง','ทีมไฟฟ้า','ทีมสุขภัณฑ์/ประปา',
+  'ทีมเฟอร์นิเจอร์บิ้วอิน','ทีมผ้าม่าน','ทีมแอร์','ทีมระบบป้องกันอัคคีภัย','ทีมทำความสะอาดหน้างาน'
+];
+function boqCategoryGroups(boq){
+  const used = Array.from(new Set(boq.map(i=>i.category||'').filter(Boolean)));
+  const extra = used.filter(c=>!BOQ_CATEGORIES.includes(c));
+  const order = BOQ_CATEGORIES.concat(extra);
+  const groups = order.map(cat=>({cat, items:boq.filter(i=>(i.category||'')===cat)})).filter(g=>g.items.length);
+  const uncategorized = boq.filter(i=>!i.category);
+  if(uncategorized.length) groups.push({cat:'', items:uncategorized});
+  return groups;
+}
+function itemRowHtml(item){
+  const days = daysBetween(item.startDate,item.endDate)+1;
+  const photoCount = (item.refPhotoIds||[]).length;
+  const hasActual = item.actualStartDate && item.actualEndDate;
+  return `<tr>
+    <td data-label="${tf('ภาพ','Photo')}">
+      <div class="mp-thumb" ${photoCount? `data-open-gallery="${item.id}"` : `data-quick-attach="${item.id}"`}>
+        ${photoCount? `<img data-mp-thumb="${item.id}" alt="">${photoCount>1?`<span class="mp-thumb-count">+${photoCount-1}</span>`:''}` : `<span class="mp-thumb-empty">📷</span>`}
+      </div>
+    </td>
+    <td data-label="${tf('รายการงาน','Work item')}" class="mp-name-cell">${escapeHtml(item.name)}</td>
+    <td data-label="${tf('โซน','Zone')}">${item.zone? escapeHtml(item.zone) : '<span class="hint">-</span>'}</td>
+    <td data-label="${tf('ทีมงานที่รับผิดชอบ','Responsible team')}">${item.team? escapeHtml(item.team) : '<span class="hint">-</span>'}</td>
+    <td data-label="${tf('ปริมาณรวม','Total qty')}" class="tabular">${fmtNum(item.qtyTotal,2)} ${escapeHtml(item.unit)}</td>
+    <td data-label="${tf('แผนงาน เริ่ม–เสร็จ','Planned start–end')}" class="tabular">${fmtDate(item.startDate)} → ${fmtDate(item.endDate)}</td>
+    <td data-label="${tf('แผนจริง เริ่ม–เสร็จ','Actual start–end')}" class="tabular">${hasActual? `${fmtDate(item.actualStartDate)} → ${fmtDate(item.actualEndDate)}` : '<span class="hint">-</span>'}</td>
+    <td data-label="${tf('ระยะเวลา','Duration')}" class="tabular">${days} ${tf('วัน','days')}</td>
+    <td data-label="${tf('เป้าหมาย/วัน','Daily target')}" class="tabular">${fmtNum(dailyTarget(item),2)} ${escapeHtml(item.unit)}/${tf('วัน','day')}</td>
+    <td data-label="${tf('หมายเหตุ','Notes')}">${item.notes? escapeHtml(item.notes) : '<span class="hint">-</span>'}</td>
+    <td data-label="">
+      <button class="btn ghost sm" data-edit-item="${item.id}">${tf('แก้ไข','Edit')}</button>
+      <button class="btn danger sm" data-del-item="${item.id}">${tf('ลบ','Delete')}</button>
+    </td>
+  </tr>`;
+}
 function renderMasterPlan(){
-  const rows = P().boq.map(item=>{
-    const days = daysBetween(item.startDate,item.endDate)+1;
-    const photoCount = (item.refPhotoIds||[]).length;
-    return `<tr>
-      <td>
-        <div class="mp-thumb" ${photoCount? `data-open-gallery="${item.id}"`:''}>
-          ${photoCount? `<img data-mp-thumb="${item.id}" alt="">${photoCount>1?`<span class="mp-thumb-count">+${photoCount-1}</span>`:''}` : `<span class="mp-thumb-empty">🖼️</span>`}
-        </div>
-      </td>
-      <td>${escapeHtml(item.name)}</td>
-      <td>${item.zone? escapeHtml(item.zone) : '<span class="hint">-</span>'}</td>
-      <td class="tabular">${fmtNum(item.qtyTotal,2)} ${escapeHtml(item.unit)}</td>
-      <td class="tabular">${fmtDate(item.startDate)} → ${fmtDate(item.endDate)}</td>
-      <td class="tabular">${days} ${tf('วัน','days')}</td>
-      <td class="tabular">${fmtNum(dailyTarget(item),2)} ${escapeHtml(item.unit)}/${tf('วัน','day')}</td>
-      <td>
-        <button class="btn ghost sm" data-edit-item="${item.id}">${tf('แก้ไข','Edit')}</button>
-        <button class="btn danger sm" data-del-item="${item.id}">${tf('ลบ','Delete')}</button>
-      </td>
-    </tr>`;
+  const groups = boqCategoryGroups(P().boq);
+  const bodyHtml = groups.map(g=>{
+    const label = g.cat? escapeHtml(g.cat) : tf('ไม่ระบุหมวดหมู่','Uncategorized');
+    const header = `<tr class="mp-cat-row"><td colspan="11">📁 ${label} <span class="mp-cat-count">${g.items.length} ${tf('รายการ','item(s)')}</span></td></tr>`;
+    return header + g.items.map(itemRowHtml).join('');
   }).join('');
   return `
   <div class="page-head">
-    <div><h2>${tf('แผนงานหลัก & BOQ','Master Plan & BOQ')}</h2><div class="sub">${tf('ใส่รายการงาน โซนพื้นที่ ปริมาณรวมตามสัญญา และช่วงเวลาทำงาน ระบบคำนวณเป้าหมายรายวันให้อัตโนมัติ','Enter each work item, its zone, contract quantity and date range — the daily target is calculated automatically.')}</div></div>
+    <div><h2>${tf('แผนงานหลัก & BOQ','Master Plan & BOQ')}</h2><div class="sub">${tf('แยกตามหมวดงานหลักอ้างอิงตาม BOQ จริง ใส่โซน ทีมงาน ปริมาณรวมตามสัญญา และช่วงเวลาทำงาน ระบบคำนวณเป้าหมายรายวันให้อัตโนมัติ','Grouped by main work category from the real BOQ -- enter zone, team, contract quantity and date range, the daily target is calculated automatically.')}</div></div>
     <button class="btn primary" id="btn-add-item">+ ${tf('เพิ่มรายการงาน','Add work item')}</button>
   </div>
   ${P().boq.length===0? `<div class="empty"><span class="ic">📋</span>${tf('ยังไม่มีรายการงานใน BOQ','No BOQ items yet')}<br>${tf('กด “เพิ่มรายการงาน” เพื่อเริ่มต้น','Tap “Add work item” to get started')}</div>` : `
-  <div class="table-wrap"><table>
-    <thead><tr><th>${tf('ภาพ','Photo')}</th><th>${tf('รายการงาน','Work item')}</th><th>${tf('โซน','Zone')}</th><th>${tf('ปริมาณรวม','Total qty')}</th><th>${tf('ช่วงเวลา','Date range')}</th><th>${tf('ระยะเวลา','Duration')}</th><th>${tf('เป้าหมาย/วัน','Daily target')}</th><th></th></tr></thead>
-    <tbody>${rows}</tbody>
+  <div class="table-wrap mp-wrap"><table class="mp-table">
+    <thead><tr><th>${tf('ภาพ','Photo')}</th><th>${tf('รายการงาน','Work item')}</th><th>${tf('โซน','Zone')}</th><th>${tf('ทีมงาน','Team')}</th><th>${tf('ปริมาณรวม','Total qty')}</th><th>${tf('แผนงาน เริ่ม–เสร็จ','Planned start–end')}</th><th>${tf('แผนจริง เริ่ม–เสร็จ','Actual start–end')}</th><th>${tf('ระยะเวลา','Duration')}</th><th>${tf('เป้าหมาย/วัน','Daily target')}</th><th>${tf('หมายเหตุ','Notes')}</th><th></th></tr></thead>
+    <tbody>${bodyHtml}</tbody>
   </table></div>`}
   <div class="card tint">
     <b style="font-family:var(--font-display)">${tf('นำเข้าแบบเร็ว (วางข้อความ)','Quick import (paste text)')}</b>
-    <div class="sub" style="margin:6px 0 10px">${tf('รูปแบบต่อบรรทัด:','One item per line, format:')} <span class="tabular">${tf('ชื่องาน, ปริมาณ, หน่วย, วันเริ่ม(YYYY-MM-DD), วันสิ้นสุด(YYYY-MM-DD), โซน(ไม่บังคับ)','name, quantity, unit, start(YYYY-MM-DD), end(YYYY-MM-DD), zone(optional)')}</span></div>
-    <textarea id="import-text" placeholder="${tf('งานปูกระเบื้องห้องน้ำ, 18, ตร.ม., 2026-09-01, 2026-09-04, ห้องน้ำ Master','Bathroom tiling, 18, sqm, 2026-09-01, 2026-09-04, Master bathroom')}"></textarea>
+    <div class="sub" style="margin:6px 0 10px">${tf('รูปแบบต่อบรรทัด:','One item per line, format:')} <span class="tabular">${tf('ชื่องาน, ปริมาณ, หน่วย, วันเริ่ม(YYYY-MM-DD), วันสิ้นสุด(YYYY-MM-DD), โซน(ไม่บังคับ), หมวดงาน(ไม่บังคับ), ทีมงาน(ไม่บังคับ)','name, quantity, unit, start(YYYY-MM-DD), end(YYYY-MM-DD), zone(optional), category(optional), team(optional)')}</span></div>
+    <textarea id="import-text" placeholder="${tf('งานปูกระเบื้องห้องน้ำ, 18, ตร.ม., 2026-09-01, 2026-09-04, ห้องน้ำ Master, 4. งานกระเบื้อง, ทีมกระเบื้อง/พื้น','Bathroom tiling, 18, sqm, 2026-09-01, 2026-09-04, Master bathroom, 4. Tiling, Tile team')}"></textarea>
     <button class="btn ghost sm" style="margin-top:8px" id="btn-import">${tf('นำเข้ารายการ','Import items')}</button>
   </div>
   `;
 }
 let editingItemId=null;
-let itemDraft=null; // {name,zone,qtyTotal,unit,startDate,endDate,existingPhotoIds,pendingPhotos,removedPhotoIds} -- persists across re-renders (e.g. photo add/remove) so in-progress typing is never lost
+let itemDraft=null; // {name,category,zone,team,qtyTotal,unit,startDate,endDate,actualStartDate,actualEndDate,notes,existingPhotoIds,pendingPhotos,removedPhotoIds} -- persists across re-renders (e.g. photo add/remove) so in-progress typing is never lost
 function openItemDraft(id){
   if(id==='new'){
-    itemDraft = {name:'',zone:'',qtyTotal:'',unit:tf('ตร.ม.','sqm'),startDate:todayStr(),endDate:addDays(todayStr(),3),existingPhotoIds:[],pendingPhotos:[],removedPhotoIds:[]};
+    itemDraft = {name:'',category:'',zone:'',team:'',qtyTotal:'',unit:tf('ตร.ม.','sqm'),startDate:todayStr(),endDate:addDays(todayStr(),3),actualStartDate:'',actualEndDate:'',notes:'',existingPhotoIds:[],pendingPhotos:[],removedPhotoIds:[]};
   } else {
     const it = P().boq.find(i=>i.id===id);
-    itemDraft = {name:it.name,zone:it.zone||'',qtyTotal:it.qtyTotal,unit:it.unit,startDate:it.startDate,endDate:it.endDate,existingPhotoIds:(it.refPhotoIds||[]).slice(),pendingPhotos:[],removedPhotoIds:[]};
+    itemDraft = {name:it.name,category:it.category||'',zone:it.zone||'',team:it.team||'',qtyTotal:it.qtyTotal,unit:it.unit,startDate:it.startDate,endDate:it.endDate,actualStartDate:it.actualStartDate||'',actualEndDate:it.actualEndDate||'',notes:it.notes||'',existingPhotoIds:(it.refPhotoIds||[]).slice(),pendingPhotos:[],removedPhotoIds:[]};
   }
   editingItemId = id;
 }
@@ -2780,11 +3095,16 @@ function syncItemDraftFromDom(){
   if(!itemDraft) return;
   const g = (sel)=> { const el=$(sel); return el?el.value:undefined; };
   const name=g('#im-name'); if(name!==undefined) itemDraft.name=name;
+  const category=g('#im-category'); if(category!==undefined) itemDraft.category=category;
   const zone=g('#im-zone'); if(zone!==undefined) itemDraft.zone=zone;
+  const team=g('#im-team'); if(team!==undefined) itemDraft.team=team;
   const qty=g('#im-qty'); if(qty!==undefined) itemDraft.qtyTotal=qty;
   const unit=g('#im-unit'); if(unit!==undefined) itemDraft.unit=unit;
   const s=g('#im-start'); if(s!==undefined) itemDraft.startDate=s;
   const en=g('#im-end'); if(en!==undefined) itemDraft.endDate=en;
+  const as=g('#im-actual-start'); if(as!==undefined) itemDraft.actualStartDate=as;
+  const ae=g('#im-actual-end'); if(ae!==undefined) itemDraft.actualEndDate=ae;
+  const notes=g('#im-notes'); if(notes!==undefined) itemDraft.notes=notes;
 }
 function itemModalHtml(){
   if(!itemDraft) return '';
@@ -2794,17 +3114,23 @@ function itemModalHtml(){
   const pendingThumbs = d.pendingPhotos.map((p,idx)=>`<div class="photo-item"><img src="${p.dataUrl}" alt=""><button class="rm" data-rm-pending-photo="${idx}">✕</button></div>`).join('');
   const hasPhotos = existingIds.length || d.pendingPhotos.length;
   const zoneList = Array.from(new Set(P().boq.map(i=>i.zone||'').filter(Boolean)));
+  const teamList = Array.from(new Set(STANDARD_TEAMS.concat(P().boq.map(i=>i.team||'').filter(Boolean))));
   return `
   <div class="modal-bg" id="item-modal-bg">
     <div class="modal">
       <div class="modal-head"><h3>${editingItemId==='new'?tf('เพิ่มรายการงาน','Add work item'):tf('แก้ไขรายการงาน','Edit work item')}</h3><button class="iconbtn" id="item-modal-close">✕</button></div>
       <div class="grid cols-2">
         <div class="field" style="grid-column:1/-1"><label>${tf('ชื่อรายการงาน','Work item name')}</label><input type="text" id="im-name" value="${escapeHtml(d.name)}" placeholder="${tf('เช่น งานปูพื้น SPC / ตู้บิ้วอินห้องนอนใหญ่','e.g. SPC flooring / built-in wardrobe')}"></div>
-        <div class="field" style="grid-column:1/-1"><label>${tf('โซน/พื้นที่ทำงาน (ไม่บังคับ)','Zone / work area (optional)')}</label><input type="text" id="im-zone" list="im-zone-list" value="${escapeHtml(d.zone)}" placeholder="${tf('เช่น ห้องนอนใหญ่, ห้องนั่งเล่น, Walk-in Closet','e.g. Master bedroom, Living room, Walk-in closet')}"><datalist id="im-zone-list">${zoneList.map(z=>`<option value="${escapeHtml(z)}">`).join('')}</datalist></div>
+        <div class="field" style="grid-column:1/-1"><label>${tf('หมวดงานหลัก (อ้างอิงตาม BOQ)','Main work category (per BOQ)')}</label><input type="text" id="im-category" list="im-category-list" value="${escapeHtml(d.category)}" placeholder="${tf('เช่น 2. งานฝ้าเพดาน','e.g. 2. Ceiling work')}"><datalist id="im-category-list">${BOQ_CATEGORIES.map(c=>`<option value="${escapeHtml(c)}">`).join('')}</datalist></div>
+        <div class="field"><label>${tf('โซน/พื้นที่ทำงาน (ไม่บังคับ)','Zone / work area (optional)')}</label><input type="text" id="im-zone" list="im-zone-list" value="${escapeHtml(d.zone)}" placeholder="${tf('เช่น ห้องนอนใหญ่, ห้องนั่งเล่น','e.g. Master bedroom, Living room')}"><datalist id="im-zone-list">${zoneList.map(z=>`<option value="${escapeHtml(z)}">`).join('')}</datalist></div>
+        <div class="field"><label>${tf('ทีมงานที่รับผิดชอบ (ไม่บังคับ)','Responsible team (optional)')}</label><input type="text" id="im-team" list="im-team-list" value="${escapeHtml(d.team)}" placeholder="${tf('เช่น ทีมไฟฟ้า','e.g. Electrical team')}"><datalist id="im-team-list">${teamList.map(t=>`<option value="${escapeHtml(t)}">`).join('')}</datalist></div>
         <div class="field"><label>${tf('ปริมาณรวมตามสัญญา','Total contract qty')}</label><input type="number" step="0.01" id="im-qty" value="${d.qtyTotal}"></div>
         <div class="field"><label>${tf('หน่วยวัด','Unit')}</label><input type="text" id="im-unit" value="${escapeHtml(d.unit)}" placeholder="${tf('ตร.ม. / เมตร / จุด','sqm / m / point')}"></div>
-        <div class="field"><label>${tf('วันเริ่มต้น','Start date')}</label><input type="date" id="im-start" value="${d.startDate}"></div>
-        <div class="field"><label>${tf('วันสิ้นสุด','End date')}</label><input type="date" id="im-end" value="${d.endDate}"></div>
+        <div class="field"><label>${tf('แผนงาน วันเริ่มต้น','Planned start date')}</label><input type="date" id="im-start" value="${d.startDate}"></div>
+        <div class="field"><label>${tf('แผนงาน วันสิ้นสุด','Planned end date')}</label><input type="date" id="im-end" value="${d.endDate}"></div>
+        <div class="field"><label>${tf('แผนจริง วันเริ่มต้น (ไม่บังคับ)','Actual start date (optional)')}</label><input type="date" id="im-actual-start" value="${d.actualStartDate}"></div>
+        <div class="field"><label>${tf('แผนจริง วันสิ้นสุด (ไม่บังคับ)','Actual end date (optional)')}</label><input type="date" id="im-actual-end" value="${d.actualEndDate}"></div>
+        <div class="field" style="grid-column:1/-1"><label>${tf('หมายเหตุ (ไม่บังคับ)','Notes (optional)')}</label><input type="text" id="im-notes" value="${escapeHtml(d.notes)}" placeholder="${tf('เช่น รอแบบอนุมัติจากลูกค้าก่อนเริ่มงาน','e.g. awaiting client drawing approval before starting')}"></div>
       </div>
       <div class="field" style="margin-top:14px">
         <label>${tf('รูปชุดงาน / แบบอ้างอิง (ไม่บังคับ)','Reference photos (optional)')} <span class="hint">${tf('เช่น แบบตู้บิ้วอิน สเปกวัสดุ สี — จะแสดงเป็นภาพประกอบถาวรข้างรายการนี้','e.g. built-in drawings, material specs, colours — shown permanently next to this item')}</span></label>
@@ -2822,6 +3148,20 @@ function wireMasterPlan(){
   $('#btn-add-item').onclick = ()=>{ openItemDraft('new'); render(); };
   $$('[data-edit-item]').forEach(b=> b.onclick = ()=>{ openItemDraft(b.dataset.editItem); render(); });
   $$('[data-open-gallery]').forEach(el=> el.onclick = ()=>{ refGalleryItemId=el.dataset.openGallery; render(); });
+  $$('[data-quick-attach]').forEach(el=> el.onclick = ()=>{
+    const itemId = el.dataset.quickAttach;
+    const inp = document.createElement('input');
+    inp.type='file'; inp.accept='image/*'; inp.multiple=true;
+    inp.onchange = async ()=>{
+      const files = Array.from(inp.files||[]);
+      if(!files.length) return;
+      const it = P().boq.find(i=>i.id===itemId); if(!it) return;
+      it.refPhotoIds = it.refPhotoIds||[];
+      for(const f of files){ try{ const dataUrl = await compressImage(f); const pid=uid(); await idbPut(pid,dataUrl); it.refPhotoIds.push(pid); }catch(err){} }
+      saveData(); render(); toast(tf('แนบรูปแล้ว','Photo attached'));
+    };
+    inp.click();
+  });
   refreshMasterPlanThumbs();
   $$('[data-del-item]').forEach(b=> b.onclick = ()=>{
     if(!confirm(tf('ลบรายการงานนี้ และประวัติที่เกี่ยวข้องหรือไม่?','Delete this work item and its related history?'))) return;
@@ -2837,10 +3177,10 @@ function wireMasterPlan(){
     text.split('\n').forEach(line=>{
       const parts = line.split(',').map(p=>p.trim());
       if(parts.length<5) return;
-      const [name,qty,unit,s,en,zone] = parts;
+      const [name,qty,unit,s,en,zone,category,team] = parts;
       const q = parseFloat(qty);
       if(!name||!q||!unit||!/^\d{4}-\d{2}-\d{2}$/.test(s)||!/^\d{4}-\d{2}-\d{2}$/.test(en)) return;
-      P().boq.push({id:uid(),name,zone:zone||'',qtyTotal:q,unit,startDate:s,endDate:en}); count++;
+      P().boq.push({id:uid(),name,zone:zone||'',category:category||'',team:team||'',qtyTotal:q,unit,startDate:s,endDate:en}); count++;
     });
     if(count){ saveData(); $('#import-text').value=''; render(); toast(tf('นำเข้า ','Imported ')+count+tf(' รายการแล้ว',' item(s)')); }
     else toast(tf('ไม่พบรายการที่ถูกต้อง ตรวจสอบรูปแบบอีกครั้ง','No valid rows found -- please check the format'));
@@ -2875,15 +3215,16 @@ function wireItemModal(){
   $('#im-save').onclick = async ()=>{
     syncItemDraftFromDom();
     const d = itemDraft;
-    const name=d.name.trim(), zone=d.zone.trim(), qty=parseFloat(d.qtyTotal), unit=d.unit.trim();
-    const s=d.startDate, en=d.endDate;
+    const name=d.name.trim(), category=d.category.trim(), zone=d.zone.trim(), team=d.team.trim(), qty=parseFloat(d.qtyTotal), unit=d.unit.trim();
+    const s=d.startDate, en=d.endDate, actualStartDate=d.actualStartDate, actualEndDate=d.actualEndDate, notes=d.notes.trim();
     if(!name || !qty || qty<=0 || !unit || !s || !en || en<s){ toast(tf('กรอกข้อมูลให้ครบและถูกต้อง','Please fill in all fields correctly')); return; }
+    if(actualStartDate && actualEndDate && actualEndDate<actualStartDate){ toast(tf('วันสิ้นสุดจริงต้องไม่ก่อนวันเริ่มต้นจริง','Actual end date cannot be before actual start date')); return; }
     const keptExisting = d.existingPhotoIds.filter(id=>!d.removedPhotoIds.includes(id));
     const newIds = [];
     for(const p of d.pendingPhotos){ const id=uid(); await idbPut(id,p.dataUrl); newIds.push(id); }
     const refPhotoIds = keptExisting.concat(newIds);
-    if(editingItemId==='new'){ P().boq.push({id:uid(),name,zone,qtyTotal:qty,unit,startDate:s,endDate:en,refPhotoIds}); }
-    else { const it = P().boq.find(i=>i.id===editingItemId); Object.assign(it,{name,zone,qtyTotal:qty,unit,startDate:s,endDate:en,refPhotoIds}); }
+    if(editingItemId==='new'){ P().boq.push({id:uid(),name,category,zone,team,qtyTotal:qty,unit,startDate:s,endDate:en,actualStartDate,actualEndDate,notes,refPhotoIds}); }
+    else { const it = P().boq.find(i=>i.id===editingItemId); Object.assign(it,{name,category,zone,team,qtyTotal:qty,unit,startDate:s,endDate:en,actualStartDate,actualEndDate,notes,refPhotoIds}); }
     saveData(); editingItemId=null; itemDraft=null; render(); toast(tf('บันทึกรายการแล้ว','Item saved'));
   };
   refreshItemModalPhotos();
@@ -2940,7 +3281,12 @@ async function refreshGalleryPhotos(){
 /* ============================= SCREEN: DAILY LOG ============================= */
 let pendingPhotos = []; // {dataUrl, caption, tag}
 let dailyDraft = null;  // {date, weather, workforce:[], entries:[], issues:[], deliveryNote} -- persists across re-renders
-let dailyEntryDraft = {zone:'', itemId:'', qty:'', note:''}; // the "not yet added" progress-entry composer row
+let dailyEntryDraft = {category:'', itemId:'', qty:'', note:''}; // the "not yet added" progress-entry composer row
+const PHOTO_MAX = 30;
+const STANDARD_WORKTYPES = [
+  'งานโครงสร้าง/รื้อถอน','งานผนัง/ฝ้าเพดาน','งานปูพื้น/กระเบื้อง','งานไฟฟ้า','งานประปา/สุขภัณฑ์',
+  'งานสี/ฉาบผิว','งานเฟอร์นิเจอร์บิ้วอิน','งานประตู-หน้าต่าง','งานแอร์','งานทำความสะอาด'
+];
 
 let ISSUE_TYPES=[], SEVERITY=[], PHOTO_TAGS=[];
 function rebuildDailyLogConstants(){
@@ -2964,7 +3310,11 @@ function rebuildDailyLogConstants(){
   ];
 }
 function severityInfo(v){ return SEVERITY.find(s=>s.v===v) || SEVERITY[1]; }
-function zonesInBoq(boq){ return Array.from(new Set(boq.map(i=>i.zone||'').filter(Boolean))); }
+function categoriesInBoq(boq){
+  const used = Array.from(new Set(boq.map(i=>i.category||'').filter(Boolean)));
+  const extra = used.filter(c=>!BOQ_CATEGORIES.includes(c));
+  return BOQ_CATEGORIES.filter(c=>used.includes(c)).concat(extra);
+}
 
 function ensureDailyDraft(){
   const date = state.selectedLogDate;
@@ -2978,7 +3328,7 @@ function ensureDailyDraft(){
     issues: existing ? (existing.issues && existing.issues.length ? existing.issues.map(i=>({...i})) : (existing.note ? [{type:tf('อื่นๆ','Other'),detail:existing.note,severity:'amber'}] : [])) : [],
     deliveryNote: existing ? (existing.deliveryNote||'') : '',
   };
-  dailyEntryDraft = {zone:'', itemId:'', qty:'', note:''};
+  dailyEntryDraft = {category:'', itemId:'', qty:'', note:''};
 }
 function syncDailyDraftFromDom(){
   if(!dailyDraft) return;
@@ -2987,7 +3337,7 @@ function syncDailyDraftFromDom(){
   const dn=g('#log-delivery'); if(dn!==undefined) dailyDraft.deliveryNote=dn;
   $$('[data-wf]').forEach(inp=>{ const row=dailyDraft.workforce[Number(inp.dataset.idx)]; if(row) row[inp.dataset.wf]=inp.value; });
   $$('[data-issue]').forEach(inp=>{ const row=dailyDraft.issues[Number(inp.dataset.idx)]; if(row) row[inp.dataset.issue]=inp.value; });
-  const z=g('#de-zone'); if(z!==undefined) dailyEntryDraft.zone=z;
+  const cat=g('#de-category'); if(cat!==undefined) dailyEntryDraft.category=cat;
   const it=g('#de-item'); if(it!==undefined) dailyEntryDraft.itemId=it;
   const q=g('#de-qty'); if(q!==undefined) dailyEntryDraft.qty=q;
   const n=g('#de-note'); if(n!==undefined) dailyEntryDraft.note=n;
@@ -3020,13 +3370,31 @@ function renderDailyLog(){
   }
 
   /* ---- Section 2: site environment & workforce ---- */
-  const wfRows = d.workforce.map((w,idx)=>`
-    <div class="rq-line-row" style="grid-template-columns:1.3fr .6fr 1.3fr auto">
-      <input type="text" placeholder="${tf('ชื่อทีมงาน','team name')}" data-wf="team" data-idx="${idx}" value="${escapeHtml(w.team||'')}">
+  const wfRows = d.workforce.map((w,idx)=>{
+    const teamCustom = w.teamOther || (w.team && !STANDARD_TEAMS.includes(w.team));
+    const wtCustom = w.workTypeOther || (w.workType && !STANDARD_WORKTYPES.includes(w.workType));
+    return `
+    <div class="rq-line-row" style="grid-template-columns:1.3fr .6fr 1.3fr auto;align-items:start">
+      <div>
+        <select data-wf-mode="team" data-idx="${idx}">
+          <option value="">${tf('-- เลือกทีมงาน --','-- choose team --')}</option>
+          ${STANDARD_TEAMS.map(t=>`<option value="${escapeHtml(t)}" ${w.team===t?'selected':''}>${escapeHtml(t)}</option>`).join('')}
+          <option value="__other__" ${teamCustom?'selected':''}>${tf('อื่นๆ (พิมพ์เอง)','Other (type your own)')}</option>
+        </select>
+        ${teamCustom? `<input type="text" data-wf="team" data-idx="${idx}" value="${escapeHtml(w.team||'')}" placeholder="${tf('พิมพ์ชื่อทีมงาน','type team name')}" style="margin-top:6px">` : ''}
+      </div>
       <input type="number" min="0" placeholder="${tf('จำนวนคน','headcount')}" data-wf="count" data-idx="${idx}" value="${w.count==null?'':w.count}">
-      <input type="text" placeholder="${tf('ประเภทงานที่ทำ','type of work')}" data-wf="workType" data-idx="${idx}" value="${escapeHtml(w.workType||'')}">
+      <div>
+        <select data-wf-mode="workType" data-idx="${idx}">
+          <option value="">${tf('-- เลือกประเภทงาน --','-- choose work type --')}</option>
+          ${STANDARD_WORKTYPES.map(t=>`<option value="${escapeHtml(t)}" ${w.workType===t?'selected':''}>${escapeHtml(t)}</option>`).join('')}
+          <option value="__other__" ${wtCustom?'selected':''}>${tf('อื่นๆ (พิมพ์เอง)','Other (type your own)')}</option>
+        </select>
+        ${wtCustom? `<input type="text" data-wf="workType" data-idx="${idx}" value="${escapeHtml(w.workType||'')}" placeholder="${tf('พิมพ์ประเภทงาน','type work type')}" style="margin-top:6px">` : ''}
+      </div>
       <button class="iconbtn" data-rm-wf="${idx}">✕</button>
-    </div>`).join('');
+    </div>`;
+  }).join('');
   const envCard = `
   <div class="card">
     <b style="font-family:var(--font-display)">🌦️ ${tf('สภาพหน้างานและกำลังพลประจำวัน','Site Condition & Workforce')}</b>
@@ -3039,18 +3407,19 @@ function renderDailyLog(){
     </div>
   </div>`;
 
-  /* ---- Section 3: BOQ progress entries (zone -> item -> qty -> note) ---- */
-  const zones = zonesInBoq(proj.boq);
-  const zoneOptions = `<option value="">${tf('ทุกโซน','All zones')}</option>` + zones.map(z=>`<option value="${escapeHtml(z)}" ${dailyEntryDraft.zone===z?'selected':''}>${escapeHtml(z)}</option>`).join('');
-  const filteredItems = dailyEntryDraft.zone ? proj.boq.filter(i=>(i.zone||'')===dailyEntryDraft.zone) : proj.boq;
+  /* ---- Section 3: BOQ progress entries (category -> item -> qty -> note) ---- */
+  const cats = categoriesInBoq(proj.boq);
+  const categoryOptions = `<option value="">${tf('ทุกหมวดงาน','All categories')}</option>` + cats.map(c=>`<option value="${escapeHtml(c)}" ${dailyEntryDraft.category===c?'selected':''}>${escapeHtml(c)}</option>`).join('');
+  const filteredItems = dailyEntryDraft.category ? proj.boq.filter(i=>(i.category||'')===dailyEntryDraft.category) : proj.boq;
   const itemOptions = filteredItems.map(i=>`<option value="${i.id}" ${dailyEntryDraft.itemId===i.id?'selected':''}>${escapeHtml(i.name)}</option>`).join('');
   const selectedItem = filteredItems.find(i=>i.id===dailyEntryDraft.itemId) || proj.boq.find(i=>i.id===dailyEntryDraft.itemId);
   const entryRows = d.entries.map((e,idx)=>{
     const it = proj.boq.find(i=>i.id===e.itemId);
+    const catLabel = e.category || e.zone || '';
     return `<div class="mini-row">
       <div class="txt">
         <span class="t1">${it? escapeHtml(it.name) : tf('(รายการนี้ถูกลบออกจากแผนแล้ว)','(item removed from plan)')}</span>
-        <span class="t2">${e.zone? escapeHtml(e.zone)+' · ' : ''}${fmtNum(e.actualQty,2)} ${it? escapeHtml(it.unit):''}${e.note? ' — '+escapeHtml(e.note) : ''}</span>
+        <span class="t2">${catLabel? escapeHtml(catLabel)+' · ' : ''}${fmtNum(e.actualQty,2)} ${it? escapeHtml(it.unit):''}${e.note? ' — '+escapeHtml(e.note) : ''}</span>
       </div>
       <button class="iconbtn" data-rm-entry="${idx}">✕</button>
     </div>`;
@@ -3059,8 +3428,8 @@ function renderDailyLog(){
   <div class="card">
     <b style="font-family:var(--font-display)">📐 ${tf('บันทึกความคืบหน้างานตาม BOQ','BOQ Progress Entries')}</b>
     <div class="grid cols-2" style="margin-top:12px">
-      <div class="field"><label>${tf('พื้นที่ทำงาน (Zone)','Zone')}</label><select id="de-zone">${zoneOptions}</select></div>
-      <div class="field"><label>${tf('รายการงาน (จาก Master Plan)','Work item (from Master Plan)')}</label><select id="de-item">${itemOptions || `<option value="">${tf('ไม่มีรายการในโซนนี้','No items in this zone')}</option>`}</select></div>
+      <div class="field"><label>${tf('หมวดงานหลัก (ประเภทงานที่ทำ)','Main category (type of work)')}</label><select id="de-category">${categoryOptions}</select></div>
+      <div class="field"><label>${tf('รายการงาน (จาก Master Plan)','Work item (from Master Plan)')}</label><select id="de-item">${itemOptions || `<option value="">${tf('ไม่มีรายการในหมวดนี้','No items in this category')}</option>`}</select></div>
       <div class="field"><label>${tf('ปริมาณที่ทำได้วันนี้','Actual qty today')}</label><input type="number" step="0.01" min="0" id="de-qty" value="${escapeHtml(String(dailyEntryDraft.qty||''))}" placeholder="0"></div>
       <div class="field"><label>${tf('หน่วยวัด','Unit')}</label><input type="text" value="${selectedItem?escapeHtml(selectedItem.unit):'-'}" disabled></div>
       <div class="field" style="grid-column:1/-1"><label>${tf('หมายเหตุความคืบหน้า (ไม่บังคับ)','Progress note (optional)')}</label><input type="text" id="de-note" value="${escapeHtml(dailyEntryDraft.note)}" placeholder="${tf('เช่น เดินสายไฟแสงสว่างในตู้เสื้อผ้าเสร็จแล้ว รอฝ้าปิดทับ','e.g. wardrobe wiring done, awaiting ceiling close-up')}"></div>
@@ -3095,17 +3464,19 @@ function renderDailyLog(){
       </select>
       <button class="rm" data-rm-photo="${idx}">✕</button>
     </div>`).join('');
+  const savedPhotoCount = (existing&&existing.photoIds&&existing.photoIds.length)||0;
+  const totalPhotoCount = savedPhotoCount + pendingPhotos.length;
   const photoCard = `
   <div class="card">
     <div class="field" style="margin-bottom:10px"><label>📸 ${tf('คลังรูปภาพหลักฐานหน้างาน','Site Photo Evidence Gallery')}</label></div>
-    <label class="photo-drop" for="photo-input">📷 ${tf('แตะเพื่อเลือกรูปภาพ (เลือกได้ทีละหลายรูป 20+ รูป)','Tap to choose photos (select 20+ at once)')}</label>
+    ${totalPhotoCount<PHOTO_MAX? `<label class="photo-drop" for="photo-input">📷 ${tf('แตะเพื่อเลือกรูปภาพ (เลือกได้ทีละหลายรูป สูงสุด ','Tap to choose photos (select multiple at once, up to ')}${PHOTO_MAX}${tf(' รูป)',' photos)')}</label>` : `<div class="hint">${tf('ครบจำนวนสูงสุด ','Reached the maximum of ')}${PHOTO_MAX}${tf(' รูปแล้ว',' photos')}</div>`}
     <input type="file" id="photo-input" accept="image/*" multiple style="display:none">
     <div id="compress-progress" style="display:none;margin-top:10px">
       <div class="progressline"><i id="compress-bar" style="width:0%"></i></div>
       <div class="sub" id="compress-label" style="margin-top:6px"></div>
     </div>
-    ${(pendingPhotos.length||(existing&&existing.photoIds&&existing.photoIds.length))? `<div class="photo-grid" id="photo-grid" style="margin-top:12px">${photoCards}</div>` : ''}
-    ${existing&&existing.photoIds&&existing.photoIds.length? `<div class="sub" style="margin-top:8px">${tf('มีรูปที่บันทึกไว้แล้ว','Already saved')} ${existing.photoIds.length} ${tf('รูปสำหรับวันนี้ (รูปใหม่จะถูกเพิ่มต่อท้ายเมื่อบันทึก)','photo(s) for today (new photos will be appended on save)')}</div>`:''}
+    ${(pendingPhotos.length||savedPhotoCount)? `<div class="photo-grid" id="photo-grid" style="margin-top:12px">${photoCards}</div>` : ''}
+    ${savedPhotoCount? `<div class="sub" style="margin-top:8px">${tf('มีรูปที่บันทึกไว้แล้ว','Already saved')} ${savedPhotoCount} / ${PHOTO_MAX} ${tf('รูปสำหรับวันนี้ (รูปใหม่จะถูกเพิ่มต่อท้ายเมื่อบันทึก)','photo(s) for today (new photos will be appended on save)')}</div>`:''}
   </div>`;
 
   /* ---- Section 6: material delivery check & quick link to procurement ---- */
@@ -3129,8 +3500,34 @@ function renderDailyLog(){
   ${issueCard}
   ${photoCard}
   ${deliveryCard}
-  <button class="btn primary block" id="btn-save-log">${tf('บันทึกรายงานประจำวัน','Save daily report')}</button>
+  <div style="display:flex;gap:10px;flex-wrap:wrap">
+    <button class="btn primary block" id="btn-save-log" style="flex:2;min-width:200px">${tf('บันทึกรายงานประจำวัน','Save daily report')}</button>
+    <button class="btn ghost" id="btn-export-pdf-log" style="flex:1;min-width:160px">📄 ${tf('ส่งออก PDF','Export PDF')}</button>
+    <button class="btn ghost" id="btn-export-img-log" style="flex:1;min-width:160px">🖼️ ${tf('ส่งออกรูปภาพ','Export image')}</button>
+  </div>
   `;
+}
+async function saveDailyLogAndReturnDate(){
+  syncDailyDraftFromDom();
+  const date = state.selectedLogDate;
+  let log = P().logs.find(l=>l.date===date);
+  const newPhotoIds = [];
+  const newPhotoMeta = {};
+  for(const p of pendingPhotos){ const id=uid(); await idbPut(id,p.dataUrl); newPhotoIds.push(id); newPhotoMeta[id] = {caption:p.caption||'', tag:p.tag||''}; }
+  if(!log){ log = {id:uid(),date,entries:[],photoIds:[]}; P().logs.push(log); }
+  log.weather = dailyDraft.weather;
+  log.workforce = dailyDraft.workforce.filter(w=> (w.team||'').trim()).map(w=>({team:w.team,count:w.count,workType:w.workType}));
+  log.entries = dailyDraft.entries.slice();
+  log.issues = dailyDraft.issues.filter(i=> (i.detail||'').trim());
+  log.deliveryNote = dailyDraft.deliveryNote;
+  log.photoIds = (log.photoIds||[]).concat(newPhotoIds);
+  log.photoMeta = Object.assign(log.photoMeta||{}, newPhotoMeta);
+  log.recordedAt = new Date().toISOString();
+  P().logs.sort((a,b)=> a.date<b.date?-1:1);
+  saveData();
+  pendingPhotos=[];
+  dailyDraft=null;
+  return date;
 }
 function wireDailyLog(){
   const dateInput = $('#log-date');
@@ -3140,18 +3537,24 @@ function wireDailyLog(){
   if(photoInput) photoInput.onchange = async (e)=>{
     const files = Array.from(e.target.files||[]);
     if(!files.length) return;
+    const existing = P().logs.find(l=>l.date===state.selectedLogDate);
+    const savedCount = (existing&&existing.photoIds&&existing.photoIds.length)||0;
+    const room = PHOTO_MAX - savedCount - pendingPhotos.length;
+    if(room<=0){ toast(tf('ครบจำนวนสูงสุด 30 รูปแล้ว','Reached the maximum of 30 photos')); photoInput.value=''; return; }
+    const toProcess = files.slice(0, room);
+    if(files.length>toProcess.length) toast(tf('เพิ่มได้สูงสุด 30 รูป ระบบเลือกให้ ','Max 30 photos -- only the first ')+toProcess.length+tf(' รูปแรก',' were added'));
     const bar = $('#compress-progress'); bar.style.display='block';
-    for(let i=0;i<files.length;i++){
-      $('#compress-bar').style.width = Math.round(((i)/files.length)*100)+'%';
-      $('#compress-label').textContent = tf('กำลังบีบอัดรูป ','Compressing photo ')+(i+1)+' / '+files.length+'...';
+    for(let i=0;i<toProcess.length;i++){
+      $('#compress-bar').style.width = Math.round(((i)/toProcess.length)*100)+'%';
+      $('#compress-label').textContent = tf('กำลังบีบอัดรูป ','Compressing photo ')+(i+1)+' / '+toProcess.length+'...';
       try{
-        const dataUrl = await compressImage(files[i]);
+        const dataUrl = await compressImage(toProcess[i]);
         pendingPhotos.push({dataUrl,caption:'',tag:''});
       }catch(err){}
       await new Promise(r=>setTimeout(r,0));
     }
     $('#compress-bar').style.width='100%';
-    $('#compress-label').textContent = tf('บีบอัดเสร็จแล้ว ','Done compressing ')+files.length+tf(' รูป',' photo(s)');
+    $('#compress-label').textContent = tf('บีบอัดเสร็จแล้ว ','Done compressing ')+toProcess.length+tf(' รูป',' photo(s)');
     photoInput.value='';
     syncDailyDraftFromDom();
     render();
@@ -3163,13 +3566,21 @@ function wireDailyLog(){
   const wfAdd = $('#wf-add-line');
   if(wfAdd) wfAdd.onclick = ()=>{ syncDailyDraftFromDom(); dailyDraft.workforce.push({team:'',count:'',workType:''}); render(); };
   $$('[data-rm-wf]').forEach(b=> b.onclick = ()=>{ syncDailyDraftFromDom(); dailyDraft.workforce.splice(Number(b.dataset.rmWf),1); render(); });
+  $$('[data-wf-mode]').forEach(sel=> sel.onchange = ()=>{
+    syncDailyDraftFromDom();
+    const idx = Number(sel.dataset.idx), field = sel.dataset.wfMode;
+    const row = dailyDraft.workforce[idx]; if(!row) return;
+    if(sel.value==='__other__'){ row[field]=''; row[field+'Other']=true; }
+    else { row[field]=sel.value; row[field+'Other']=false; }
+    render();
+  });
 
   const issueAdd = $('#issue-add-line');
   if(issueAdd) issueAdd.onclick = ()=>{ syncDailyDraftFromDom(); dailyDraft.issues.push({type:ISSUE_TYPES[0],detail:'',severity:'amber'}); render(); };
   $$('[data-rm-issue]').forEach(b=> b.onclick = ()=>{ syncDailyDraftFromDom(); dailyDraft.issues.splice(Number(b.dataset.rmIssue),1); render(); });
 
-  const zoneSel = $('#de-zone');
-  if(zoneSel) zoneSel.onchange = ()=>{ syncDailyDraftFromDom(); dailyEntryDraft.itemId=''; render(); };
+  const catSel = $('#de-category');
+  if(catSel) catSel.onchange = ()=>{ syncDailyDraftFromDom(); dailyEntryDraft.itemId=''; render(); };
   const itemSel = $('#de-item');
   if(itemSel) itemSel.onchange = ()=>{ syncDailyDraftFromDom(); render(); };
   const deAdd = $('#de-add');
@@ -3177,8 +3588,8 @@ function wireDailyLog(){
     syncDailyDraftFromDom();
     const itemId = dailyEntryDraft.itemId, qty = parseFloat(dailyEntryDraft.qty);
     if(!itemId || !qty || qty<=0){ toast(tf('กรุณาเลือกรายการงานและใส่ปริมาณให้ถูกต้อง','Please choose a work item and enter a valid quantity')); return; }
-    dailyDraft.entries.push({itemId, zone:dailyEntryDraft.zone||'', actualQty:qty, note:(dailyEntryDraft.note||'').trim()});
-    dailyEntryDraft = {zone:dailyEntryDraft.zone, itemId:'', qty:'', note:''};
+    dailyDraft.entries.push({itemId, category:dailyEntryDraft.category||'', actualQty:qty, note:(dailyEntryDraft.note||'').trim()});
+    dailyEntryDraft = {category:dailyEntryDraft.category, itemId:'', qty:'', note:''};
     render();
   };
   $$('[data-rm-entry]').forEach(b=> b.onclick = ()=>{ syncDailyDraftFromDom(); dailyDraft.entries.splice(Number(b.dataset.rmEntry),1); render(); });
@@ -3186,28 +3597,26 @@ function wireDailyLog(){
   const saveBtn = $('#btn-save-log');
   if(saveBtn) saveBtn.onclick = async ()=>{
     saveBtn.disabled = true; saveBtn.textContent=tf('กำลังบันทึก...','Saving...');
-    syncDailyDraftFromDom();
-    const date = state.selectedLogDate;
-    let log = P().logs.find(l=>l.date===date);
-    const newPhotoIds = [];
-    const newPhotoMeta = {};
-    for(const p of pendingPhotos){ const id=uid(); await idbPut(id,p.dataUrl); newPhotoIds.push(id); newPhotoMeta[id] = {caption:p.caption||'', tag:p.tag||''}; }
-    if(!log){ log = {id:uid(),date,entries:[],photoIds:[]}; P().logs.push(log); }
-    log.weather = dailyDraft.weather;
-    log.workforce = dailyDraft.workforce.filter(w=> (w.team||'').trim());
-    log.entries = dailyDraft.entries.slice();
-    log.issues = dailyDraft.issues.filter(i=> (i.detail||'').trim());
-    log.deliveryNote = dailyDraft.deliveryNote;
-    log.photoIds = (log.photoIds||[]).concat(newPhotoIds);
-    log.photoMeta = Object.assign(log.photoMeta||{}, newPhotoMeta);
-    log.recordedAt = new Date().toISOString();
-    P().logs.sort((a,b)=> a.date<b.date?-1:1);
-    saveData();
-    pendingPhotos=[];
-    dailyDraft=null;
+    const date = await saveDailyLogAndReturnDate();
     toast(tf('บันทึกรายงานประจำวันแล้ว','Daily report saved'));
     state.reportDate = date;
     render();
+  };
+  const exportPdfBtn = $('#btn-export-pdf-log');
+  if(exportPdfBtn) exportPdfBtn.onclick = async ()=>{
+    exportPdfBtn.disabled = true;
+    const date = await saveDailyLogAndReturnDate();
+    toast(tf('บันทึกแล้ว กำลังเปิดหน้าต่างพิมพ์ PDF...','Saved -- opening the PDF print dialog...'));
+    state.reportDate = date; state.tab = 'report'; render();
+    setTimeout(()=> window.print(), 400);
+  };
+  const exportImgBtn = $('#btn-export-img-log');
+  if(exportImgBtn) exportImgBtn.onclick = async ()=>{
+    exportImgBtn.disabled = true;
+    const date = await saveDailyLogAndReturnDate();
+    toast(tf('บันทึกแล้ว กำลังสร้างรูปภาพรายงาน...','Saved -- generating the report image...'));
+    state.reportDate = date; state.tab = 'report'; render();
+    setTimeout(()=> exportReportAsImage(), 400);
   };
 }
 
@@ -3227,8 +3636,29 @@ function currentActorName(){
 }
 function reqsForDate(date){ return P().materialRequests.filter(r=> r.createdAt.slice(0,10)===date); }
 
+function isoWeekKey(dateStr){
+  const dt = new Date(dateStr+'T00:00:00');
+  const day = (dt.getDay()+6)%7;
+  dt.setDate(dt.getDate()-day+3);
+  const firstThu = new Date(dt.getFullYear(),0,4);
+  const diff = (dt-firstThu)/86400000;
+  const wk = 1+Math.round((diff-((firstThu.getDay()+6)%7))/7);
+  return dt.getFullYear()+'-W'+String(wk).padStart(2,'0');
+}
+function procureSummary(requests){
+  const todayKey = todayStr();
+  const curWeek = isoWeekKey(todayKey);
+  const sumLines = (arr)=> arr.reduce((s,r)=> s+r.lines.length,0);
+  const todayReqs = requests.filter(r=> (r.createdAt||'').slice(0,10)===todayKey);
+  const weekReqs = requests.filter(r=> isoWeekKey((r.createdAt||'').slice(0,10))===curWeek);
+  return {
+    today:{count:todayReqs.length, lines:sumLines(todayReqs), pending:todayReqs.filter(r=>r.status==='pending').length},
+    week:{count:weekReqs.length, lines:sumLines(weekReqs), pending:weekReqs.filter(r=>r.status==='pending').length}
+  };
+}
 function renderProcure(){
   const canCreate = state.role==='site';
+  const summary = procureSummary(P().materialRequests);
   const cols = PSTATUS.map(col=>{
     const items = P().materialRequests.filter(r=>r.status===col.id).sort((a,b)=> a.createdAt<b.createdAt?1:-1);
     return `<div class="kcol">
@@ -3241,6 +3671,11 @@ function renderProcure(){
     <div><h2>${tf('จัดซื้อวัสดุ & อนุมัติ','Material Procurement & Approval')}</h2><div class="sub">${tf('สั่งวัสดุหน้างานรายวัน ผ่านขั้นตอนอนุมัติและนัดส่งของ พร้อมประทับเวลาอัตโนมัติทุกขั้นตอน','Request site materials day-to-day through approval and delivery scheduling, with an automatic timestamp at every step.')}</div></div>
     ${canCreate? `<button class="btn primary" id="btn-new-request">+ ${tf('สร้างใบสั่งของ','New request')}</button>` : ''}
   </div>
+  ${P().materialRequests.length? `
+  <div class="grid cols-auto" style="margin-bottom:16px">
+    <div class="card kpi"><div class="stat"><span class="lbl">📅 ${tf('ใบสั่งของวันนี้','Requests today')}</span><span class="num">${summary.today.count}</span></div><div class="sub" style="margin-top:4px">${summary.today.lines} ${tf('รายการวัสดุ','material line(s)')} · ${summary.today.pending} ${tf('รอการอนุมัติ','pending')}</div></div>
+    <div class="card kpi"><div class="stat"><span class="lbl">🗓️ ${tf('ใบสั่งของสัปดาห์นี้','Requests this week')}</span><span class="num">${summary.week.count}</span></div><div class="sub" style="margin-top:4px">${summary.week.lines} ${tf('รายการวัสดุ','material line(s)')} · ${summary.week.pending} ${tf('รอการอนุมัติ','pending')}</div></div>
+  </div>` : ''}
   <div class="role-note">👁️ ${tf('มุมมองปัจจุบัน:','Current view:')} <b>${ROLE_LABEL[state.role]}</b> — ${tf('สลับมุมมองจากปุ่มมุมบนขวาเพื่อจำลองสิทธิ์แต่ละบทบาท (ข้อมูลทั้งหมดอยู่ในเบราว์เซอร์เครื่องนี้ ยังไม่ใช่ระบบล็อกอินผู้ใช้หลายคนจริง)','switch views from the top-right buttons to try each role’s permissions (all data lives in this browser -- this is not yet a real multi-user login system).')}</div>
   ${P().materialRequests.length===0? `<div class="empty"><span class="ic">🛒</span>${tf('ยังไม่มีใบสั่งของ','No material requests yet')}${canCreate? tf(' กด “สร้างใบสั่งของ” เพื่อเริ่มต้น',' -- tap “New request” to get started'):''}</div>` : `<div class="kanban">${cols}</div>`}
   `;
@@ -3248,12 +3683,17 @@ function renderProcure(){
 function reqCardHtml(r){
   const firstLine = r.lines[0]||{name:'-',qty:0,unit:''};
   const moreCount = r.lines.length-1;
+  const quickApprove = (r.status==='pending' && state.role==='pm');
   return `<div class="kcard ${r.status}" data-open-req="${r.id}">
     <div class="reqno">${r.reqNo}</div>
     <div class="title">${escapeHtml(firstLine.name)}${moreCount>0?tf(` +${moreCount} รายการ`,` +${moreCount} more`):''}</div>
     <div class="meta">📍 ${escapeHtml(r.area||'-')} · ${escapeHtml(r.workType||'-')}</div>
     <div class="meta">${tf('ต้องการใช้:','Needed by:')} <b class="tabular">${fmtDate(firstLine.neededDate)}</b></div>
     <div class="meta">${tf('โดย','by')} ${escapeHtml(r.requestedBy)} · ${fmtDateTime(r.createdAt)}</div>
+    ${quickApprove? `<div class="action-row" style="margin-top:10px" data-stop-card-open>
+      <button class="btn approve sm" data-quick-approve="${r.id}">✅ ${tf('ส่งอนุมัติ','Approve')}</button>
+      <button class="btn reject sm" data-quick-reject="${r.id}">🚫 ${tf('ปฏิเสธ','Reject')}</button>
+    </div>` : ''}
   </div>`;
 }
 function requestModalHtml(){
@@ -3386,7 +3826,21 @@ function wireDetailModal(){
 function wireProcure(){
   const newBtn=$('#btn-new-request');
   if(newBtn) newBtn.onclick=()=>{ creatingRequest=true; requestForm=newRequestForm(); render(); };
-  $$('[data-open-req]').forEach(c=> c.onclick=()=>{ procureDetailId=c.dataset.openReq; render(); });
+  $$('[data-open-req]').forEach(c=> c.onclick=(e)=>{ if(e.target.closest('[data-stop-card-open]')) return; procureDetailId=c.dataset.openReq; render(); });
+  $$('[data-quick-approve]').forEach(b=> b.onclick=(e)=>{
+    e.stopPropagation();
+    const r = P().materialRequests.find(x=>x.id===b.dataset.quickApprove); if(!r) return;
+    r.status='approved'; r.approval={by:currentActorName(), at:new Date().toISOString(), reason:tf('อนุมัติด่วนจากหน้าจัดซื้อ','Quick-approved from procurement board')};
+    saveData(); toast(tf('อนุมัติใบสั่งของแล้ว','Request approved')); render();
+  });
+  $$('[data-quick-reject]').forEach(b=> b.onclick=(e)=>{
+    e.stopPropagation();
+    const reason = prompt(tf('เหตุผลการปฏิเสธ:','Reason for rejecting:'));
+    if(!reason || !reason.trim()){ if(reason!==null) toast(tf('กรุณาระบุเหตุผล','Please enter a reason')); return; }
+    const r = P().materialRequests.find(x=>x.id===b.dataset.quickReject); if(!r) return;
+    r.status='rejected'; r.approval={by:currentActorName(), at:new Date().toISOString(), reason:reason.trim()};
+    saveData(); toast(tf('ปฏิเสธใบสั่งของแล้ว','Request rejected')); render();
+  });
 }
 
 /* ============================= SCREEN: DASHBOARD ============================= */
@@ -3444,7 +3898,7 @@ function renderDashboard(){
     ${curve.svg}
   </div>
   <div class="page-head"><div><h3 style="font-size:16px">${tf('สถานะรายรายการ','Item-level status')}</h3></div></div>
-  <div class="grid cols-auto">${itemCards}</div>
+  <div style="display:flex;flex-direction:column;gap:10px">${itemCards}</div>
   `;
 }
 function buildSCurve(asOf){
@@ -3568,8 +4022,18 @@ function reportBodyHtml(date){
   }).join('');
   return `
     <div class="rp-head">
-      <div class="tag">Site Progress Report</div>
-      <h1>${tf('รายงานความคืบหน้าและวิเคราะห์หน้างานตกแต่งภายใน','Interior Fit-Out Progress & Analysis Report')}</h1>
+      <div style="display:flex;align-items:center;gap:14px">
+        ${c.logo? `<img src="${c.logo}" alt="" style="width:44px;height:44px;object-fit:contain;background:#fff;border-radius:10px;flex:none">` : ''}
+        <div>
+          <div class="tag">Site Progress Report</div>
+          <h1>${tf('รายงานความคืบหน้าและวิเคราะห์หน้างานตกแต่งภายใน','Interior Fit-Out Progress & Analysis Report')}</h1>
+        </div>
+      </div>
+      ${c.company? `<div style="margin-top:10px;font-size:12.5px;opacity:.92;line-height:1.6">
+        <b style="font-weight:600">${escapeHtml(c.company)}</b>
+        ${c.address? `<br>${escapeHtml(c.address)}` : ''}
+        ${(c.taxId||c.email)? `<br>${c.taxId? tf('เลขผู้เสียภาษี ','Tax ID ')+escapeHtml(c.taxId) : ''}${c.taxId&&c.email?' · ':''}${c.email? escapeHtml(c.email) : ''}` : ''}
+      </div>` : ''}
     </div>
     <div class="rp-meta">
       <div><b>${tf('โครงการ','Project')}</b>${escapeHtml(proj.name||'-')}${proj.zone?' ('+escapeHtml(proj.zone)+')':''}</div>
