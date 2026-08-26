@@ -245,6 +245,10 @@ tbody tr:hover{background:var(--surface-2)}
 .mp-thumb-count{position:absolute;bottom:1px;right:1px;background:rgba(20,18,36,.68);color:#fff;font-size:9px;padding:1px 4px;border-radius:6px;line-height:1.3}
 .mp-thumb[data-quick-attach]{cursor:pointer}
 .mp-thumb[data-quick-attach]:hover{border-color:var(--purple-500)}
+.budget-table{table-layout:auto}
+.budget-table th,.budget-table td{white-space:nowrap;font-size:12px;padding:9px 10px}
+.budget-table td:nth-child(3){white-space:normal;min-width:160px}
+.budget-cat-row td{background:var(--purple-50);color:var(--purple-700);font-family:var(--font-display);font-weight:600;font-size:12.5px;white-space:normal}
 .mp-table tr.mp-cat-row{cursor:pointer;user-select:none}
 .mp-table tr.mp-cat-row td{background:var(--purple-50);color:var(--purple-700);font-family:var(--font-display);font-weight:600;font-size:12.5px;padding:9px 12px;white-space:normal;transition:background .12s}
 .mp-table tr.mp-cat-row:hover td{background:var(--purple-100,var(--purple-50))}
@@ -294,6 +298,14 @@ tbody tr:hover{background:var(--surface-2)}
 /* ---------- Master Plan: Gantt chart ---------- */
 .gantt-toolbar{display:flex;align-items:center;gap:8px;margin-bottom:10px}
 .gantt-toolbar .hint{font-size:11.5px;color:var(--ink-300)}
+/* A second, synced horizontal scrollbar placed above the chart -- the real
+   one lives at the bottom of .gantt-outer, which on a long BOQ can be
+   hundreds of rows down and out of reach without scrolling the whole page
+   first. This bar's own content is a 1px-tall spacer exactly as wide as the
+   chart, so its native scrollbar thumb is proportioned to match, and
+   wireMasterPlan() mirrors scrollLeft between the two in both directions. */
+.gantt-topscroll{overflow-x:auto;overflow-y:hidden;height:16px;margin-bottom:6px}
+.gantt-topscroll>div{height:1px}
 .gantt-scroll-btn{width:30px;height:30px;border-radius:50%;border:1px solid var(--line);background:var(--surface);color:var(--ink-700);font-size:13px;display:flex;align-items:center;justify-content:center;cursor:pointer}
 .gantt-scroll-btn:hover{background:var(--surface-2)}
 .gantt-outer{overflow-x:auto;overflow-y:hidden;border:1px solid var(--line);border-radius:var(--radius-sm);margin-bottom:16px;background:var(--surface)}
@@ -460,8 +472,12 @@ tbody tr:hover{background:var(--surface-2)}
 
 /* ---------- Request detail / timeline ---------- */
 .rq-lines{display:flex;flex-direction:column;gap:8px}
+.rq-line-card{border:1.5px solid var(--line);border-radius:var(--radius-sm);padding:8px;background:var(--surface)}
 .rq-line-row{display:grid;grid-template-columns:1.6fr .7fr .7fr 1fr auto;gap:8px;align-items:center}
 @media(max-width:640px){.rq-line-row{grid-template-columns:1fr 1fr;}.rq-line-row input{width:100%}}
+.rq-line-row2{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:6px}
+@media(max-width:640px){.rq-line-row2{grid-template-columns:1fr}}
+.rq-line-row2 select{font-size:12.5px}
 .timeline{display:flex;flex-direction:column;gap:0}
 .tl-step{display:flex;gap:12px;padding:10px 0;border-bottom:1px dashed var(--line)}
 .tl-step:last-child{border-bottom:none}
@@ -559,6 +575,10 @@ function fmtDateTime(iso){
   return d.getDate()+' '+THMONTHS[d.getMonth()]+' '+(d.getFullYear()+543)+' '+pad2(d.getHours())+':'+pad2(d.getMinutes())+' น.';
 }
 function fmtNum(n,dec){ if(n==null||isNaN(n)) return '-'; dec = dec==null?1:dec; const v=Number(n); const r = Math.round(v*Math.pow(10,dec))/Math.pow(10,dec); return r.toLocaleString(state.lang==='en'?'en-US':'th-TH',{minimumFractionDigits:0,maximumFractionDigits:dec}); }
+// Baht-formatted money for the Budget tab and cost fields elsewhere -- always
+// 2 decimals so unit prices/variances stay legible, prefixed with ฿ rather
+// than a locale currency code since this app is single-currency (THB) only.
+function fmtCurrency(n){ if(n==null||isNaN(n)) return '-'; const v=Number(n); return '฿'+v.toLocaleString(state.lang==='en'?'en-US':'th-TH',{minimumFractionDigits:2,maximumFractionDigits:2}); }
 
 function toast(msg){
   const t=$('#toast'); t.textContent=msg; t.classList.add('show');
@@ -3255,6 +3275,7 @@ const TABS = [
   {id:'dashboard',label:tf('แดชบอร์ด','Dashboard'),ic:'📊'},
   {id:'masterplan',label:tf('แผนงานหลัก','Master Plan'),ic:'📋'},
   {id:'procure',label:tf('จัดซื้อวัสดุ','Procurement'),ic:'🛒'},
+  {id:'budget',label:tf('งบประมาณ','Budget'),ic:'💰'},
   {id:'dailylog',label:tf('บันทึกประจำวัน','Daily Log'),ic:'📝'},
   {id:'report',label:tf('รายงาน','Report'),ic:'🖨️'},
 ];
@@ -3357,6 +3378,7 @@ function renderScreen(){
     case 'masterplan': return renderMasterPlan();
     case 'dailylog': return renderDailyLog();
     case 'procure': return renderProcure();
+    case 'budget': return renderBudget();
     case 'dashboard': return renderDashboard();
     case 'report': return renderReport();
     default: return renderMasterPlan();
@@ -3798,6 +3820,14 @@ const WORK_TYPES = [
   {v:'admin', ic:'⚪', th:'งานเอกสาร/ไม่กระทบผู้พักอาศัย (Admin)', en:'Admin / Off-site'},
 ];
 function workTypeInfo(v){ return WORK_TYPES.find(w=>w.v===v); }
+// Purchasing expense category for material-request lines (independent of the
+// BOQ work-category list above) -- feeds the Budget tab's per-line rollups.
+const PROCURE_CATEGORIES = [
+  {v:'materials', th:'วัสดุอุปกรณ์ (Materials)', en:'Materials'},
+  {v:'services', th:'ค่าบริการ (Services)', en:'Services'},
+  {v:'equipment', th:'อุปกรณ์เครื่องมือ (Equipment)', en:'Equipment'},
+];
+function procureCategoryLabel(v){ const c=PROCURE_CATEGORIES.find(x=>x.v===v); return c? tf(c.th,c.en) : ''; }
 function boqCategoryGroups(boq){
   const used = Array.from(new Set(boq.map(i=>i.category||'').filter(Boolean)));
   const extra = used.filter(c=>!BOQ_CATEGORIES.includes(c));
@@ -3978,6 +4008,7 @@ function ganttChartHtml(groups){
     <button class="btn ghost sm" id="gantt-scroll-today">📍 ${tf('วันนี้','Today')}</button>
     <span class="hint">${tf('เลื่อนแนวนอนเพื่อดูวันที่/เดือนอื่น','Scroll horizontally to see other dates/months')}</span>
   </div>
+  <div class="gantt-topscroll" id="gantt-topscroll"><div style="width:${labelW+totalW}px"></div></div>
   <div class="gantt-outer" id="gantt-scroll-container">
     <div class="gantt-inner" style="width:${labelW+totalW}px">
       ${depsSvg}
@@ -4083,10 +4114,10 @@ let editingItemId=null;
 let itemDraft=null; // {name,category,zone,team,qtyTotal,unit,startDate,endDate,actualStartDate,actualEndDate,notes,existingPhotoIds,pendingPhotos,removedPhotoIds} -- persists across re-renders (e.g. photo add/remove) so in-progress typing is never lost
 function openItemDraft(id){
   if(id==='new'){
-    itemDraft = {name:'',category:'',zone:'',team:'',leader:'',manpower:'',workType:'',allowedHours:'',qtyTotal:'',unit:tf('ตร.ม.','sqm'),startDate:todayStr(),endDate:addDays(todayStr(),3),actualStartDate:'',actualEndDate:'',notes:'',existingPhotoIds:[],pendingPhotos:[],removedPhotoIds:[],dependsOn:[]};
+    itemDraft = {name:'',category:'',zone:'',team:'',leader:'',manpower:'',workType:'',allowedHours:'',itemCode:'',qtyTotal:'',unit:tf('ตร.ม.','sqm'),unitPrice:'',startDate:todayStr(),endDate:addDays(todayStr(),3),actualStartDate:'',actualEndDate:'',notes:'',existingPhotoIds:[],pendingPhotos:[],removedPhotoIds:[],dependsOn:[]};
   } else {
     const it = P().boq.find(i=>i.id===id);
-    itemDraft = {name:it.name,category:it.category||'',zone:it.zone||'',team:it.team||'',leader:it.leader||'',manpower:it.manpower==null?'':it.manpower,workType:it.workType||'',allowedHours:it.allowedHours||'',qtyTotal:it.qtyTotal,unit:it.unit,startDate:it.startDate,endDate:it.endDate,actualStartDate:it.actualStartDate||'',actualEndDate:it.actualEndDate||'',notes:it.notes||'',existingPhotoIds:(it.refPhotoIds||[]).slice(),pendingPhotos:[],removedPhotoIds:[],dependsOn:(it.dependsOn||[]).slice()};
+    itemDraft = {name:it.name,category:it.category||'',zone:it.zone||'',team:it.team||'',leader:it.leader||'',manpower:it.manpower==null?'':it.manpower,workType:it.workType||'',allowedHours:it.allowedHours||'',itemCode:it.itemCode||'',qtyTotal:it.qtyTotal,unit:it.unit,unitPrice:it.unitPrice==null?'':it.unitPrice,startDate:it.startDate,endDate:it.endDate,actualStartDate:it.actualStartDate||'',actualEndDate:it.actualEndDate||'',notes:it.notes||'',existingPhotoIds:(it.refPhotoIds||[]).slice(),pendingPhotos:[],removedPhotoIds:[],dependsOn:(it.dependsOn||[]).slice()};
   }
   editingItemId = id;
 }
@@ -4101,8 +4132,10 @@ function syncItemDraftFromDom(){
   const manpower=g('#im-manpower'); if(manpower!==undefined) itemDraft.manpower=manpower;
   const workType=g('#im-worktype'); if(workType!==undefined) itemDraft.workType=workType;
   const allowedHours=g('#im-hours'); if(allowedHours!==undefined) itemDraft.allowedHours=allowedHours;
+  const itemCode=g('#im-code'); if(itemCode!==undefined) itemDraft.itemCode=itemCode;
   const qty=g('#im-qty'); if(qty!==undefined) itemDraft.qtyTotal=qty;
   const unit=g('#im-unit'); if(unit!==undefined) itemDraft.unit=unit;
+  const unitPrice=g('#im-unitprice'); if(unitPrice!==undefined) itemDraft.unitPrice=unitPrice;
   const s=g('#im-start'); if(s!==undefined) itemDraft.startDate=s;
   const en=g('#im-end'); if(en!==undefined) itemDraft.endDate=en;
   const as=g('#im-actual-start'); if(as!==undefined) itemDraft.actualStartDate=as;
@@ -4134,8 +4167,10 @@ function itemModalHtml(){
         <div class="field"><label>${tf('จำนวนช่าง (ไม่บังคับ)','Manpower (optional)')}</label><input type="number" min="0" step="1" id="im-manpower" value="${d.manpower}" placeholder="${tf('เช่น 4','e.g. 4')}"></div>
         <div class="field"><label>${tf('ประเภทงาน/ระดับเสียง (ไม่บังคับ)','Work type / noise level (optional)')}</label><select id="im-worktype"><option value="">${tf('-- ไม่ระบุ --','-- not set --')}</option>${WORK_TYPES.map(w=>`<option value="${w.v}" ${d.workType===w.v?'selected':''}>${w.ic} ${escapeHtml(tf(w.th,w.en))}</option>`).join('')}</select></div>
         <div class="field"><label>${tf('ช่วงเวลาที่อนุญาตทำงาน (ไม่บังคับ)','Allowed work hours (optional)')}</label><input type="text" id="im-hours" value="${escapeHtml(d.allowedHours)}" placeholder="${tf('เช่น 09:00–16:00 น. (จ-ศ)','e.g. 09:00–16:00 (Mon-Fri)')}"></div>
+        <div class="field"><label>${tf('รหัสวัสดุ/รายการ (ไม่บังคับ)','Item code (optional)')} <span class="hint">${tf('เพื่อให้ตรงกับระบบจัดซื้อ','to match your purchasing system')}</span></label><input type="text" id="im-code" value="${escapeHtml(d.itemCode)}" placeholder="${tf('เช่น STR-001','e.g. STR-001')}"></div>
         <div class="field"><label>${tf('ปริมาณรวมตามสัญญา','Total contract qty')}</label><input type="number" step="0.01" id="im-qty" value="${d.qtyTotal}"></div>
         <div class="field"><label>${tf('หน่วยวัด','Unit')}</label><input type="text" id="im-unit" value="${escapeHtml(d.unit)}" placeholder="${tf('ตร.ม. / เมตร / จุด','sqm / m / point')}"></div>
+        <div class="field"><label>${tf('ราคาต่อหน่วยตามแผน (BOQ) (ไม่บังคับ)','Planned unit price (BOQ) (optional)')} <span class="hint">${tf('ใช้คำนวณงบประมาณในหน้า “งบประมาณ”','used to compute budget on the “Budget” tab')}</span></label><input type="number" min="0" step="0.01" id="im-unitprice" value="${d.unitPrice}" placeholder="${tf('เช่น 350','e.g. 350')}"></div>
         <div class="field"><label>${tf('แผนงาน วันเริ่มต้น','Planned start date')}</label><input type="date" id="im-start" value="${d.startDate}"></div>
         <div class="field"><label>${tf('แผนงาน วันสิ้นสุด','Planned end date')}</label><input type="date" id="im-end" value="${d.endDate}"></div>
         <div class="field"><label>${tf('แผนจริง วันเริ่มต้น (ไม่บังคับ)','Actual start date (optional)')}</label><input type="date" id="im-actual-start" value="${d.actualStartDate}"></div>
@@ -4171,6 +4206,16 @@ function wireMasterPlan(){
       const todayLine = $('.gantt-today-line');
       if(todayLine) ganttScroll.scrollTo({left: Math.max(0, todayLine.offsetLeft - ganttScroll.clientWidth/2)});
     };
+    // Mirror scrollLeft both ways so the thin bar above the chart (reachable
+    // without scrolling the page past a long BOQ) and the chart's own
+    // bottom scrollbar always agree -- a flag guards against the two onscroll
+    // handlers re-triggering each other in an infinite ping-pong.
+    const topScroll = $('#gantt-topscroll');
+    if(topScroll){
+      let syncing = false;
+      topScroll.onscroll = ()=>{ if(syncing) return; syncing=true; ganttScroll.scrollLeft = topScroll.scrollLeft; syncing=false; };
+      ganttScroll.onscroll = ()=>{ if(syncing) return; syncing=true; topScroll.scrollLeft = ganttScroll.scrollLeft; syncing=false; };
+    }
   }
   $$('[data-toggle-cat]').forEach(row=> row.onclick = ()=>{
     const key = row.dataset.toggleCat;
@@ -4226,6 +4271,10 @@ function wireMasterPlan(){
     P().boq = P().boq.filter(i=>i.id!==delId);
     P().boq.forEach(i=>{ if(i.dependsOn && i.dependsOn.includes(delId)) i.dependsOn = i.dependsOn.filter(pid=>pid!==delId); });
     P().logs.forEach(l=> l.entries = l.entries.filter(e=>e.itemId!==delId));
+    // Unlink (not delete) any material-request lines that pointed at this
+    // item -- their cost history stays on the request, it just stops
+    // rolling up into a Budget-tab row that no longer exists.
+    P().materialRequests.forEach(r=> (r.lines||[]).forEach(l=>{ if(l.taskId===delId) l.taskId=''; }));
     saveData(); render(); toast(tf('ลบรายการแล้ว','Item deleted'));
   });
   const importBtn = $('#btn-import');
@@ -4276,16 +4325,18 @@ function wireItemModal(){
     const d = itemDraft;
     const name=d.name.trim(), category=d.category.trim(), zone=d.zone.trim(), team=d.team.trim(), qty=parseFloat(d.qtyTotal), unit=d.unit.trim();
     const leader=d.leader.trim(), manpower=d.manpower===''?null:parseInt(d.manpower,10), workType=d.workType||'', allowedHours=d.allowedHours.trim();
+    const itemCode=d.itemCode.trim(), unitPrice=d.unitPrice===''?null:parseFloat(d.unitPrice);
     const s=d.startDate, en=d.endDate, actualStartDate=d.actualStartDate, actualEndDate=d.actualEndDate, notes=d.notes.trim();
     if(!name || !qty || qty<=0 || !unit || !s || !en || en<s){ toast(tf('กรอกข้อมูลให้ครบและถูกต้อง','Please fill in all fields correctly')); return; }
     if(actualStartDate && actualEndDate && actualEndDate<actualStartDate){ toast(tf('วันสิ้นสุดจริงต้องไม่ก่อนวันเริ่มต้นจริง','Actual end date cannot be before actual start date')); return; }
+    if(unitPrice!==null && (isNaN(unitPrice) || unitPrice<0)){ toast(tf('ราคาต่อหน่วยตามแผนต้องเป็นตัวเลขที่มากกว่าหรือเท่ากับ 0','Planned unit price must be a number >= 0')); return; }
     const keptExisting = d.existingPhotoIds.filter(id=>!d.removedPhotoIds.includes(id));
     const newIds = [];
     for(const p of d.pendingPhotos){ const id=uid(); await idbPut(id,p.dataUrl); newIds.push(id); }
     const refPhotoIds = keptExisting.concat(newIds);
     const dependsOn = (d.dependsOn||[]).filter(pid=>pid!==editingItemId);
-    if(editingItemId==='new'){ P().boq.push({id:uid(),name,category,zone,team,leader,manpower,workType,allowedHours,qtyTotal:qty,unit,startDate:s,endDate:en,actualStartDate,actualEndDate,notes,refPhotoIds,dependsOn}); }
-    else { const it = P().boq.find(i=>i.id===editingItemId); Object.assign(it,{name,category,zone,team,leader,manpower,workType,allowedHours,qtyTotal:qty,unit,startDate:s,endDate:en,actualStartDate,actualEndDate,notes,refPhotoIds,dependsOn}); }
+    if(editingItemId==='new'){ P().boq.push({id:uid(),name,category,zone,team,leader,manpower,workType,allowedHours,itemCode,qtyTotal:qty,unit,unitPrice,startDate:s,endDate:en,actualStartDate,actualEndDate,notes,refPhotoIds,dependsOn}); }
+    else { const it = P().boq.find(i=>i.id===editingItemId); Object.assign(it,{name,category,zone,team,leader,manpower,workType,allowedHours,itemCode,qtyTotal:qty,unit,unitPrice,startDate:s,endDate:en,actualStartDate,actualEndDate,notes,refPhotoIds,dependsOn}); }
     saveData(); editingItemId=null; itemDraft=null; render(); toast(tf('บันทึกรายการแล้ว','Item saved'));
   };
   refreshItemModalPhotos();
@@ -4806,7 +4857,7 @@ function wireDailyLog(){
 /* ============================= SCREEN: PROCUREMENT ============================= */
 let creatingRequest=false, requestForm=null, procureDetailId=null;
 function newRequestForm(){
-  return { requestedBy:(state.contractor&&state.contractor.nickname)||'', area:'', workType:'', necessityType:'', approverName:'', lines:[{name:'',qty:'',unit:'',neededDate:addDays(todayStr(),2)}], photos:[] };
+  return { requestedBy:(state.contractor&&state.contractor.nickname)||'', area:'', workType:'', necessityType:'', approverName:'', lines:[{name:'',qty:'',unit:'',neededDate:addDays(todayStr(),2),category:'',taskId:''}], photos:[] };
 }
 function necessityLabel(v){ const n=NECESSITY_TYPES.find(x=>x.v===v); return n? n.label : ''; }
 function genReqNo(dateStr){
@@ -4975,13 +5026,26 @@ function reqCardHtml(r){
 }
 function requestModalHtml(){
   const f = requestForm;
+  const boqItems = P().boq;
   const lineRows = f.lines.map((ln,idx)=>`
-    <div class="rq-line-row">
-      <input type="text" placeholder="${tf('ชื่อวัสดุ','material name')}" data-line="name" data-idx="${idx}" value="${escapeHtml(ln.name)}">
-      <input type="number" step="0.01" placeholder="${tf('จำนวน','qty')}" data-line="qty" data-idx="${idx}" value="${ln.qty}">
-      <input type="text" placeholder="${tf('หน่วย','unit')}" data-line="unit" data-idx="${idx}" value="${escapeHtml(ln.unit)}">
-      <input type="date" data-line="neededDate" data-idx="${idx}" value="${ln.neededDate}">
-      <button class="iconbtn" data-rm-line="${idx}">✕</button>
+    <div class="rq-line-card">
+      <div class="rq-line-row">
+        <input type="text" placeholder="${tf('ชื่อวัสดุ','material name')}" data-line="name" data-idx="${idx}" value="${escapeHtml(ln.name)}">
+        <input type="number" step="0.01" placeholder="${tf('จำนวน','qty')}" data-line="qty" data-idx="${idx}" value="${ln.qty}">
+        <input type="text" placeholder="${tf('หน่วย','unit')}" data-line="unit" data-idx="${idx}" value="${escapeHtml(ln.unit)}">
+        <input type="date" data-line="neededDate" data-idx="${idx}" value="${ln.neededDate}">
+        <button class="iconbtn" data-rm-line="${idx}">✕</button>
+      </div>
+      <div class="rq-line-row2">
+        <select data-line="category" data-idx="${idx}">
+          <option value="">${tf('-- หมวดหมู่ค่าใช้จ่าย (ไม่บังคับ) --','-- expense category (optional) --')}</option>
+          ${PROCURE_CATEGORIES.map(c=>`<option value="${c.v}" ${ln.category===c.v?'selected':''}>${escapeHtml(tf(c.th,c.en))}</option>`).join('')}
+        </select>
+        <select data-line="taskId" data-idx="${idx}">
+          <option value="">${tf('-- ผูกกับรายการงาน BOQ (ไม่บังคับ) --','-- link to a BOQ task (optional) --')}</option>
+          ${boqItems.map(it=>`<option value="${it.id}" ${ln.taskId===it.id?'selected':''}>${escapeHtml(it.name)}</option>`).join('')}
+        </select>
+      </div>
     </div>`).join('');
   const photoCards = f.photos.map((p,idx)=> (p.kind==='pdf')?
     `<div class="photo-item"><div class="photo-pdf-icon">📄<span class="photo-pdf-name">${escapeHtml(p.name||'PDF')}</span></div><button class="rm" data-rm-req-photo="${idx}">✕</button></div>`
@@ -5024,7 +5088,7 @@ function wireRequestModal(){
   const bg=$('#req-modal-bg'); if(!bg) return;
   $('#req-modal-close').onclick=()=>{ creatingRequest=false; requestForm=null; render(); };
   bg.addEventListener('click', e=>{ if(e.target===bg){ creatingRequest=false; requestForm=null; render(); } });
-  $('#rq-add-line').onclick=()=>{ requestForm.lines.push({name:'',qty:'',unit:'',neededDate:addDays(todayStr(),2)}); render(); };
+  $('#rq-add-line').onclick=()=>{ requestForm.lines.push({name:'',qty:'',unit:'',neededDate:addDays(todayStr(),2),category:'',taskId:''}); render(); };
   $$('[data-rm-line]').forEach(b=> b.onclick=()=>{ if(requestForm.lines.length>1){ requestForm.lines.splice(Number(b.dataset.rmLine),1); render(); } else toast(tf('ต้องมีอย่างน้อย 1 รายการ','At least one line is required')); });
   $$('[data-line]').forEach(inp=> inp.oninput=()=>{ requestForm.lines[Number(inp.dataset.idx)][inp.dataset.line] = inp.value; });
   const processRequestFiles = async (fileList)=>{
@@ -5071,7 +5135,7 @@ function wireRequestModal(){
     P().materialRequests.push({
       id:uid(), reqNo, createdAt:new Date().toISOString(), requestedBy:by, area, workType:wt,
       necessityType, approverName,
-      lines: lines.map(l=>({name:l.name.trim(),qty:parseFloat(l.qty),unit:l.unit.trim(),neededDate:l.neededDate})),
+      lines: lines.map(l=>({name:l.name.trim(),qty:parseFloat(l.qty),unit:l.unit.trim(),neededDate:l.neededDate,category:l.category||'',taskId:l.taskId||''})),
       photoIds, photoMeta, status:'pending', approval:null, procurement:null,
       trashed:false
     });
@@ -5081,7 +5145,12 @@ function wireRequestModal(){
 function detailModalHtml(){
   const r = P().materialRequests.find(x=>x.id===procureDetailId);
   if(!r) return '';
-  const lines = r.lines.map(l=>`<tr><td>${escapeHtml(l.name)}</td><td class="tabular">${fmtNum(l.qty,2)} ${escapeHtml(l.unit)}</td><td class="tabular">${fmtDate(l.neededDate)}</td></tr>`).join('');
+  const hasAnyActualCost = r.lines.some(l=> l.actualUnitCost!=null);
+  const lines = r.lines.map(l=>{
+    const task = l.taskId? P().boq.find(i=>i.id===l.taskId) : null;
+    const actualCell = hasAnyActualCost? `<td class="tabular">${l.actualUnitCost!=null? fmtNum(l.actualQty!=null?l.actualQty:l.qty,2)+' × '+fmtCurrency(l.actualUnitCost)+' = '+fmtCurrency((l.actualQty!=null?l.actualQty:l.qty)*l.actualUnitCost) : '-'}</td>` : '';
+    return `<tr><td>${escapeHtml(l.name)}${l.category? `<div class="hint">${escapeHtml(procureCategoryLabel(l.category))}</div>`:''}${task? `<div class="hint">🔗 ${escapeHtml(task.name)}</div>`:''}</td><td class="tabular">${fmtNum(l.qty,2)} ${escapeHtml(l.unit)}</td><td class="tabular">${fmtDate(l.neededDate)}</td>${actualCell}</tr>`;
+  }).join('');
   // Note: r.approval / r.procurement can be missing even when r.status is
   // 'approved'/'rejected'/'scheduled' if the status was set via the manual
   // procurement status-override control below -- every access here is
@@ -5110,7 +5179,16 @@ function detailModalHtml(){
       <div class="field" style="margin-top:14px"><label>${tf('เหตุผล (จำเป็นเมื่อกดปฏิเสธ)','Reason (required to reject)')}</label><input type="text" id="dt-reason" placeholder="${tf('เช่น อนุมัติด่วนที่สุด / ปฏิเสธเนื่องจากสั่งซ้ำ','e.g. approved, urgent / rejected -- duplicate order')}"></div>
       <div class="action-row"><button class="btn approve" id="dt-approve">✅ ${tf('อนุมัติ (Approve)','Approve')}</button><button class="btn reject" id="dt-reject">🚫 ${tf('ปฏิเสธ (Reject)','Reject')}</button></div>`;
   } else if(r.status==='approved' && state.role==='procurement'){
+    const costRows = r.lines.map((l,idx)=>`<tr>
+        <td>${escapeHtml(l.name)}<div class="hint">${fmtNum(l.qty,2)} ${escapeHtml(l.unit)}</div></td>
+        <td style="width:110px"><input type="number" step="0.01" min="0" class="tabular" data-cost-line="${idx}" data-cost-field="actualQty" value="${l.qty}"></td>
+        <td style="width:130px"><input type="number" step="0.01" min="0" class="tabular" data-cost-line="${idx}" data-cost-field="actualUnitCost" placeholder="${tf('ราคา/หน่วย','unit cost')}"></td>
+      </tr>`).join('');
     actions = `<div class="grid cols-2" style="margin-top:14px"><div class="field"><label>${tf('วันที่ของถึงหน้างานจริง','Actual delivery date')}</label><input type="date" id="dt-delivery" value="${addDays(todayStr(),2)}"></div><div class="field"><label>${tf('หมายเหตุ (ไม่บังคับ)','Note (optional)')}</label><input type="text" id="dt-note" placeholder="${tf('เช่น ช่วงบ่าย','e.g. afternoon')}"></div></div>
+      <div class="grid cols-2" style="margin-top:12px"><div class="field"><label>${tf('ผู้ขาย/ผู้รับเหมา (ไม่บังคับ)','Supplier / vendor (optional)')}</label><input type="text" id="dt-vendor" placeholder="${tf('เช่น ร้านวัสดุ ABC','e.g. ABC Hardware')}"></div><div class="field"><label>${tf('เลขที่ใบสั่งซื้อ (ไม่บังคับ)','PO number (optional)')}</label><input type="text" id="dt-po" placeholder="${tf('เช่น PO-2026-0088','e.g. PO-2026-0088')}"></div></div>
+      <div class="field" style="margin-top:12px"><label>${tf('ราคาซื้อจริงต่อรายการ (ไม่บังคับ — กรอกเพื่อคำนวณต้นทุนจริงในหน้า “งบประมาณ”)','Actual purchase cost per line (optional — fills the “Budget” tab’s actual cost)')}</label>
+        <div class="table-wrap" style="margin-top:6px"><table><thead><tr><th>${tf('วัสดุ','Material')}</th><th>${tf('จำนวนที่ซื้อจริง','Actual qty')}</th><th>${tf('ราคา/หน่วยจริง','Actual unit cost')}</th></tr></thead><tbody>${costRows}</tbody></table></div>
+      </div>
       <div class="action-row"><button class="btn schedule" id="dt-schedule">🚚 ${tf('ยืนยันวันจัดส่ง','Confirm delivery date')}</button></div>`;
   } else if(r.status==='pending'){
     actions = `<div class="role-note" style="margin-top:14px">${tf('รอ PM / ผู้บริหารตรวจสอบและอนุมัติ (สลับมุมมองเป็น “PM” เพื่อทดสอบขั้นตอนนี้)','Waiting for the PM / owner to review and approve (switch view to “PM” to try this step)')}</div>`;
@@ -5137,7 +5215,7 @@ function detailModalHtml(){
       <div class="field"><label class="hint">${tf('ผู้อนุมัติที่ระบุ','Named approver')}</label><b>${escapeHtml(r.approverName||'-')}</b></div>
       <div class="field" style="grid-column:1/-1"><label class="hint">${tf('พื้นที่ที่ต้องใช้ของ','Area needed')}</label><b>${escapeHtml(r.area||'-')}</b></div>
     </div>
-    <div class="table-wrap" style="margin-top:12px"><table><thead><tr><th>${tf('วัสดุ','Material')}</th><th>${tf('จำนวน','Qty')}</th><th>${tf('วันที่ต้องใช้','Needed by')}</th></tr></thead><tbody>${lines}</tbody></table></div>
+    <div class="table-wrap" style="margin-top:12px"><table><thead><tr><th>${tf('วัสดุ','Material')}</th><th>${tf('จำนวน','Qty')}</th><th>${tf('วันที่ต้องใช้','Needed by')}</th>${hasAnyActualCost? `<th>${tf('ต้นทุนจริง','Actual cost')}</th>`:''}</tr></thead><tbody>${lines}</tbody></table></div>
     <div style="margin-top:14px"><b style="font-family:var(--font-display);font-size:13px">${tf('ไทม์ไลน์','Timeline')}</b><div class="timeline">${timeline}</div></div>
     ${actions}
   </div></div>`;
@@ -5176,7 +5254,31 @@ function wireDetailModal(){
   if(schedBtn) schedBtn.onclick=()=>{
     const dd=$('#dt-delivery').value; if(!dd){ toast(tf('กรุณาเลือกวันที่จัดส่ง','Please choose a delivery date')); return; }
     const r = P().materialRequests.find(x=>x.id===procureDetailId);
-    r.status='scheduled'; r.procurement={by:currentActorName(), at:new Date().toISOString(), deliveryDate:dd, note:$('#dt-note').value.trim()};
+    const vendorEl=$('#dt-vendor'), poEl=$('#dt-po');
+    r.status='scheduled';
+    r.procurement={by:currentActorName(), at:new Date().toISOString(), deliveryDate:dd, note:$('#dt-note').value.trim(), vendor:(vendorEl?vendorEl.value.trim():''), poNumber:(poEl?poEl.value.trim():'')};
+    // Actual purchase cost is optional per line -- only lines where the user
+    // typed a unit cost get actualQty/actualUnitCost recorded, since those two
+    // fields together are what the Budget tab treats as "this line was priced".
+    $$('[data-cost-line]').forEach(inp=>{
+      const idx = Number(inp.dataset.costLine);
+      const line = r.lines[idx]; if(!line) return;
+      if(inp.dataset.costField==='actualQty') line._actualQtyInput = inp.value;
+      else line._actualUnitCostInput = inp.value;
+    });
+    r.lines.forEach(line=>{
+      const rawCost = line._actualUnitCostInput;
+      if(rawCost!==undefined && rawCost!==''){
+        const uc = parseFloat(rawCost);
+        if(!isNaN(uc) && uc>=0){
+          const rawQty = line._actualQtyInput;
+          const q = (rawQty!==undefined && rawQty!=='')? parseFloat(rawQty) : line.qty;
+          line.actualQty = (!isNaN(q) && q>=0)? q : line.qty;
+          line.actualUnitCost = uc;
+        }
+      }
+      delete line._actualQtyInput; delete line._actualUnitCostInput;
+    });
     saveData(); procureDetailId=null; toast(tf('ยืนยันวันจัดส่งแล้ว','Delivery date confirmed')); render();
   };
   const statusApplyBtn=$('#dt-status-apply');
@@ -5257,6 +5359,119 @@ function wireProcure(){
     r.status='rejected'; r.approval={by:currentActorName(), at:new Date().toISOString(), reason:reason.trim()};
     saveData(); toast(tf('ปฏิเสธใบสั่งของแล้ว','Request rejected')); render();
   });
+}
+
+/* ============================= SCREEN: BUDGET (BOQ vs. Actual) ============================= */
+// Rolls up actual purchase cost from material-request lines against each BOQ
+// item's planned budget (qtyTotal x unitPrice). A request line only counts
+// toward a specific BOQ item's actual cost once it is BOTH linked to that
+// item (line.taskId, set when the request was created) AND priced
+// (line.actualUnitCost, entered by procurement at delivery confirmation) --
+// see requestModalHtml() and the #dt-schedule handler in wireDetailModal().
+// Unlinked/unpriced lines still count toward the project-wide "total actual
+// cost" KPI (real money spent) but can't be attributed to one line item.
+function boqActualsMap(){
+  const map = {}; // taskId -> {qty, cost, refs:[{reqNo,poNumber,vendor,purchaseDate}]}
+  P().materialRequests.filter(r=>!r.trashed).forEach(r=>{
+    (r.lines||[]).forEach(l=>{
+      if(!l.taskId || l.actualUnitCost==null) return;
+      const qty = (l.actualQty!=null? l.actualQty : l.qty) || 0;
+      const cost = qty * l.actualUnitCost;
+      if(!map[l.taskId]) map[l.taskId] = {qty:0, cost:0, refs:[]};
+      map[l.taskId].qty += qty;
+      map[l.taskId].cost += cost;
+      map[l.taskId].refs.push({reqNo:r.reqNo, poNumber:(r.procurement&&r.procurement.poNumber)||'', vendor:(r.procurement&&r.procurement.vendor)||'', purchaseDate:(r.procurement&&r.procurement.deliveryDate)||''});
+    });
+  });
+  return map;
+}
+// Total actual spend across every priced line, linked or not -- this is the
+// "real money spent" KPI, independent of whether it can be matched to a BOQ
+// line item.
+function projectActualCostTotal(){
+  let total=0;
+  P().materialRequests.filter(r=>!r.trashed).forEach(r=> (r.lines||[]).forEach(l=>{
+    if(l.actualUnitCost==null) return;
+    const qty = (l.actualQty!=null? l.actualQty : l.qty) || 0;
+    total += qty*l.actualUnitCost;
+  }));
+  return total;
+}
+function renderBudget(){
+  const proj = P();
+  if(!proj.boq.length){
+    return `<div class="page-head"><div><h2>${tf('งบประมาณ (BOQ เทียบต้นทุนจริง)','Budget (BOQ vs. Actual)')}</h2></div></div><div class="empty"><span class="ic">💰</span>${tf('เพิ่มรายการงานในแผนงานหลักก่อน เพื่อเริ่มติดตามงบประมาณ','Add work items in the Master Plan first to start tracking budget')}</div>`;
+  }
+  const actuals = boqActualsMap();
+  const groups = boqCategoryGroups(proj.boq);
+  let totalBoqBudget=0, no=0;
+  const rows = groups.map(g=>{
+    const label = g.cat? escapeHtml(g.cat) : tf('ไม่ระบุหมวดหมู่','Uncategorized');
+    const catHeader = `<tr class="budget-cat-row"><td colspan="15">📁 ${label}</td></tr>`;
+    const itemRows = g.items.map(item=>{
+      no++;
+      const boqQty = item.qtyTotal;
+      const boqUnitPrice = item.unitPrice;
+      const boqTotal = boqUnitPrice!=null? boqQty*boqUnitPrice : null;
+      if(boqTotal!=null) totalBoqBudget += boqTotal;
+      const a = actuals[item.id];
+      const actualQty = a? a.qty : 0;
+      const actualTotal = a? a.cost : 0;
+      const actualUnitPrice = (a && actualQty>0)? actualTotal/actualQty : null;
+      const priceVariance = (boqUnitPrice!=null && actualUnitPrice!=null)? (boqUnitPrice-actualUnitPrice)*actualQty : null;
+      const qtyVariance = (boqUnitPrice!=null)? (boqQty-actualQty)*boqUnitPrice : null;
+      const totalVariance = (boqTotal!=null)? boqTotal-actualTotal : null;
+      let statusLabel, statusClass;
+      if(boqUnitPrice==null){ statusLabel=tf('ยังไม่ตั้งราคา','No price set'); statusClass='idle'; }
+      else if(!a){ statusLabel=tf('ยังไม่มีค่าใช้จ่าย','No spend yet'); statusClass='ok'; }
+      else if(totalVariance>=0){ statusLabel=tf('ปกติ','On budget'); statusClass='ok'; }
+      else { statusLabel=tf('เกินงบ','Over budget'); statusClass='bad'; }
+      const refs = a? a.refs : [];
+      const refSummary = refs.length? refs.map(r=> [r.poNumber,r.vendor].filter(Boolean).join(' · ') || r.reqNo).join(', ') : '-';
+      return `<tr data-edit-item="${item.id}" style="cursor:pointer">
+        <td class="tabular">${no}</td>
+        <td>${escapeHtml(item.itemCode||'-')}</td>
+        <td>${escapeHtml(item.name)}</td>
+        <td>${escapeHtml(item.unit)}</td>
+        <td class="tabular">${fmtNum(boqQty,2)}</td>
+        <td class="tabular">${boqUnitPrice!=null? fmtCurrency(boqUnitPrice):'-'}</td>
+        <td class="tabular">${boqTotal!=null? fmtCurrency(boqTotal):'-'}</td>
+        <td class="tabular">${a? fmtNum(actualQty,2):'-'}</td>
+        <td class="tabular">${actualUnitPrice!=null? fmtCurrency(actualUnitPrice):'-'}</td>
+        <td class="tabular">${a? fmtCurrency(actualTotal):'-'}</td>
+        <td class="tabular" style="color:${priceVariance!=null&&priceVariance<0?'var(--coral-600)':'inherit'}">${priceVariance!=null? fmtCurrency(priceVariance):'-'}</td>
+        <td class="tabular" style="color:${qtyVariance!=null&&qtyVariance<0?'var(--coral-600)':'inherit'}">${qtyVariance!=null? fmtCurrency(qtyVariance):'-'}</td>
+        <td class="tabular" style="color:${totalVariance!=null&&totalVariance<0?'var(--coral-600)':'inherit'}">${totalVariance!=null? fmtCurrency(totalVariance):'-'}</td>
+        <td><span class="badge ${statusClass}">${statusLabel}</span></td>
+        <td class="hint" style="white-space:normal;max-width:200px" title="${escapeHtml(refSummary)}">${escapeHtml(refSummary)}</td>
+      </tr>`;
+    }).join('');
+    return catHeader + itemRows;
+  }).join('');
+  const totalActualAll = projectActualCostTotal();
+  const remaining = totalBoqBudget - totalActualAll;
+  return `
+  <div class="page-head">
+    <div><h2>${tf('งบประมาณ (BOQ เทียบต้นทุนจริง)','Budget (BOQ vs. Actual)')}</h2><div class="sub">${tf('เปรียบเทียบงบประมาณตามแผน (BOQ) กับต้นทุนจ่ายจริงที่ยืนยันจากขั้นตอนจัดซื้อ · แตะแถวเพื่อตั้งราคาต่อหน่วยตามแผน','Compares the planned BOQ budget against actual costs confirmed during procurement -- tap a row to set its planned unit price')}</div></div>
+  </div>
+  <div class="grid cols-auto" style="margin-bottom:16px">
+    <div class="card kpi"><div class="stat"><span class="lbl">💰 ${tf('งบประมาณตั้งต้นรวม','Total BOQ budget')}</span><span class="num tabular" style="font-size:19px">${fmtCurrency(totalBoqBudget)}</span></div></div>
+    <div class="card kpi"><div class="stat"><span class="lbl">💸 ${tf('ต้นทุนจ่ายจริงรวม','Total actual cost')}</span><span class="num tabular" style="font-size:19px">${fmtCurrency(totalActualAll)}</span></div></div>
+    <div class="card kpi"><div class="stat"><span class="lbl">${remaining>=0?'✅':'🔴'} ${tf('คงเหลืองบประมาณสุทธิ','Remaining budget')}</span><span class="num tabular" style="font-size:19px;color:${remaining>=0?'var(--mint-600)':'var(--coral-600)'}">${fmtCurrency(remaining)}</span></div></div>
+  </div>
+  <div class="table-wrap"><table class="budget-table"><thead><tr>
+    <th>${tf('No.','No.')}</th><th>${tf('รหัส','Code')}</th><th>${tf('รายการ','Description')}</th><th>${tf('หน่วย','Unit')}</th>
+    <th>${tf('ปริมาณ BOQ','BOQ Qty')}</th><th>${tf('ราคา/หน่วย BOQ','BOQ Unit Price')}</th><th>${tf('รวม BOQ','BOQ Total')}</th>
+    <th>${tf('ปริมาณจริง','Actual Qty')}</th><th>${tf('ราคา/หน่วยจริง','Actual Unit Price')}</th><th>${tf('รวมจริง','Actual Total')}</th>
+    <th>${tf('ผลต่างราคา','Price Variance')}</th><th>${tf('ผลต่างปริมาณ','Qty Variance')}</th><th>${tf('ผลต่างรวม','Total Variance')}</th><th>${tf('สถานะ','Status')}</th><th>${tf('อ้างอิง (PO/ผู้ขาย)','Reference (PO/Vendor)')}</th>
+  </tr></thead><tbody>${rows}</tbody></table></div>
+  `;
+}
+function wireBudget(){
+  // Reuse the Master Plan item editor -- tapping a budget row opens the same
+  // edit form (which now carries the itemCode/unitPrice fields) so setting a
+  // planned price and reviewing the schedule stay in one place.
+  $$('[data-edit-item]').forEach(row=> row.onclick = ()=>{ openItemDraft(row.dataset.editItem); render(); });
 }
 
 /* ============================= SCREEN: DASHBOARD ============================= */
@@ -5574,6 +5789,7 @@ function wireScreen(){
   if(state.tab==='masterplan') wireMasterPlan();
   else if(state.tab==='dailylog') wireDailyLog();
   else if(state.tab==='procure') wireProcure();
+  else if(state.tab==='budget') wireBudget();
   else if(state.tab==='report') wireReport();
 }
 
