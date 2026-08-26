@@ -3373,6 +3373,31 @@ function bootstrap(){
     state.projects.push(richmondProject());
     saveData();
   }
+  // price backfill: BOQ items for the Richmond project were originally
+  // seeded before itemCode/unitPrice existed as fields, so installs with
+  // data saved before those fields shipped are missing them on every item.
+  // Backfill both from the reference contract BOQ, matched by item id --
+  // but only into items that don't already have a price, so this never
+  // clobbers a price the user has since entered or edited by hand. Cheap
+  // and safe to re-run on every load (no-ops once every item is filled).
+  {
+    const rc = state.projects.find(p=>p.id==='richmond-2602');
+    if(rc){
+      const ref = richmondProject();
+      const refMap = {};
+      ref.boq.forEach(it=>{ refMap[it.id]=it; });
+      let changed=false;
+      (rc.boq||[]).forEach(it=>{
+        const r = refMap[it.id];
+        if(r && (it.unitPrice==null || it.unitPrice==='') && !it.itemCode){
+          it.itemCode = r.itemCode;
+          it.unitPrice = r.unitPrice;
+          changed=true;
+        }
+      });
+      if(changed) saveData();
+    }
+  }
   // one-time branding update: replace the placeholder demo company profile
   // with the client's real company info + logo (Trio-C Solution Co., Ltd.).
   // Guarded by a marker flag so it only runs once and never overwrites a
