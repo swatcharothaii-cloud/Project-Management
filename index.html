@@ -292,21 +292,33 @@ tbody tr:hover{background:var(--surface-2)}
 .mp-view-toggle button.active{background:var(--surface);color:var(--purple-700);box-shadow:var(--shadow-sm)}
 
 /* ---------- Master Plan: Gantt chart ---------- */
+.gantt-toolbar{display:flex;align-items:center;gap:8px;margin-bottom:10px}
+.gantt-toolbar .hint{font-size:11.5px;color:var(--ink-300)}
+.gantt-scroll-btn{width:30px;height:30px;border-radius:50%;border:1px solid var(--line);background:var(--surface);color:var(--ink-700);font-size:13px;display:flex;align-items:center;justify-content:center;cursor:pointer}
+.gantt-scroll-btn:hover{background:var(--surface-2)}
 .gantt-outer{overflow-x:auto;overflow-y:hidden;border:1px solid var(--line);border-radius:var(--radius-sm);margin-bottom:16px;background:var(--surface)}
 .gantt-inner{position:relative}
+.gantt-deps-svg{position:absolute;top:0;left:0;pointer-events:none;overflow:visible}
 .gantt-row{display:flex}
-.gantt-label-col{position:sticky;left:0;z-index:2;background:var(--surface);border-right:1px solid var(--line);padding:6px 10px;font-size:12px;display:flex;flex-direction:column;justify-content:center;flex-shrink:0;box-sizing:border-box;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.gantt-cat-label{background:var(--surface-2);font-family:var(--font-display);font-weight:600;color:var(--ink-700);font-size:12.5px}
+.gantt-label-col{position:sticky;left:0;z-index:2;background:var(--surface);border-right:1px solid var(--line);padding:0 10px;font-size:12px;display:flex;flex-direction:column;justify-content:center;flex-shrink:0;box-sizing:border-box;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.gantt-label-col.item-cols{display:grid;grid-template-columns:1fr 52px 52px 34px 78px 40px;column-gap:6px;align-items:center}
+.gantt-label-col.item-cols>div{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:10.5px;color:var(--ink-500)}
+.gantt-label-col.item-cols .gl-task{font-size:12px;color:var(--ink-900);display:flex;align-items:center;gap:4px}
+.gantt-label-col.item-cols .gl-num{font-family:var(--font-mono);text-align:center}
+.gantt-header-row .gantt-label-col{display:grid;grid-template-columns:1fr 52px 52px 34px 78px 40px;column-gap:6px;align-items:center;font-size:10px;font-weight:700;color:var(--ink-500);text-transform:uppercase;letter-spacing:.02em}
+.gantt-header-row .gantt-label-col>div{text-align:center;white-space:nowrap;overflow:hidden}
+.gantt-header-row .gantt-label-col>div:first-child{text-align:left}
+.gantt-cat-label{background:var(--surface-2);font-family:var(--font-display);font-weight:600;color:var(--ink-700);font-size:12.5px;padding:0 10px}
 .gantt-timeline-col{position:relative;flex-shrink:0;box-sizing:border-box}
 .gantt-row:not(.gantt-header-row):not(.gantt-cat-row) .gantt-timeline-col{height:34px;border-bottom:1px solid var(--line-soft)}
 .gantt-row:not(.gantt-header-row):not(.gantt-cat-row) .gantt-label-col{height:34px;border-bottom:1px solid var(--line-soft)}
 .gantt-cat-row .gantt-timeline-col,.gantt-cat-row .gantt-label-col{height:28px;background:var(--surface-2)}
-.gantt-header-row .gantt-timeline-col{height:auto}
-.gantt-header-row .gantt-label-col{border-bottom:1px solid var(--line)}
-.gantt-months{display:flex}
-.gantt-month-band{flex-shrink:0;font-size:11px;font-weight:600;color:var(--ink-500);text-align:center;padding:4px 0;border-right:1px solid var(--line);border-bottom:1px solid var(--line);white-space:nowrap;overflow:hidden;box-sizing:border-box}
-.gantt-days{display:flex}
-.gantt-daycell{flex-shrink:0;font-size:9.5px;color:var(--ink-300);text-align:center;padding:2px 0;border-right:1px solid var(--line-soft);box-sizing:border-box}
+.gantt-header-row .gantt-timeline-col{height:42px}
+.gantt-header-row .gantt-label-col{height:42px;border-bottom:1px solid var(--line)}
+.gantt-months{display:flex;height:22px;box-sizing:border-box}
+.gantt-month-band{flex-shrink:0;font-size:11px;font-weight:600;color:var(--ink-500);text-align:center;display:flex;align-items:center;justify-content:center;border-right:1px solid var(--line);border-bottom:1px solid var(--line);white-space:nowrap;overflow:hidden;box-sizing:border-box}
+.gantt-days{display:flex;height:20px;box-sizing:border-box}
+.gantt-daycell{flex-shrink:0;font-size:9.5px;color:var(--ink-300);text-align:center;display:flex;align-items:center;justify-content:center;border-right:1px solid var(--line-soft);box-sizing:border-box}
 .gantt-daycell.weekend{background:var(--surface-2)}
 .gantt-bar{position:absolute;top:5px;height:24px;border-radius:6px;overflow:hidden;cursor:pointer;box-shadow:var(--shadow-sm);display:flex;align-items:center}
 .gantt-bar.on-track{background:var(--blue-500)}
@@ -3815,6 +3827,12 @@ function fmtMonthYear(dateStr){
   const d = parseYMD(dateStr);
   return state.lang==='en' ? (ENMONTHS[d.getMonth()]+' '+d.getFullYear()) : (THMONTHS[d.getMonth()]+' '+(d.getFullYear()+543));
 }
+// Compact day/month numeric date for the narrow Gantt table columns -- e.g.
+// "26/8" -- deliberately plain-numeric (no month name/year) so it fits.
+function fmtDateShort(dateStr){
+  const d = parseYMD(dateStr);
+  return d.getDate()+'/'+(d.getMonth()+1);
+}
 function ganttDayWidth(totalDays){
   if(totalDays<=21) return 36;
   if(totalDays<=45) return 26;
@@ -3822,14 +3840,30 @@ function ganttDayWidth(totalDays){
   if(totalDays<=180) return 10;
   return 6;
 }
+const GANTT_HEADER_H = 42, GANTT_CAT_ROW_H = 28, GANTT_ITEM_ROW_H = 34;
+// Draws an orthogonal "elbow" connector from a predecessor bar's right edge
+// to a successor bar's left edge (classic finish-to-start Gantt dependency
+// line), routed via a short horizontal stub so it reads clearly even when
+// the two rows are far apart vertically or the successor sits to the left
+// of the predecessor (out-of-order dates -- still drawn, just crosses back).
+function ganttElbowPath(x1,y1,x2,y2){
+  const stub = 10;
+  const midX = x1+stub;
+  if(Math.abs(y1-y2)<1) return `M ${x1} ${y1} L ${x2} ${y2}`;
+  const kneeX = Math.max(midX, x2-stub);
+  return `M ${x1} ${y1} L ${kneeX} ${y1} L ${kneeX} ${y2} L ${x2} ${y2}`;
+}
 // Renders the whole Master Plan & BOQ timeline as a horizontally-scrollable
-// Gantt chart: a sticky item-name column plus a day-scaled timeline with
-// month/day header bands, one bar per dated BOQ item (colored by the same
-// schedule-status used in the table view), a translucent progress-fill
-// overlay, and a "today" marker line. Items without both dates are skipped
-// since they have no span to draw; category grouping mirrors the table view
-// but always shows every item (ignores the table's collapse/expand state,
-// since a timeline is most useful seen in full).
+// Gantt chart: a sticky multi-column task table (name/start/end/duration/
+// assignee/progress) on the left, a day-scaled timeline with month/day
+// header bands on the right, one bar per dated BOQ item (colored by the
+// same schedule-status used in the table view) with a translucent
+// progress-fill overlay, a "today" marker line, and finish-to-start
+// dependency connector arrows drawn from an item's predecessor(s) (set via
+// the "Predecessor tasks" field in the item editor). Items without both
+// dates are skipped since they have no span to draw; category grouping
+// mirrors the table view but always shows every item (ignores the table's
+// collapse/expand state, since a timeline is most useful seen in full).
 function ganttChartHtml(groups){
   const datedGroups = groups.map(g=> ({...g, items:g.items.filter(i=>i.startDate && i.endDate)})).filter(g=>g.items.length);
   const allItems = datedGroups.flatMap(g=>g.items);
@@ -3843,7 +3877,7 @@ function ganttChartHtml(groups){
   const totalDays = daysBetween(minDate,maxDate)+1;
   const dayW = ganttDayWidth(totalDays);
   const totalW = totalDays*dayW;
-  const labelW = 220;
+  const labelW = 460;
   const today = todayStr();
   const showTodayLine = today>=minDate && today<=maxDate;
   const todayOffset = daysBetween(minDate,today)*dayW;
@@ -3869,22 +3903,39 @@ function ganttChartHtml(groups){
     dayTicks += `<div class="gantt-daycell${isWeekend?' weekend':''}" style="width:${dayW}px">${showLabel? `<span>${d.getDate()}</span>` : ''}</div>`;
   }
 
+  // Build rows top-to-bottom while tracking each item's vertical center in
+  // px, so the dependency-arrow SVG overlay (built afterward) can connect
+  // exact row positions regardless of how many category groups precede them.
+  let y = GANTT_HEADER_H;
+  const itemCenterY = {};
   const rowsHtml = datedGroups.map(g=>{
     const label = g.cat? escapeHtml(g.cat) : tf('ไม่ระบุหมวดหมู่','Uncategorized');
     const catHeader = `<div class="gantt-row gantt-cat-row">
       <div class="gantt-label-col gantt-cat-label" style="width:${labelW}px">📁 ${label}</div>
       <div class="gantt-timeline-col" style="width:${totalW}px"></div>
     </div>`;
+    y += GANTT_CAT_ROW_H;
     const itemRows = g.items.map(item=>{
       const status = itemScheduleStatus(item);
       const statusLabel = tf(SCHEDULE_STATUS_LABEL[status][0], SCHEDULE_STATUS_LABEL[status][1]);
       const progress = (item.progress==null || item.progress==='')? 0 : Number(item.progress);
+      const days = daysBetween(item.startDate,item.endDate)+1;
+      const assignee = item.leader || item.team || '-';
       const offset = daysBetween(minDate,item.startDate)*dayW;
       const width = Math.max((daysBetween(item.startDate,item.endDate)+1)*dayW, 10);
       const showInside = width>=90;
       const title = `${item.name} · ${fmtDate(item.startDate)} - ${fmtDate(item.endDate)} · ${statusLabel} · ${progress}%`;
+      itemCenterY[item.id] = y + GANTT_ITEM_ROW_H/2;
+      y += GANTT_ITEM_ROW_H;
       return `<div class="gantt-row">
-        <div class="gantt-label-col" style="width:${labelW}px"><span class="mp-status-dot ${status}"></span>${escapeHtml(item.name)}<span class="mp-sub">${progress}%${item.zone? ' · '+escapeHtml(item.zone):''}</span></div>
+        <div class="gantt-label-col item-cols" style="width:${labelW}px" data-edit-item="${item.id}" title="${escapeHtml(title)}">
+          <div class="gl-task"><span class="mp-status-dot ${status}"></span>${escapeHtml(item.name)}</div>
+          <div class="gl-num">${fmtDateShort(item.startDate)}</div>
+          <div class="gl-num">${fmtDateShort(item.endDate)}</div>
+          <div class="gl-num">${days}${tf('ว','d')}</div>
+          <div>${escapeHtml(assignee)}</div>
+          <div class="gl-num">${progress}%</div>
+        </div>
         <div class="gantt-timeline-col" style="width:${totalW}px">
           <div class="gantt-bar ${status}" style="left:${offset}px;width:${width}px" data-edit-item="${item.id}" title="${escapeHtml(title)}">
             <div class="gantt-bar-fill" style="width:${clamp(progress,0,100)}%"></div>
@@ -3896,13 +3947,50 @@ function ganttChartHtml(groups){
     }).join('');
     return catHeader + itemRows;
   }).join('');
+  const contentH = y;
+
+  const edges=[];
+  allItems.forEach(item=>{
+    (item.dependsOn||[]).forEach(predId=>{
+      if(predId===item.id) return;
+      const pred = allItems.find(i=>i.id===predId);
+      if(!pred || itemCenterY[predId]==null || itemCenterY[item.id]==null) return;
+      const predOffset = daysBetween(minDate,pred.startDate)*dayW;
+      const predWidth = Math.max((daysBetween(pred.startDate,pred.endDate)+1)*dayW,10);
+      const succOffset = daysBetween(minDate,item.startDate)*dayW;
+      edges.push({x1:labelW+predOffset+predWidth, y1:itemCenterY[predId], x2:labelW+succOffset, y2:itemCenterY[item.id]});
+    });
+  });
+  const depsSvg = edges.length? `
+  <svg class="gantt-deps-svg" width="${labelW+totalW}" height="${contentH}">
+    <defs>
+      <marker id="gantt-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+        <path d="M0,0 L10,5 L0,10 z" style="fill:var(--ink-300)"></path>
+      </marker>
+    </defs>
+    ${edges.map(e=>`<path d="${ganttElbowPath(e.x1,e.y1,e.x2,e.y2)}" style="fill:none;stroke:var(--ink-300);stroke-width:1.5" marker-end="url(#gantt-arrow)"></path>`).join('')}
+  </svg>` : '';
 
   return `
-  <div class="gantt-outer">
+  <div class="gantt-toolbar">
+    <button class="gantt-scroll-btn" id="gantt-scroll-left" title="${tf('เลื่อนซ้าย','Scroll left')}">◀</button>
+    <button class="gantt-scroll-btn" id="gantt-scroll-right" title="${tf('เลื่อนขวา','Scroll right')}">▶</button>
+    <button class="btn ghost sm" id="gantt-scroll-today">📍 ${tf('วันนี้','Today')}</button>
+    <span class="hint">${tf('เลื่อนแนวนอนเพื่อดูวันที่/เดือนอื่น','Scroll horizontally to see other dates/months')}</span>
+  </div>
+  <div class="gantt-outer" id="gantt-scroll-container">
     <div class="gantt-inner" style="width:${labelW+totalW}px">
+      ${depsSvg}
       ${showTodayLine? `<div class="gantt-today-line" style="left:${labelW+todayOffset}px" title="${tf('วันนี้','Today')}"></div>` : ''}
       <div class="gantt-row gantt-header-row">
-        <div class="gantt-label-col" style="width:${labelW}px"></div>
+        <div class="gantt-label-col" style="width:${labelW}px">
+          <div>${tf('รายการงาน','Task')}</div>
+          <div>${tf('เริ่ม','Start')}</div>
+          <div>${tf('สิ้นสุด','End')}</div>
+          <div>${tf('วัน','Dur')}</div>
+          <div>${tf('ผู้รับผิดชอบ','Assignee')}</div>
+          <div>%</div>
+        </div>
         <div class="gantt-timeline-col" style="width:${totalW}px">
           <div class="gantt-months">${months.map(m=>`<div class="gantt-month-band" style="width:${m.width}px">${m.label}</div>`).join('')}</div>
           <div class="gantt-days">${dayTicks}</div>
@@ -3995,10 +4083,10 @@ let editingItemId=null;
 let itemDraft=null; // {name,category,zone,team,qtyTotal,unit,startDate,endDate,actualStartDate,actualEndDate,notes,existingPhotoIds,pendingPhotos,removedPhotoIds} -- persists across re-renders (e.g. photo add/remove) so in-progress typing is never lost
 function openItemDraft(id){
   if(id==='new'){
-    itemDraft = {name:'',category:'',zone:'',team:'',leader:'',manpower:'',workType:'',allowedHours:'',qtyTotal:'',unit:tf('ตร.ม.','sqm'),startDate:todayStr(),endDate:addDays(todayStr(),3),actualStartDate:'',actualEndDate:'',notes:'',existingPhotoIds:[],pendingPhotos:[],removedPhotoIds:[]};
+    itemDraft = {name:'',category:'',zone:'',team:'',leader:'',manpower:'',workType:'',allowedHours:'',qtyTotal:'',unit:tf('ตร.ม.','sqm'),startDate:todayStr(),endDate:addDays(todayStr(),3),actualStartDate:'',actualEndDate:'',notes:'',existingPhotoIds:[],pendingPhotos:[],removedPhotoIds:[],dependsOn:[]};
   } else {
     const it = P().boq.find(i=>i.id===id);
-    itemDraft = {name:it.name,category:it.category||'',zone:it.zone||'',team:it.team||'',leader:it.leader||'',manpower:it.manpower==null?'':it.manpower,workType:it.workType||'',allowedHours:it.allowedHours||'',qtyTotal:it.qtyTotal,unit:it.unit,startDate:it.startDate,endDate:it.endDate,actualStartDate:it.actualStartDate||'',actualEndDate:it.actualEndDate||'',notes:it.notes||'',existingPhotoIds:(it.refPhotoIds||[]).slice(),pendingPhotos:[],removedPhotoIds:[]};
+    itemDraft = {name:it.name,category:it.category||'',zone:it.zone||'',team:it.team||'',leader:it.leader||'',manpower:it.manpower==null?'':it.manpower,workType:it.workType||'',allowedHours:it.allowedHours||'',qtyTotal:it.qtyTotal,unit:it.unit,startDate:it.startDate,endDate:it.endDate,actualStartDate:it.actualStartDate||'',actualEndDate:it.actualEndDate||'',notes:it.notes||'',existingPhotoIds:(it.refPhotoIds||[]).slice(),pendingPhotos:[],removedPhotoIds:[],dependsOn:(it.dependsOn||[]).slice()};
   }
   editingItemId = id;
 }
@@ -4020,6 +4108,8 @@ function syncItemDraftFromDom(){
   const as=g('#im-actual-start'); if(as!==undefined) itemDraft.actualStartDate=as;
   const ae=g('#im-actual-end'); if(ae!==undefined) itemDraft.actualEndDate=ae;
   const notes=g('#im-notes'); if(notes!==undefined) itemDraft.notes=notes;
+  const depsEl = $('#im-depends');
+  if(depsEl) itemDraft.dependsOn = Array.from(depsEl.selectedOptions).map(o=>o.value);
 }
 function itemModalHtml(){
   if(!itemDraft) return '';
@@ -4051,6 +4141,9 @@ function itemModalHtml(){
         <div class="field"><label>${tf('แผนจริง วันเริ่มต้น (ไม่บังคับ)','Actual start date (optional)')}</label><input type="date" id="im-actual-start" value="${d.actualStartDate}"></div>
         <div class="field"><label>${tf('แผนจริง วันสิ้นสุด (ไม่บังคับ)','Actual end date (optional)')}</label><input type="date" id="im-actual-end" value="${d.actualEndDate}"></div>
         <div class="field" style="grid-column:1/-1"><label>${tf('หมายเหตุ (ไม่บังคับ)','Notes (optional)')}</label><input type="text" id="im-notes" value="${escapeHtml(d.notes)}" placeholder="${tf('เช่น รอแบบอนุมัติจากลูกค้าก่อนเริ่มงาน','e.g. awaiting client drawing approval before starting')}"></div>
+        <div class="field" style="grid-column:1/-1"><label>${tf('งานก่อนหน้า (ไม่บังคับ)','Predecessor tasks (optional)')} <span class="hint">${tf('งานที่ต้องเสร็จก่อนจึงจะเริ่มงานนี้ได้ (สำหรับลูกศรเชื่อมโยงใน Gantt chart) — กด Ctrl/Cmd ค้างเพื่อเลือกหลายรายการ','Tasks that must finish before this one can start (drawn as arrows on the Gantt chart) — hold Ctrl/Cmd to select multiple')}</span></label>
+          <select id="im-depends" multiple size="4">${P().boq.filter(i=>i.id!==editingItemId).map(i=>`<option value="${i.id}" ${d.dependsOn.includes(i.id)?'selected':''}>${escapeHtml(i.name)}</option>`).join('')}</select>
+        </div>
       </div>
       <div class="field" style="margin-top:14px">
         <label>${tf('รูปชุดงาน / แบบอ้างอิง (ไม่บังคับ)','Reference photos (optional)')} <span class="hint">${tf('เช่น แบบตู้บิ้วอิน สเปกวัสดุ สี — จะแสดงเป็นภาพประกอบถาวรข้างรายการนี้','e.g. built-in drawings, material specs, colours — shown permanently next to this item')}</span></label>
@@ -4067,6 +4160,18 @@ function itemModalHtml(){
 function wireMasterPlan(){
   $('#btn-add-item').onclick = ()=>{ openItemDraft('new'); render(); };
   $$('[data-mp-view]').forEach(b=> b.onclick = ()=>{ if(mpView===b.dataset.mpView) return; mpView=b.dataset.mpView; render(); });
+  const ganttScroll = $('#gantt-scroll-container');
+  if(ganttScroll){
+    const scrollLeftBtn = $('#gantt-scroll-left');
+    const scrollRightBtn = $('#gantt-scroll-right');
+    const scrollTodayBtn = $('#gantt-scroll-today');
+    if(scrollLeftBtn) scrollLeftBtn.onclick = ()=> ganttScroll.scrollBy({left:-240,behavior:'smooth'});
+    if(scrollRightBtn) scrollRightBtn.onclick = ()=> ganttScroll.scrollBy({left:240,behavior:'smooth'});
+    if(scrollTodayBtn) scrollTodayBtn.onclick = ()=>{
+      const todayLine = $('.gantt-today-line');
+      if(todayLine) ganttScroll.scrollTo({left: Math.max(0, todayLine.offsetLeft - ganttScroll.clientWidth/2), behavior:'smooth'});
+    };
+  }
   $$('[data-toggle-cat]').forEach(row=> row.onclick = ()=>{
     const key = row.dataset.toggleCat;
     if(mpExpandedCats.has(key)) mpExpandedCats.delete(key); else mpExpandedCats.add(key);
@@ -4117,8 +4222,10 @@ function wireMasterPlan(){
   refreshMasterPlanThumbs();
   $$('[data-del-item]').forEach(b=> b.onclick = ()=>{
     if(!confirm(tf('ลบรายการงานนี้ และประวัติที่เกี่ยวข้องหรือไม่?','Delete this work item and its related history?'))) return;
-    P().boq = P().boq.filter(i=>i.id!==b.dataset.delItem);
-    P().logs.forEach(l=> l.entries = l.entries.filter(e=>e.itemId!==b.dataset.delItem));
+    const delId = b.dataset.delItem;
+    P().boq = P().boq.filter(i=>i.id!==delId);
+    P().boq.forEach(i=>{ if(i.dependsOn && i.dependsOn.includes(delId)) i.dependsOn = i.dependsOn.filter(pid=>pid!==delId); });
+    P().logs.forEach(l=> l.entries = l.entries.filter(e=>e.itemId!==delId));
     saveData(); render(); toast(tf('ลบรายการแล้ว','Item deleted'));
   });
   const importBtn = $('#btn-import');
@@ -4176,8 +4283,9 @@ function wireItemModal(){
     const newIds = [];
     for(const p of d.pendingPhotos){ const id=uid(); await idbPut(id,p.dataUrl); newIds.push(id); }
     const refPhotoIds = keptExisting.concat(newIds);
-    if(editingItemId==='new'){ P().boq.push({id:uid(),name,category,zone,team,leader,manpower,workType,allowedHours,qtyTotal:qty,unit,startDate:s,endDate:en,actualStartDate,actualEndDate,notes,refPhotoIds}); }
-    else { const it = P().boq.find(i=>i.id===editingItemId); Object.assign(it,{name,category,zone,team,leader,manpower,workType,allowedHours,qtyTotal:qty,unit,startDate:s,endDate:en,actualStartDate,actualEndDate,notes,refPhotoIds}); }
+    const dependsOn = (d.dependsOn||[]).filter(pid=>pid!==editingItemId);
+    if(editingItemId==='new'){ P().boq.push({id:uid(),name,category,zone,team,leader,manpower,workType,allowedHours,qtyTotal:qty,unit,startDate:s,endDate:en,actualStartDate,actualEndDate,notes,refPhotoIds,dependsOn}); }
+    else { const it = P().boq.find(i=>i.id===editingItemId); Object.assign(it,{name,category,zone,team,leader,manpower,workType,allowedHours,qtyTotal:qty,unit,startDate:s,endDate:en,actualStartDate,actualEndDate,notes,refPhotoIds,dependsOn}); }
     saveData(); editingItemId=null; itemDraft=null; render(); toast(tf('บันทึกรายการแล้ว','Item saved'));
   };
   refreshItemModalPhotos();
