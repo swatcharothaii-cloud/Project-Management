@@ -3135,6 +3135,13 @@ function bootstrap(){
   state.selectedLogDate = todayStr();
   state.reportDate = todayStr();
   if(FIELD_MODE){
+    // Force the "site" role for this in-memory session (never saved back),
+    // regardless of whatever role was last saved on this device/browser.
+    // Field-mode links are handed to external contractors, so procurement's
+    // approve/reject, status-override, trash and approver-settings controls
+    // -- all gated on state.role elsewhere -- must never leak through just
+    // because this same browser was previously used as PM/procurement.
+    state.role = 'site';
     const pid = fieldProjectIdFromHash();
     const proj = state.projects.find(p=>p.id===pid) || state.projects[0] || null;
     if(proj){
