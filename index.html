@@ -3306,6 +3306,16 @@ function fieldProjectIdFromHash(){
 function fieldLink(projectId){
   return location.origin + location.pathname + location.search + '#field&project=' + encodeURIComponent(projectId);
 }
+// Direct project link: opening the app with #open&project=<id> in the URL
+// skips the "All Projects" hub and lands straight inside that project's
+// dashboard, with the normal full UI (every tab, role switch, etc.) --
+// unlike the field link above, nothing is locked down. This is just a
+// bookmark/share-friendly shortcut into a specific project for people who
+// already have full access (PM, procurement, etc.), not a restricted link.
+const OPEN_PROJECT_MODE = !FIELD_MODE && location.hash.replace('#','').split('&').includes('open');
+function projectLink(projectId){
+  return location.origin + location.pathname + location.search + '#open&project=' + encodeURIComponent(projectId);
+}
 const ROLE_LABEL = {
   site: tf('ผู้รับเหมาหน้างาน / ทีมงาน','Site contractor / crew'),
   pm: tf('ผู้จัดการโครงการ / ผู้บริหาร','Project manager / owner'),
@@ -3438,6 +3448,14 @@ function bootstrap(){
     } else {
       state.currentProjectId = null; state.view='project'; state.tab='dailylog';
     }
+  } else if(OPEN_PROJECT_MODE){
+    // Full-access deep link: jump straight into the project's dashboard.
+    // Role and every tab stay exactly as they normally would -- this only
+    // skips the hub screen, it doesn't restrict anything the way the field
+    // link does.
+    const pid = fieldProjectIdFromHash();
+    const proj = state.projects.find(p=>p.id===pid);
+    if(proj){ state.currentProjectId = proj.id; state.view='project'; state.tab='dashboard'; }
   }
 }
 
@@ -3713,6 +3731,7 @@ function renderHub(){
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:14px">
         <button class="btn primary sm" data-open-project="${pr.id}">${tf('เข้าโปรเจ็ค','Open project')}</button>
         <button class="btn ghost sm" data-edit-project="${pr.id}">${tf('แก้ไข','Edit')}</button>
+        <button class="btn ghost sm" data-copy-open="${pr.id}">🔗 ${tf('ลิงก์เข้าโปรเจ็คนี้','Project link')}</button>
         <button class="btn ghost sm" data-copy-field="${pr.id}">🔗 ${tf('ลิงก์บันทึกประจำวัน','Daily log link')}</button>
         <button class="btn danger sm" data-del-project="${pr.id}">${tf('ลบ','Delete')}</button>
       </div>
@@ -3771,6 +3790,11 @@ function wireHub(){
   $$('[data-copy-field]').forEach(b=> b.onclick = async ()=>{
     const link = fieldLink(b.dataset.copyField);
     try{ await navigator.clipboard.writeText(link); toast(tf('คัดลอกลิงก์บันทึกประจำวันแล้ว','Daily log link copied')); }
+    catch(err){ prompt(tf('คัดลอกลิงก์นี้:','Copy this link:'), link); }
+  });
+  $$('[data-copy-open]').forEach(b=> b.onclick = async ()=>{
+    const link = projectLink(b.dataset.copyOpen);
+    try{ await navigator.clipboard.writeText(link); toast(tf('คัดลอกลิงก์เข้าโปรเจ็คแล้ว','Project link copied')); }
     catch(err){ prompt(tf('คัดลอกลิงก์นี้:','Copy this link:'), link); }
   });
 }
