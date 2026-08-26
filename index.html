@@ -287,6 +287,37 @@ tbody tr:hover{background:var(--surface-2)}
 .mp-cat-count{font-weight:400;opacity:.75;font-size:11.5px}
 .mp-expand-controls{display:flex;gap:8px;margin:0 0 12px}
 
+.mp-view-toggle{display:inline-flex;border:1px solid var(--line);border-radius:999px;padding:3px;background:var(--surface-2);gap:2px}
+.mp-view-toggle button{border:none;background:transparent;padding:6px 14px;border-radius:999px;font-size:12.5px;font-weight:600;color:var(--ink-500);cursor:pointer}
+.mp-view-toggle button.active{background:var(--surface);color:var(--purple-700);box-shadow:var(--shadow-sm)}
+
+/* ---------- Master Plan: Gantt chart ---------- */
+.gantt-outer{overflow-x:auto;overflow-y:hidden;border:1px solid var(--line);border-radius:var(--radius-sm);margin-bottom:16px;background:var(--surface)}
+.gantt-inner{position:relative}
+.gantt-row{display:flex}
+.gantt-label-col{position:sticky;left:0;z-index:2;background:var(--surface);border-right:1px solid var(--line);padding:6px 10px;font-size:12px;display:flex;flex-direction:column;justify-content:center;flex-shrink:0;box-sizing:border-box;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.gantt-cat-label{background:var(--surface-2);font-family:var(--font-display);font-weight:600;color:var(--ink-700);font-size:12.5px}
+.gantt-timeline-col{position:relative;flex-shrink:0;box-sizing:border-box}
+.gantt-row:not(.gantt-header-row):not(.gantt-cat-row) .gantt-timeline-col{height:34px;border-bottom:1px solid var(--line-soft)}
+.gantt-row:not(.gantt-header-row):not(.gantt-cat-row) .gantt-label-col{height:34px;border-bottom:1px solid var(--line-soft)}
+.gantt-cat-row .gantt-timeline-col,.gantt-cat-row .gantt-label-col{height:28px;background:var(--surface-2)}
+.gantt-header-row .gantt-timeline-col{height:auto}
+.gantt-header-row .gantt-label-col{border-bottom:1px solid var(--line)}
+.gantt-months{display:flex}
+.gantt-month-band{flex-shrink:0;font-size:11px;font-weight:600;color:var(--ink-500);text-align:center;padding:4px 0;border-right:1px solid var(--line);border-bottom:1px solid var(--line);white-space:nowrap;overflow:hidden;box-sizing:border-box}
+.gantt-days{display:flex}
+.gantt-daycell{flex-shrink:0;font-size:9.5px;color:var(--ink-300);text-align:center;padding:2px 0;border-right:1px solid var(--line-soft);box-sizing:border-box}
+.gantt-daycell.weekend{background:var(--surface-2)}
+.gantt-bar{position:absolute;top:5px;height:24px;border-radius:6px;overflow:hidden;cursor:pointer;box-shadow:var(--shadow-sm);display:flex;align-items:center}
+.gantt-bar.on-track{background:var(--blue-500)}
+.gantt-bar.near-due{background:var(--amber-500)}
+.gantt-bar.overdue{background:var(--coral-500)}
+.gantt-bar.done{background:var(--mint-500)}
+.gantt-bar-fill{position:absolute;left:0;top:0;bottom:0;background:rgba(255,255,255,.32)}
+.gantt-bar-label{position:relative;z-index:1;color:#fff;font-size:11px;font-weight:600;padding:0 8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-shadow:0 1px 2px rgba(0,0,0,.3)}
+.gantt-bar-label-outside{position:absolute;top:5px;height:24px;display:flex;align-items:center;font-size:11px;color:var(--ink-700);white-space:nowrap}
+.gantt-today-line{position:absolute;top:0;bottom:0;width:2px;background:var(--coral-500);z-index:3;pointer-events:none}
+
 .empty{
   border:1.5px dashed var(--line);border-radius:var(--radius-md);
   padding:34px 20px;text-align:center;color:var(--ink-500);font-size:13.5px;
@@ -3277,7 +3308,10 @@ function renderTopbar(){
 
 function renderTabbar(){
   if(FIELD_MODE){
-    return `<nav class="tabbar"><span class="tabbtn active" style="pointer-events:none"><span class="ic">📝</span>${tf('บันทึกงานประจำวัน (โหมดผู้รับเหมา)','Daily log (contractor mode)')}</span></nav>`;
+    return `<nav class="tabbar">
+      <button class="tabbtn ${state.tab!=='procure'?'active':''}" data-nav="dailylog"><span class="ic">📝</span>${tf('บันทึกงานประจำวัน','Daily log')}</button>
+      <button class="tabbtn ${state.tab==='procure'?'active':''}" data-nav="procure"><span class="ic">🛒</span>${tf('สั่งของ','Order materials')}</button>
+    </nav>`;
   }
   if(state.view==='project'){
     return `<nav class="tabbar">
@@ -3293,6 +3327,7 @@ function renderTabbar(){
 function renderScreen(){
   if(FIELD_MODE){
     if(!state.currentProjectId) return `<div class="empty"><span class="ic">🔗</span>${tf('ไม่พบโปรเจ็คสำหรับลิงก์นี้ กรุณาขอลิงก์ใหม่จากผู้ดูแลโปรเจ็ค','This link is not linked to any project. Please ask the project owner for a new link.')}</div>`;
+    if(state.tab==='procure') return renderProcure();
     return renderDailyLog();
   }
   if(state.view==='hub') return renderHub();
@@ -3335,8 +3370,11 @@ function enterProject(id){
 }
 
 function wireGlobal(){
+  // data-nav switches only state.tab within the current project screen, which
+  // is exactly what the field-mode tabbar (Daily Log <-> Order materials) and
+  // its in-form quick-link button need too, so this stays unconditional.
+  $$('[data-nav]').forEach(b=> b.onclick = ()=>{ state.tab=b.dataset.nav; render(); window.scrollTo({top:0}); });
   if(!FIELD_MODE){
-    $$('[data-nav]').forEach(b=> b.onclick = ()=>{ state.tab=b.dataset.nav; render(); window.scrollTo({top:0}); });
     $$('[data-view]').forEach(b=> b.onclick = ()=>{ resetTransient(); state.currentProjectId=null; state.view=b.dataset.view; render(); window.scrollTo({top:0}); });
     const backBtn = $('[data-back-hub]'); if(backBtn) backBtn.onclick = goToHub;
     const brandEl = $('.brand'); if(brandEl){ brandEl.style.cursor='pointer'; brandEl.onclick = goToHub; }
@@ -3765,6 +3803,108 @@ function itemScheduleStatus(item){
   if(daysLeft<=3) return 'near-due';
   return 'on-track';
 }
+let mpView='table'; // 'table' | 'gantt' -- Master Plan & BOQ display mode, not persisted (resets to table on reload)
+function fmtMonthYear(dateStr){
+  const d = parseYMD(dateStr);
+  return state.lang==='en' ? (ENMONTHS[d.getMonth()]+' '+d.getFullYear()) : (THMONTHS[d.getMonth()]+' '+(d.getFullYear()+543));
+}
+function ganttDayWidth(totalDays){
+  if(totalDays<=21) return 36;
+  if(totalDays<=45) return 26;
+  if(totalDays<=90) return 16;
+  if(totalDays<=180) return 10;
+  return 6;
+}
+// Renders the whole Master Plan & BOQ timeline as a horizontally-scrollable
+// Gantt chart: a sticky item-name column plus a day-scaled timeline with
+// month/day header bands, one bar per dated BOQ item (colored by the same
+// schedule-status used in the table view), a translucent progress-fill
+// overlay, and a "today" marker line. Items without both dates are skipped
+// since they have no span to draw; category grouping mirrors the table view
+// but always shows every item (ignores the table's collapse/expand state,
+// since a timeline is most useful seen in full).
+function ganttChartHtml(groups){
+  const datedGroups = groups.map(g=> ({...g, items:g.items.filter(i=>i.startDate && i.endDate)})).filter(g=>g.items.length);
+  const allItems = datedGroups.flatMap(g=>g.items);
+  if(!allItems.length){
+    return `<div class="empty"><span class="ic">📊</span>${tf('ยังไม่มีรายการที่ระบุวันเริ่มและวันสิ้นสุด ใส่วันที่ในรายการงานเพื่อดู Gantt chart','No items with both a start and end date yet -- add dates to your work items to see the Gantt chart')}</div>`;
+  }
+  let minDate = allItems.reduce((m,i)=> i.startDate<m? i.startDate : m, allItems[0].startDate);
+  let maxDate = allItems.reduce((m,i)=> i.endDate>m? i.endDate : m, allItems[0].endDate);
+  minDate = addDays(minDate,-1);
+  maxDate = addDays(maxDate,1);
+  const totalDays = daysBetween(minDate,maxDate)+1;
+  const dayW = ganttDayWidth(totalDays);
+  const totalW = totalDays*dayW;
+  const labelW = 220;
+  const today = todayStr();
+  const showTodayLine = today>=minDate && today<=maxDate;
+  const todayOffset = daysBetween(minDate,today)*dayW;
+
+  const months=[];
+  let cursor=minDate;
+  while(cursor<=maxDate){
+    const d = parseYMD(cursor);
+    const monthStart = fmtYMD(new Date(d.getFullYear(),d.getMonth(),1));
+    const monthEndRaw = fmtYMD(new Date(d.getFullYear(),d.getMonth()+1,0));
+    const bandStart = monthStart<minDate? minDate : monthStart;
+    const bandEnd = monthEndRaw>maxDate? maxDate : monthEndRaw;
+    months.push({label:fmtMonthYear(bandStart), width:(daysBetween(bandStart,bandEnd)+1)*dayW});
+    cursor = addDays(bandEnd,1);
+  }
+  const showDayLabel = dayW>=14;
+  const dayLabelEvery = dayW>=14? 1 : (dayW>=8? 7 : 14);
+  let dayTicks='';
+  for(let i=0;i<totalDays;i++){
+    const d = parseYMD(addDays(minDate,i));
+    const isWeekend = (d.getDay()===0||d.getDay()===6);
+    const showLabel = showDayLabel || (i%dayLabelEvery===0);
+    dayTicks += `<div class="gantt-daycell${isWeekend?' weekend':''}" style="width:${dayW}px">${showLabel? `<span>${d.getDate()}</span>` : ''}</div>`;
+  }
+
+  const rowsHtml = datedGroups.map(g=>{
+    const label = g.cat? escapeHtml(g.cat) : tf('ไม่ระบุหมวดหมู่','Uncategorized');
+    const catHeader = `<div class="gantt-row gantt-cat-row">
+      <div class="gantt-label-col gantt-cat-label" style="width:${labelW}px">📁 ${label}</div>
+      <div class="gantt-timeline-col" style="width:${totalW}px"></div>
+    </div>`;
+    const itemRows = g.items.map(item=>{
+      const status = itemScheduleStatus(item);
+      const statusLabel = tf(SCHEDULE_STATUS_LABEL[status][0], SCHEDULE_STATUS_LABEL[status][1]);
+      const progress = (item.progress==null || item.progress==='')? 0 : Number(item.progress);
+      const offset = daysBetween(minDate,item.startDate)*dayW;
+      const width = Math.max((daysBetween(item.startDate,item.endDate)+1)*dayW, 10);
+      const showInside = width>=90;
+      const title = `${item.name} · ${fmtDate(item.startDate)} - ${fmtDate(item.endDate)} · ${statusLabel} · ${progress}%`;
+      return `<div class="gantt-row">
+        <div class="gantt-label-col" style="width:${labelW}px"><span class="mp-status-dot ${status}"></span>${escapeHtml(item.name)}<span class="mp-sub">${progress}%${item.zone? ' · '+escapeHtml(item.zone):''}</span></div>
+        <div class="gantt-timeline-col" style="width:${totalW}px">
+          <div class="gantt-bar ${status}" style="left:${offset}px;width:${width}px" data-edit-item="${item.id}" title="${escapeHtml(title)}">
+            <div class="gantt-bar-fill" style="width:${clamp(progress,0,100)}%"></div>
+            ${showInside? `<span class="gantt-bar-label">${escapeHtml(item.name)}</span>` : ''}
+          </div>
+          ${!showInside? `<span class="gantt-bar-label-outside" style="left:${offset+width+8}px">${escapeHtml(item.name)}</span>` : ''}
+        </div>
+      </div>`;
+    }).join('');
+    return catHeader + itemRows;
+  }).join('');
+
+  return `
+  <div class="gantt-outer">
+    <div class="gantt-inner" style="width:${labelW+totalW}px">
+      ${showTodayLine? `<div class="gantt-today-line" style="left:${labelW+todayOffset}px" title="${tf('วันนี้','Today')}"></div>` : ''}
+      <div class="gantt-row gantt-header-row">
+        <div class="gantt-label-col" style="width:${labelW}px"></div>
+        <div class="gantt-timeline-col" style="width:${totalW}px">
+          <div class="gantt-months">${months.map(m=>`<div class="gantt-month-band" style="width:${m.width}px">${m.label}</div>`).join('')}</div>
+          <div class="gantt-days">${dayTicks}</div>
+        </div>
+      </div>
+      ${rowsHtml}
+    </div>
+  </div>`;
+}
 function itemRowHtml(item){
   const days = daysBetween(item.startDate,item.endDate)+1;
   const photoCount = (item.refPhotoIds||[]).length;
@@ -3812,7 +3952,13 @@ function renderMasterPlan(){
   return `
   <div class="page-head">
     <div><h2>${tf('แผนงานหลัก & BOQ','Master Plan & BOQ')}</h2><div class="sub">${tf('แยกตามหมวดงานหลักอ้างอิงตาม BOQ จริง ใส่โซน ทีมงาน ปริมาณรวมตามสัญญา และช่วงเวลาทำงาน ระบบคำนวณเป้าหมายรายวันให้อัตโนมัติ','Grouped by main work category from the real BOQ -- enter zone, team, contract quantity and date range, the daily target is calculated automatically.')}</div></div>
-    <button class="btn primary" id="btn-add-item">+ ${tf('เพิ่มรายการงาน','Add work item')}</button>
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <div class="mp-view-toggle">
+        <button class="${mpView==='table'?'active':''}" data-mp-view="table">📋 ${tf('ตาราง','Table')}</button>
+        <button class="${mpView==='gantt'?'active':''}" data-mp-view="gantt">📊 Gantt</button>
+      </div>
+      <button class="btn primary" id="btn-add-item">+ ${tf('เพิ่มรายการงาน','Add work item')}</button>
+    </div>
   </div>
   <div class="legend" style="margin-bottom:12px">
     <span><i style="background:var(--blue-500)"></i>${tf('อยู่ในแผน','On track')}</span>
@@ -3820,15 +3966,15 @@ function renderMasterPlan(){
     <span><i style="background:var(--coral-500)"></i>${tf('เกินกำหนด','Overdue')}</span>
     <span><i style="background:var(--mint-500)"></i>${tf('เสร็จแล้ว (100%)','Done (100%)')}</span>
   </div>
-  ${groups.length>1? `<div class="mp-expand-controls">
+  ${mpView==='table' && groups.length>1? `<div class="mp-expand-controls">
     <button class="btn ghost sm" id="btn-expand-all-cat">${tf('ขยายทั้งหมด','Expand all')}</button>
     <button class="btn ghost sm" id="btn-collapse-all-cat">${tf('ย่อทั้งหมด','Collapse all')}</button>
   </div>` : ''}
-  ${P().boq.length===0? `<div class="empty"><span class="ic">📋</span>${tf('ยังไม่มีรายการงานใน BOQ','No BOQ items yet')}<br>${tf('กด “เพิ่มรายการงาน” เพื่อเริ่มต้น','Tap “Add work item” to get started')}</div>` : `
+  ${P().boq.length===0? `<div class="empty"><span class="ic">📋</span>${tf('ยังไม่มีรายการงานใน BOQ','No BOQ items yet')}<br>${tf('กด “เพิ่มรายการงาน” เพื่อเริ่มต้น','Tap “Add work item” to get started')}</div>` : (mpView==='gantt'? ganttChartHtml(groups) : `
   <div class="table-wrap mp-wrap"><table class="mp-table">
     <thead><tr><th>${tf('ภาพ','Photo')}</th><th>${tf('รายการงาน','Work item')}</th><th>${tf('ทีมงาน','Team')}</th><th>${tf('ลักษณะงาน','Work type')}</th><th>${tf('ปริมาณรวม','Total qty')}</th><th>${tf('วันเริ่ม','Start date')}</th><th>${tf('วันเสร็จ','End date')}</th><th>${tf('จำนวนวัน','Days')}</th><th>${tf('ความคืบหน้า','Progress')}</th><th>${tf('หมายเหตุ','Notes')}</th><th></th></tr></thead>
     <tbody>${bodyHtml}</tbody>
-  </table></div>`}
+  </table></div>`)}
   <div class="card tint">
     <b style="font-family:var(--font-display)">${tf('นำเข้าแบบเร็ว (วางข้อความ)','Quick import (paste text)')}</b>
     <div class="sub" style="margin:6px 0 10px">${tf('รูปแบบต่อบรรทัด:','One item per line, format:')} <span class="tabular">${tf('ชื่องาน, ปริมาณ, หน่วย, วันเริ่ม(YYYY-MM-DD), วันสิ้นสุด(YYYY-MM-DD), โซน(ไม่บังคับ), หมวดงาน(ไม่บังคับ), ทีมงาน(ไม่บังคับ)','name, quantity, unit, start(YYYY-MM-DD), end(YYYY-MM-DD), zone(optional), category(optional), team(optional)')}</span></div>
@@ -3913,6 +4059,7 @@ function itemModalHtml(){
 }
 function wireMasterPlan(){
   $('#btn-add-item').onclick = ()=>{ openItemDraft('new'); render(); };
+  $$('[data-mp-view]').forEach(b=> b.onclick = ()=>{ if(mpView===b.dataset.mpView) return; mpView=b.dataset.mpView; render(); });
   $$('[data-toggle-cat]').forEach(row=> row.onclick = ()=>{
     const key = row.dataset.toggleCat;
     if(mpExpandedCats.has(key)) mpExpandedCats.delete(key); else mpExpandedCats.add(key);
@@ -4345,7 +4492,7 @@ function renderDailyLog(){
     <div class="field" style="margin-top:12px"><label>${tf('บันทึกการรับของวันนี้ (ไม่บังคับ)','Today’s material deliveries (optional)')}</label>
       <textarea id="log-delivery" placeholder="${tf('เช่น หินท็อปครัวมาส่งแล้ว ตรวจสภาพสมบูรณ์ไม่มีรอยร้าว','e.g. kitchen countertop delivered, inspected, no cracks')}">${escapeHtml(d.deliveryNote)}</textarea>
     </div>
-    ${FIELD_MODE? '' : `<button class="btn ghost sm" style="margin-top:10px" data-nav="procure">🛒 ${tf('ไปหน้าสั่งของรายวัน','Go to daily procurement')}</button>`}
+    <button class="btn ghost sm" style="margin-top:10px" data-nav="procure">🛒 ${tf('ไปหน้าสั่งของรายวัน','Go to daily procurement')}</button>
   </div>`;
 
   return `
@@ -4675,13 +4822,13 @@ function renderProcure(){
   </div>
   ` : `
   ${(overdueCount||dueCount)? `<div class="role-note" style="background:${overdueCount?'var(--coral-50)':'var(--amber-50)'};border-color:${overdueCount?'var(--coral-500)':'var(--amber-500)'}">🔔 ${overdueCount? `${overdueCount} ${tf('ใบสั่งของเกินกำหนดส่งมอบแล้ว','request(s) past their delivery due date')}` : ''}${overdueCount&&dueCount? ' · ' : ''}${dueCount? `${dueCount} ${tf('ใบสั่งของใกล้ถึงกำหนดส่งมอบ (ภายใน 3 วัน)','request(s) due within 3 days')}` : ''}</div>` : ''}
-  ${approverSettingsCardHtml()}
+  ${FIELD_MODE? '' : approverSettingsCardHtml()}
   ${activeRequests.length? `
   <div class="grid cols-auto" style="margin-bottom:16px">
     <div class="card kpi"><div class="stat"><span class="lbl">📅 ${tf('ใบสั่งของวันนี้','Requests today')}</span><span class="num">${summary.today.count}</span></div><div class="sub" style="margin-top:4px">${summary.today.lines} ${tf('รายการวัสดุ','material line(s)')} · ${summary.today.pending} ${tf('รอการอนุมัติ','pending')}</div></div>
     <div class="card kpi"><div class="stat"><span class="lbl">🗓️ ${tf('ใบสั่งของสัปดาห์นี้','Requests this week')}</span><span class="num">${summary.week.count}</span></div><div class="sub" style="margin-top:4px">${summary.week.lines} ${tf('รายการวัสดุ','material line(s)')} · ${summary.week.pending} ${tf('รอการอนุมัติ','pending')}</div></div>
   </div>` : ''}
-  <div class="role-note">👁️ ${tf('มุมมองปัจจุบัน:','Current view:')} <b>${ROLE_LABEL[state.role]}</b> — ${tf('สลับมุมมองจากปุ่มมุมบนขวาเพื่อจำลองสิทธิ์แต่ละบทบาท (ข้อมูลทั้งหมดอยู่ในเบราว์เซอร์เครื่องนี้ ยังไม่ใช่ระบบล็อกอินผู้ใช้หลายคนจริง)','switch views from the top-right buttons to try each role’s permissions (all data lives in this browser -- this is not yet a real multi-user login system).')}</div>
+  ${FIELD_MODE? '' : `<div class="role-note">👁️ ${tf('มุมมองปัจจุบัน:','Current view:')} <b>${ROLE_LABEL[state.role]}</b> — ${tf('สลับมุมมองจากปุ่มมุมบนขวาเพื่อจำลองสิทธิ์แต่ละบทบาท (ข้อมูลทั้งหมดอยู่ในเบราว์เซอร์เครื่องนี้ ยังไม่ใช่ระบบล็อกอินผู้ใช้หลายคนจริง)','switch views from the top-right buttons to try each role’s permissions (all data lives in this browser -- this is not yet a real multi-user login system).')}</div>`}
   ${activeRequests.length===0? `<div class="empty"><span class="ic">🛒</span>${tf('ยังไม่มีใบสั่งของ','No material requests yet')}${canCreate? tf(' กด “สร้างใบสั่งของ” เพื่อเริ่มต้น',' -- tap “New request” to get started'):''}</div>` : `<div class="kanban">${cols}</div>`}
   `}
   `;
@@ -5300,7 +5447,11 @@ async function exportReportAsImage(){
 
 /* ============================= WIRE SCREEN ROUTER ============================= */
 function wireScreen(){
-  if(FIELD_MODE){ if(state.currentProjectId) wireDailyLog(); return; }
+  if(FIELD_MODE){
+    if(!state.currentProjectId) return;
+    if(state.tab==='procure') return wireProcure();
+    return wireDailyLog();
+  }
   if(state.view==='hub') return wireHub();
   if(state.view==='profile') return wireProfile();
   if(state.view==='contractors') return wireContractors();
