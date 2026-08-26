@@ -4165,11 +4165,11 @@ function wireMasterPlan(){
     const scrollLeftBtn = $('#gantt-scroll-left');
     const scrollRightBtn = $('#gantt-scroll-right');
     const scrollTodayBtn = $('#gantt-scroll-today');
-    if(scrollLeftBtn) scrollLeftBtn.onclick = ()=> ganttScroll.scrollBy({left:-240,behavior:'smooth'});
-    if(scrollRightBtn) scrollRightBtn.onclick = ()=> ganttScroll.scrollBy({left:240,behavior:'smooth'});
+    if(scrollLeftBtn) scrollLeftBtn.onclick = ()=> ganttScroll.scrollBy({left:-240});
+    if(scrollRightBtn) scrollRightBtn.onclick = ()=> ganttScroll.scrollBy({left:240});
     if(scrollTodayBtn) scrollTodayBtn.onclick = ()=>{
       const todayLine = $('.gantt-today-line');
-      if(todayLine) ganttScroll.scrollTo({left: Math.max(0, todayLine.offsetLeft - ganttScroll.clientWidth/2), behavior:'smooth'});
+      if(todayLine) ganttScroll.scrollTo({left: Math.max(0, todayLine.offsetLeft - ganttScroll.clientWidth/2)});
     };
   }
   $$('[data-toggle-cat]').forEach(row=> row.onclick = ()=>{
