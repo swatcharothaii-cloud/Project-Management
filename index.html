@@ -3233,6 +3233,7 @@ function renderModalRoot(){
   if(projectDraft) return projectModalHtml();
   if(contractorDraft) return contractorModalHtml();
   if(contractorHistoryId) return contractorHistoryModalHtml();
+  if(historyModalOpen) return historyModalHtml();
   return '';
 }
 
@@ -3350,6 +3351,7 @@ function wireGlobal(){
   wireProjectModal();
   wireContractorModal();
   wireContractorHistoryModal();
+  wireHistoryModal();
 }
 
 /* ============================= SCREEN: HUB (ALL PROJECTS) ============================= */
@@ -4223,8 +4225,7 @@ function renderDailyLog(){
       </div>
     </div>
     ${metaCard}
-    <div class="empty"><span class="ic">📋</span>${tf('ยังไม่มีรายการงานใน BOQ กรุณาเพิ่มในหน้า “แผนงานหลัก” ก่อน','No BOQ items yet -- add some on the “Master Plan” page first')}</div>
-    ${historyModalHtml()}`;
+    <div class="empty"><span class="ic">📋</span>${tf('ยังไม่มีรายการงานใน BOQ กรุณาเพิ่มในหน้า “แผนงานหลัก” ก่อน','No BOQ items yet -- add some on the “Master Plan” page first')}</div>`;
   }
 
   /* ---- Section 2: site environment & workforce ---- */
@@ -4368,7 +4369,6 @@ function renderDailyLog(){
     <button class="btn ghost" id="btn-export-img-log" style="flex:1;min-width:160px">🖼️ ${tf('ส่งออกรูปภาพ','Export image')}</button>
     <button class="btn danger" id="btn-clear-log" style="flex:1;min-width:160px">🗑️ ${tf('เคลียร์ฟอร์ม','Clear form')}</button>
   </div>
-  ${historyModalHtml()}
   `;
 }
 function historyModalHtml(){
@@ -4444,7 +4444,6 @@ function wireDailyLog(){
   if(dateInput) dateInput.onchange = ()=>{ state.selectedLogDate = dateInput.value; pendingPhotos=[]; dailyDraft=null; render(); };
   const historyBtn = $('#btn-log-history');
   if(historyBtn) historyBtn.onclick = ()=>{ historyModalOpen=true; historyDate=state.selectedLogDate; historyViewing=false; render(); };
-  wireHistoryModal();
 
   const photoInput = $('#photo-input');
   if(photoInput) photoInput.onchange = async (e)=>{
