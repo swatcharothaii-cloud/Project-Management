@@ -4905,8 +4905,17 @@ function renderDailyLog(){
   </div>`;
 
   /* ---- Section 5: photo gallery ---- */
-  const photoCards = pendingPhotos.map((p,idx)=>`
-    <div class="photo-item">
+  const photoCards = pendingPhotos.map((p,idx)=> (p.kind==='pdf')?
+    `<div class="photo-item">
+      <div class="photo-pdf-icon">📄<span class="photo-pdf-name">${escapeHtml(p.name||'PDF')}</span></div>
+      <input type="text" placeholder="${tf('คำอธิบายภาพ','photo caption')}" value="${escapeHtml(p.caption||'')}" data-caption="${idx}">
+      <select data-photo-tag="${idx}">
+        <option value="">${tf('ประเภทรูป (ไม่บังคับ)','photo type (optional)')}</option>
+        ${PHOTO_TAGS.map(t=>`<option value="${escapeHtml(t)}" ${p.tag===t?'selected':''}>${escapeHtml(t)}</option>`).join('')}
+      </select>
+      <button class="rm" data-rm-photo="${idx}">✕</button>
+    </div>`
+    : `<div class="photo-item">
       <img src="${p.dataUrl}" alt="">
       <input type="text" placeholder="${tf('คำอธิบายภาพ','photo caption')}" value="${escapeHtml(p.caption||'')}" data-caption="${idx}">
       <select data-photo-tag="${idx}">
@@ -4920,8 +4929,8 @@ function renderDailyLog(){
   const photoCard = `
   <div class="card">
     <div class="field" style="margin-bottom:10px"><label>📸 ${tf('คลังรูปภาพหลักฐานหน้างาน','Site Photo Evidence Gallery')}</label></div>
-    ${totalPhotoCount<PHOTO_MAX? `<label class="photo-drop" for="photo-input">📷 ${tf('แตะเพื่อเลือกรูปภาพ (เลือกได้ทีละหลายรูป สูงสุด ','Tap to choose photos (select multiple at once, up to ')}${PHOTO_MAX}${tf(' รูป)',' photos)')}</label>` : `<div class="hint">${tf('ครบจำนวนสูงสุด ','Reached the maximum of ')}${PHOTO_MAX}${tf(' รูปแล้ว',' photos')}</div>`}
-    <input type="file" id="photo-input" accept="image/*" multiple style="display:none">
+    ${totalPhotoCount<PHOTO_MAX? `<label class="photo-drop" for="photo-input">📷 ${tf('แตะเพื่อเลือกรูปภาพหรือ PDF (เลือกได้ทีละหลายรูป สูงสุด ','Tap to choose photos or PDFs (select multiple at once, up to ')}${PHOTO_MAX}${tf(' รูป)',' items)')}</label>` : `<div class="hint">${tf('ครบจำนวนสูงสุด ','Reached the maximum of ')}${PHOTO_MAX}${tf(' รูปแล้ว',' photos')}</div>`}
+    <input type="file" id="photo-input" accept="image/*,application/pdf" multiple style="display:none">
     <div id="compress-progress" style="display:none;margin-top:10px">
       <div class="progressline"><i id="compress-bar" style="width:0%"></i></div>
       <div class="sub" id="compress-label" style="margin-top:6px"></div>
@@ -5015,7 +5024,7 @@ async function saveDailyLogAndReturnDate(){
   let log = P().logs.find(l=>l.date===date);
   const newPhotoIds = [];
   const newPhotoMeta = {};
-  for(const p of pendingPhotos){ const id=uid(); await idbPut(id,p.dataUrl); newPhotoIds.push(id); newPhotoMeta[id] = {caption:p.caption||'', tag:p.tag||''}; }
+  for(const p of pendingPhotos){ const id=uid(); await idbPut(id,p.dataUrl); newPhotoIds.push(id); newPhotoMeta[id] = {caption:p.caption||'', tag:p.tag||'', kind:p.kind||'image', name:p.name||''}; }
   if(!log){ log = {id:uid(),date,entries:[],photoIds:[]}; P().logs.push(log); }
   log.weather = dailyDraft.weather;
   log.workforce = dailyDraft.workforce.filter(w=> (w.team||'').trim()).map(w=>({team:w.team,count:w.count,workType:w.workType}));
@@ -5048,17 +5057,25 @@ function wireDailyLog(){
     const toProcess = files.slice(0, room);
     if(files.length>toProcess.length) toast(tf('เพิ่มได้สูงสุด 30 รูป ระบบเลือกให้ ','Max 30 photos -- only the first ')+toProcess.length+tf(' รูปแรก',' were added'));
     const bar = $('#compress-progress'); bar.style.display='block';
+    let skipped = 0;
     for(let i=0;i<toProcess.length;i++){
       $('#compress-bar').style.width = Math.round(((i)/toProcess.length)*100)+'%';
-      $('#compress-label').textContent = tf('กำลังบีบอัดรูป ','Compressing photo ')+(i+1)+' / '+toProcess.length+'...';
+      $('#compress-label').textContent = tf('กำลังประมวลผล ','Processing ')+(i+1)+' / '+toProcess.length+'...';
+      const f = toProcess[i];
       try{
-        const dataUrl = await compressImage(toProcess[i]);
-        pendingPhotos.push({dataUrl,caption:'',tag:''});
-      }catch(err){}
+        if(f.type==='application/pdf'){
+          const dataUrl = await fileToDataUrl(f);
+          pendingPhotos.push({dataUrl,caption:'',tag:'',kind:'pdf',name:f.name});
+        } else if(f.type.indexOf('image/')===0){
+          const dataUrl = await compressImage(f);
+          pendingPhotos.push({dataUrl,caption:'',tag:'',kind:'image'});
+        } else { skipped++; }
+      }catch(err){ skipped++; }
       await new Promise(r=>setTimeout(r,0));
     }
     $('#compress-bar').style.width='100%';
-    $('#compress-label').textContent = tf('บีบอัดเสร็จแล้ว ','Done compressing ')+toProcess.length+tf(' รูป',' photo(s)');
+    $('#compress-label').textContent = tf('เสร็จแล้ว ','Done ')+toProcess.length+tf(' รายการ',' item(s)');
+    if(skipped) toast(tf('ข้าม ','Skipped ')+skipped+tf(' ไฟล์ที่ไม่รองรับ (รองรับเฉพาะรูปภาพและ PDF)',' unsupported file(s) -- only images and PDF are supported'));
     photoInput.value='';
     syncDailyDraftFromDom();
     render();
@@ -5110,9 +5127,10 @@ function wireDailyLog(){
   if(exportPdfBtn) exportPdfBtn.onclick = async ()=>{
     exportPdfBtn.disabled = true;
     const date = await saveDailyLogAndReturnDate();
-    toast(tf('บันทึกแล้ว กำลังเปิดหน้าต่างพิมพ์ PDF...','Saved -- opening the PDF print dialog...'));
     state.reportDate = date; state.tab = 'report'; render();
-    setTimeout(()=> window.print(), 400);
+    // Call window.print() immediately (no setTimeout) -- deferring it via a timer
+    // loses the "user activation" context on iOS Safari and silently no-ops there.
+    window.print();
   };
   const exportImgBtn = $('#btn-export-img-log');
   if(exportImgBtn) exportImgBtn.onclick = async ()=>{
@@ -5120,7 +5138,7 @@ function wireDailyLog(){
     const date = await saveDailyLogAndReturnDate();
     toast(tf('บันทึกแล้ว กำลังสร้างรูปภาพรายงาน...','Saved -- generating the report image...'));
     state.reportDate = date; state.tab = 'report'; render();
-    setTimeout(()=> exportReportAsImage(), 400);
+    exportReportAsImage();
   };
   const clearBtn = $('#btn-clear-log');
   if(clearBtn) clearBtn.onclick = ()=>{
@@ -5857,7 +5875,8 @@ async function loadReportPhotos(log, reqs){
     if(reportPhotoCache[pid]){
       const meta = (log.photoMeta&&log.photoMeta[pid]) || (log._captions? {caption:log._captions[pid]} : {});
       const caption = (meta.tag? '['+meta.tag+'] ' : '') + (meta.caption || tf('ภาพหน้างาน','site photo'));
-      out.push({id:pid, dataUrl:reportPhotoCache[pid], kind:'image', caption});
+      const kind = meta.kind || dataUrlKind(reportPhotoCache[pid]);
+      out.push({id:pid, dataUrl:reportPhotoCache[pid], kind, name:meta.name||'', caption});
     }
   }
   for(const r of (reqs||[])){
