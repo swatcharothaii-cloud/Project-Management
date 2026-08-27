@@ -249,6 +249,10 @@ tbody tr:hover{background:var(--surface-2)}
 .budget-table{table-layout:auto}
 .budget-table th,.budget-table td{white-space:nowrap;font-size:12px;padding:9px 10px}
 .budget-table td:nth-child(3){white-space:normal;min-width:160px}
+.cl-table td:nth-child(3){white-space:nowrap;min-width:0}
+.cl-table td{padding:5px 6px;vertical-align:middle}
+.cl-table input,.cl-table select{padding:6px 8px;font-size:12px;border-radius:6px;min-width:0}
+.cl-table td[data-cl-total]{white-space:nowrap;font-weight:600;padding:9px 10px}
 .budget-cat-row td{background:var(--purple-50);color:var(--purple-700);font-family:var(--font-display);font-weight:600;font-size:12.5px;white-space:normal}
 .mp-table tr.mp-cat-row{cursor:pointer;user-select:none}
 .mp-table tr.mp-cat-row td{background:var(--purple-50);color:var(--purple-700);font-family:var(--font-display);font-weight:600;font-size:12.5px;padding:9px 12px;white-space:normal;transition:background .12s}
@@ -3196,37 +3200,35 @@ function richmondProject(){
   "costLog": [
     {
       "id": "rc-cl-1",
-      "poNumber": "PO-2026-0041",
-      "name": "10A plug 10A (Schneider)",
+      "date": "2026-08-19",
+      "po": "PO-2026-0041",
+      "workType": "งานไฟฟ้า",
+      "workNature": "main",
+      "itemName": "ปลั๊กไฟ 10A (Schneider)",
       "taskId": "rc-8_1",
-      "category": "materials",
-      "plannedQty": 25,
-      "actualQty": 25,
-      "unit": "PCS",
+      "unit": "ชิ้น",
+      "qty": 25,
       "unitCost": 780,
-      "plannedCost": 20000,
-      "actualCost": 19500,
+      "total": 19500,
+      "orderedBy": "หัวหน้าช่าง",
       "status": "delivered",
-      "requiredDate": "2026-08-20",
-      "actualDeliveryDate": "2026-08-19",
       "note": "ผู้ขาย: ร้านไฟฟ้า ส.รุ่งเรือง — ได้ราคาต่อรองต่ำกว่างบตั้งต้น",
       "createdAt": "2026-08-15T10:00:00.000Z"
     },
     {
       "id": "rc-cl-2",
-      "poNumber": "PO-2026-0052",
-      "name": "งานเตรียมพื้นที่/ป้องกันหน้างาน (Preliminary)",
+      "date": "2026-08-24",
+      "po": "PO-2026-0052",
+      "workType": "งานเตรียมการ",
+      "workNature": "main",
+      "itemName": "งานเตรียมพื้นที่/ป้องกันหน้างาน (Preliminary)",
       "taskId": "rc-1",
-      "category": "services",
-      "plannedQty": 1,
-      "actualQty": null,
       "unit": "L/S",
-      "unitCost": null,
-      "plannedCost": 30000,
-      "actualCost": null,
+      "qty": 1,
+      "unitCost": 30000,
+      "total": 30000,
+      "orderedBy": "PM",
       "status": "ordered",
-      "requiredDate": "2026-08-30",
-      "actualDeliveryDate": "",
       "note": "รอผู้รับเหมาวางบิลหลังส่งมอบงาน",
       "createdAt": "2026-08-24T14:20:00.000Z"
     }
@@ -3622,7 +3624,6 @@ function renderModalRoot(){
   if(itemDraft) return itemModalHtml();
   if(creatingRequest) return requestModalHtml();
   if(procureDetailId) return detailModalHtml();
-  if(costLogDraft) return costLogModalHtml();
   if(refGalleryItemId) return refGalleryModalHtml();
   if(projectDraft) return projectModalHtml();
   if(contractorDraft) return contractorModalHtml();
@@ -3718,7 +3719,7 @@ function resetTransient(){
   contractorDraft=null; editingContractorId=null; contractorHistoryId=null;
   historyModalOpen=false; historyViewing=false;
   procureTrashOpen=false;
-  costLogDraft=null; editingCostLogId=null; costLogStatusFilter='all';
+  costLogStatusFilter='all';
 }
 function goToHub(){
   resetTransient();
@@ -3751,7 +3752,6 @@ function wireGlobal(){
   wireItemModal();
   wireRequestModal();
   wireDetailModal();
-  wireCostLogModal();
   wireGalleryModal();
   wireProjectModal();
   wireContractorModal();
@@ -4435,6 +4435,14 @@ const COSTLOG_STATUS = [
 ];
 function costLogStatusInfo(v){ return COSTLOG_STATUS.find(s=>s.v===v) || COSTLOG_STATUS[0]; }
 function costLogStatusLabel(v){ const s=costLogStatusInfo(v); return tf(s.th,s.en); }
+const COSTLOG_WORK_NATURE = [
+  {v:'main', th:'งานหลัก', en:'Main work'},
+  {v:'revision', th:'งานแก้ไข', en:'Revision work'},
+  {v:'extra', th:'งานเพิ่มเติม', en:'Additional work'},
+  {v:'replacement', th:'สั่งทดแทน', en:'Replacement order'},
+];
+function costLogWorkNatureInfo(v){ return COSTLOG_WORK_NATURE.find(w=>w.v===v) || COSTLOG_WORK_NATURE[0]; }
+function costLogWorkNatureLabel(v){ const w=costLogWorkNatureInfo(v); return tf(w.th,w.en); }
 function boqCategoryGroups(boq){
   const used = Array.from(new Set(boq.map(i=>i.category||'').filter(Boolean)));
   const extra = used.filter(c=>!BOQ_CATEGORIES.includes(c));
@@ -5987,159 +5995,126 @@ function wireProcure(){
 }
 
 /* ============================= SCREEN: PROCUREMENT COST LOG ============================= */
-// A simpler, single-step ledger of purchases -- distinct from the multi-step
-// approval workflow above (ใบสั่งของ / material requests). Each row is one
-// purchase line the user types in directly: planned vs. actual qty/cost,
-// procurement status, and required vs. actual delivery date. Feeds into
-// boqActualsMap()/projectActualCostTotal() below exactly like a priced,
-// linked material-request line does, so the Budget tab stays the single
-// source of truth for "actual cost" no matter which of the two flows was
-// used to record the purchase.
-let costLogDraft=null, editingCostLogId=null, costLogStatusFilter='all';
-function newCostLogDraft(){
-  return {poNumber:'', name:'', taskId:'', category:'materials', plannedQty:'', actualQty:'', unit:'', unitCost:'', plannedCost:'', actualCost:'', status:'pending', requiredDate:todayStr(), actualDeliveryDate:'', note:''};
-}
-function openCostLogDraft(id){
-  if(id==='new'){ costLogDraft=newCostLogDraft(); editingCostLogId='new'; return; }
-  const c = P().costLog.find(x=>x.id===id); if(!c) return;
-  costLogDraft = {
-    poNumber:c.poNumber||'', name:c.name||'', taskId:c.taskId||'', category:c.category||'materials',
-    plannedQty:c.plannedQty==null?'':c.plannedQty, actualQty:c.actualQty==null?'':c.actualQty, unit:c.unit||'',
-    unitCost:c.unitCost==null?'':c.unitCost, plannedCost:c.plannedCost==null?'':c.plannedCost, actualCost:c.actualCost==null?'':c.actualCost,
-    status:c.status||'pending', requiredDate:c.requiredDate||'', actualDeliveryDate:c.actualDeliveryDate||'', note:c.note||''
-  };
-  editingCostLogId = id;
-}
-function closeCostLogModal(){ costLogDraft=null; editingCostLogId=null; render(); }
-function costLogIsOverdue(c){ return c.status!=='delivered' && c.requiredDate && c.requiredDate<todayStr(); }
-function costLogModalHtml(){
-  if(!costLogDraft) return '';
-  const d = costLogDraft;
-  const boqItems = P().boq;
-  return `<div class="modal-bg" id="cl-modal-bg"><div class="modal">
-    <div class="modal-head"><h3>${editingCostLogId==='new'? tf('เพิ่มบันทึกต้นทุนจัดซื้อ','Add cost log entry') : tf('แก้ไขบันทึกต้นทุนจัดซื้อ','Edit cost log entry')}</h3><button class="iconbtn" id="cl-modal-close">✕</button></div>
-    <div class="grid cols-2" style="gap:10px">
-      <div class="field"><label>${tf('รหัสรายการซื้อ / PO','Item ID / PO number')}</label><input type="text" id="cl-po" value="${escapeHtml(d.poNumber)}" placeholder="${tf('เช่น PO-2026-0099','e.g. PO-2026-0099')}"></div>
-      <div class="field"><label>${tf('หมวดหมู่','Category')}</label><select id="cl-category">${PROCURE_CATEGORIES.map(c=>`<option value="${c.v}" ${d.category===c.v?'selected':''}>${escapeHtml(tf(c.th,c.en))}</option>`).join('')}</select></div>
-    </div>
-    <div class="field" style="margin-top:10px"><label>${tf('ชื่อรายการ / วัสดุอุปกรณ์ (จำเป็น)','Item name / description (required)')}</label><input type="text" id="cl-name" value="${escapeHtml(d.name)}" placeholder="${tf('เช่น กระเบื้องปูพื้นห้องน้ำ 60x60','e.g. 60x60 bathroom floor tile')}"></div>
-    <div class="field" style="margin-top:10px"><label>${tf('เชื่อมกับรายการงาน (BOQ / WBS)','Link to a BOQ / WBS task')}</label><select id="cl-task"><option value="">${tf('— ไม่เชื่อมกับรายการงาน —','— not linked —')}</option>${boqItems.map(it=>`<option value="${it.id}" ${d.taskId===it.id?'selected':''}>${escapeHtml((it.itemCode?it.itemCode+' — ':'')+it.name)}</option>`).join('')}</select></div>
-    <div class="grid cols-2" style="gap:10px;margin-top:10px">
-      <div class="field"><label>${tf('ปริมาณที่ต้องการ (แผน)','Planned quantity')}</label><input type="number" step="0.01" min="0" id="cl-planned-qty" value="${d.plannedQty}"></div>
-      <div class="field"><label>${tf('ปริมาณที่ซื้อจริง','Actual quantity')}</label><input type="number" step="0.01" min="0" id="cl-actual-qty" value="${d.actualQty}"></div>
-      <div class="field"><label>${tf('หน่วย','Unit')}</label><input type="text" id="cl-unit" value="${escapeHtml(d.unit)}" placeholder="${tf('เช่น ชิ้น, กล่อง, ตร.ม.','e.g. pcs, box, sqm')}"></div>
-      <div class="field"><label>${tf('ราคาต่อหน่วย','Unit cost')}</label><input type="number" step="0.01" min="0" id="cl-unit-cost" value="${d.unitCost}"></div>
-      <div class="field"><label>${tf('ราคารวมที่ตั้งงบไว้','Planned / budgeted cost')}</label><input type="number" step="0.01" min="0" id="cl-planned-cost" value="${d.plannedCost}"><div class="hint">${tf('เว้นว่างได้ — ถ้าเชื่อมกับ BOQ ระบบจะคำนวณให้จากราคา BOQ × ปริมาณแผน','Leave blank -- if linked to a BOQ item, it’s computed from the BOQ price × planned quantity')}</div></div>
-      <div class="field"><label>${tf('ราคารวมที่จ่ายจริง','Actual cost paid')}</label><input type="number" step="0.01" min="0" id="cl-actual-cost" value="${d.actualCost}"><div class="hint">${tf('กรอกตามใบเสร็จ/ใบกำกับภาษีจริง — เว้นว่างไว้ให้คำนวณจาก ปริมาณจริง × ราคา/หน่วย','Enter the real receipt/tax-invoice amount -- leave blank to compute from actual qty × unit cost')}</div></div>
-    </div>
-    <div class="grid cols-2" style="gap:10px;margin-top:10px">
-      <div class="field"><label>${tf('สถานะการจัดซื้อ','Procurement status')}</label><select id="cl-status">${COSTLOG_STATUS.map(s=>`<option value="${s.v}" ${d.status===s.v?'selected':''}>${s.ic} ${escapeHtml(tf(s.th,s.en))}</option>`).join('')}</select></div>
-      <div class="field"><label>${tf('วันที่ต้องการใช้ของ','Required date')}</label><input type="date" id="cl-required-date" value="${d.requiredDate}"></div>
-      <div class="field" style="grid-column:1/-1"><label>${tf('วันที่ได้รับของจริง','Actual delivery date')}</label><input type="date" id="cl-actual-delivery" value="${d.actualDeliveryDate}"></div>
-    </div>
-    <div class="field" style="margin-top:10px"><label>${tf('หมายเหตุ (ไม่บังคับ)','Note (optional)')}</label><input type="text" id="cl-note" value="${escapeHtml(d.note)}" placeholder="${tf('เช่น ชื่อผู้ขาย/ผู้รับเหมา','e.g. supplier / vendor name')}"></div>
-    <div style="display:flex;gap:8px;margin-top:16px">
-      ${editingCostLogId!=='new'? `<button class="btn danger" id="cl-delete">🗑️ ${tf('ลบ','Delete')}</button>` : ''}
-      <button class="btn primary block" id="cl-save">${tf('บันทึก','Save')}</button>
-    </div>
-  </div></div>`;
-}
-function wireCostLogModal(){
-  const bg=$('#cl-modal-bg'); if(!bg) return;
-  $('#cl-modal-close').onclick = closeCostLogModal;
-  bg.addEventListener('click', e=>{ if(e.target===bg) closeCostLogModal(); });
-  const delBtn = $('#cl-delete');
-  if(delBtn) delBtn.onclick = ()=>{
-    if(!confirm(tf('ลบบันทึกต้นทุนนี้หรือไม่?','Delete this cost log entry?'))) return;
-    P().costLog = P().costLog.filter(x=>x.id!==editingCostLogId);
-    saveData(); closeCostLogModal(); toast(tf('ลบบันทึกแล้ว','Entry deleted'));
-  };
-  $('#cl-save').onclick = ()=>{
-    const name = $('#cl-name').value.trim();
-    if(!name){ toast(tf('กรุณาระบุชื่อรายการ','Please enter an item name')); return; }
-    const taskId = $('#cl-task').value;
-    const plannedQty = parseNumLoose($('#cl-planned-qty').value);
-    const actualQty = parseNumLoose($('#cl-actual-qty').value);
-    const unitCost = parseNumLoose($('#cl-unit-cost').value);
-    let plannedCost = parseNumLoose($('#cl-planned-cost').value);
-    let actualCost = parseNumLoose($('#cl-actual-cost').value);
-    if(plannedCost==null && plannedQty!=null){
-      const task = taskId? P().boq.find(i=>i.id===taskId) : null;
-      const rate = (task && task.unitPrice!=null)? task.unitPrice : unitCost;
-      if(rate!=null) plannedCost = plannedQty*rate;
-    }
-    if(actualCost==null && actualQty!=null && unitCost!=null) actualCost = actualQty*unitCost;
-    const entry = {
-      poNumber: $('#cl-po').value.trim(), name, taskId, category: $('#cl-category').value,
-      plannedQty, actualQty, unit: $('#cl-unit').value.trim(), unitCost, plannedCost, actualCost,
-      status: $('#cl-status').value, requiredDate: $('#cl-required-date').value, actualDeliveryDate: $('#cl-actual-delivery').value,
-      note: $('#cl-note').value.trim()
-    };
-    if(editingCostLogId==='new'){
-      entry.id = uid(); entry.createdAt = new Date().toISOString();
-      P().costLog.push(entry);
-    } else {
-      const existing = P().costLog.find(x=>x.id===editingCostLogId);
-      Object.assign(existing, entry);
-    }
-    saveData(); closeCostLogModal(); toast(tf('บันทึกข้อมูลแล้ว','Saved'));
+// A single, spreadsheet-style ledger of purchases -- distinct from the
+// multi-step approval workflow above (ใบสั่งของ / material requests). Every
+// row is typed straight into the table, no separate add/edit modal: date,
+// PO number, work type/nature, item, an optional link to a Master Plan
+// task, quantity & unit price (the total is always qty x unit price,
+// recomputed live -- see wireCostLog() below), who ordered it, procurement
+// status, and a note. Feeds into boqActualsMap()/projectActualCostTotal()
+// below exactly like a priced, linked material-request line does, so the
+// Budget tab stays the single source of truth for "actual cost" no matter
+// which of the two flows was used to record the purchase -- though here
+// only rows with status "ordered" or "delivered" count as committed spend;
+// a "pending" row is still just a request, not money out the door yet.
+let costLogStatusFilter='all';
+function newCostLogEntry(){
+  return {
+    id: uid(), createdAt: new Date().toISOString(),
+    date: todayStr(), po:'', workType:'', workNature:'main', itemName:'',
+    taskId:'', unit:'', qty:null, unitCost:null, total:0, orderedBy:'',
+    status:'pending', note:''
   };
 }
+function costLogRecalcTotal(c){ c.total = (c.qty||0) * (c.unitCost||0); return c.total; }
 function renderCostLog(){
   const proj = P();
   const all = proj.costLog||[];
   const filtered = costLogStatusFilter==='all'? all : all.filter(c=>c.status===costLogStatusFilter);
-  const totalPlanned = all.reduce((s,c)=> s+(c.plannedCost||0), 0);
-  const totalActual = all.reduce((s,c)=> s+(c.actualCost||0), 0);
-  const totalVariance = totalPlanned - totalActual;
+  const grandTotal = all.reduce((s,c)=> s+(c.total||0), 0);
   const filterChips = [{v:'all',label:tf('ทั้งหมด','All')}].concat(COSTLOG_STATUS.map(s=>({v:s.v,label:tf(s.th,s.en)}))).map(f=>{
     const count = f.v==='all'? all.length : all.filter(c=>c.status===f.v).length;
     return `<button class="btn ${costLogStatusFilter===f.v?'primary':'ghost'} sm" data-cl-filter="${f.v}">${f.label} (${count})</button>`;
   }).join('');
-  const rows = filtered.map(c=>{
-    const task = c.taskId? proj.boq.find(i=>i.id===c.taskId) : null;
-    const variance = (c.plannedCost!=null && c.actualCost!=null)? c.plannedCost-c.actualCost : null;
-    const overdue = costLogIsOverdue(c);
-    const si = costLogStatusInfo(c.status);
-    return `<tr data-open-costlog="${c.id}" style="cursor:pointer">
-      <td>${escapeHtml(c.poNumber||'-')}</td>
-      <td>${escapeHtml(c.name)}${task? `<div class="hint">🔗 ${escapeHtml(task.name)}</div>`:''}</td>
-      <td>${escapeHtml(procureCategoryLabel(c.category))}</td>
-      <td class="tabular">${c.plannedQty!=null? fmtNum(c.plannedQty,2):'-'} / ${c.actualQty!=null? fmtNum(c.actualQty,2):'-'}</td>
-      <td>${escapeHtml(c.unit||'-')}</td>
-      <td class="tabular">${c.unitCost!=null? fmtCurrency(c.unitCost):'-'}</td>
-      <td class="tabular">${c.plannedCost!=null? fmtCurrency(c.plannedCost):'-'}</td>
-      <td class="tabular">${c.actualCost!=null? fmtCurrency(c.actualCost):'-'}</td>
-      <td class="tabular" style="color:${variance!=null&&variance<0?'var(--coral-600)':'inherit'}">${variance!=null? fmtCurrency(variance):'-'}</td>
-      <td><span class="badge ${c.status==='delivered'?'approved':c.status==='ordered'?'scheduled':'pending'}">${si.ic} ${escapeHtml(tf(si.th,si.en))}</span>${overdue? `<div class="hint" style="color:var(--coral-600)">⚠️ ${tf('เกินกำหนด','Overdue')}</div>`:''}</td>
-      <td class="hint">${c.requiredDate? fmtDate(c.requiredDate):'-'}${c.actualDeliveryDate? '<br>✓ '+fmtDate(c.actualDeliveryDate):''}</td>
+  const boqItems = proj.boq||[];
+  const rows = filtered.map((c,idx)=>{
+    return `<tr data-cl-row="${c.id}">
+      <td class="tabular hint">${idx+1}</td>
+      <td><input type="date" data-cl-field="date" value="${c.date||''}"></td>
+      <td><input type="text" data-cl-field="po" value="${escapeHtml(c.po||'')}" placeholder="${tf('เลขที่','No.')}" style="width:110px"></td>
+      <td><input type="text" data-cl-field="workType" value="${escapeHtml(c.workType||'')}" placeholder="${tf('เช่น งานไฟฟ้า','e.g. Electrical')}" style="width:120px"></td>
+      <td><select data-cl-field="workNature">${COSTLOG_WORK_NATURE.map(w=>`<option value="${w.v}" ${c.workNature===w.v?'selected':''}>${escapeHtml(tf(w.th,w.en))}</option>`).join('')}</select></td>
+      <td><input type="text" data-cl-field="itemName" value="${escapeHtml(c.itemName||'')}" placeholder="${tf('รายการสินค้า','Item')}" style="width:180px"></td>
+      <td><select data-cl-field="taskId"><option value="">${tf('— ไม่เชื่อม —','— none —')}</option>${boqItems.map(it=>`<option value="${it.id}" ${c.taskId===it.id?'selected':''}>${escapeHtml((it.itemCode?it.itemCode+' — ':'')+it.name)}</option>`).join('')}</select></td>
+      <td><input type="text" data-cl-field="unit" value="${escapeHtml(c.unit||'')}" placeholder="${tf('หน่วย','Unit')}" style="width:70px"></td>
+      <td><input type="number" step="0.01" min="0" data-cl-field="qty" value="${c.qty==null?'':c.qty}" style="width:80px"></td>
+      <td><input type="number" step="0.01" min="0" data-cl-field="unitCost" value="${c.unitCost==null?'':c.unitCost}" style="width:100px"></td>
+      <td class="tabular" data-cl-total>${fmtCurrency(c.total||0)}</td>
+      <td><input type="text" data-cl-field="orderedBy" value="${escapeHtml(c.orderedBy||'')}" placeholder="${tf('ผู้สั่ง','Ordered by')}" style="width:100px"></td>
+      <td><select data-cl-field="status">${COSTLOG_STATUS.map(s=>`<option value="${s.v}" ${c.status===s.v?'selected':''}>${s.ic} ${escapeHtml(tf(s.th,s.en))}</option>`).join('')}</select></td>
+      <td><input type="text" data-cl-field="note" value="${escapeHtml(c.note||'')}" placeholder="${tf('หมายเหตุ','Note')}" style="width:140px"></td>
+      <td><button class="iconbtn" data-cl-delete="${c.id}" title="${tf('ลบ','Delete')}">🗑️</button></td>
     </tr>`;
   }).join('');
   return `
   <div class="page-head">
-    <div><h2>${tf('บันทึกต้นทุนการจัดซื้อ','Procurement Cost Log')}</h2><div class="sub">${tf('บันทึกต้นทุนการซื้อวัสดุ/บริการ/อุปกรณ์แต่ละรายการ เทียบแผนกับต้นทุนจริง และติดตามสถานะการส่งมอบ','Log every material/service/equipment purchase, compare planned vs. actual cost, and track delivery status')}</div></div>
-    <button class="btn primary" id="btn-add-costlog">+ ${tf('เพิ่มรายการ','Add entry')}</button>
+    <div><h2>${tf('บันทึกต้นทุนการจัดซื้อ','Procurement Cost Log')}</h2><div class="sub">${tf('กรอกรายการซื้อของแต่ละครั้งลงตารางได้เลย ยอดเงินรวมคำนวณอัตโนมัติจากจำนวน × ราคาต่อหน่วย','Type each purchase straight into the table -- the total is calculated automatically from quantity × unit price')}</div></div>
+    <button class="btn primary" id="btn-add-costlog">+ ${tf('เพิ่มรายการ','Add row')}</button>
   </div>
   <div class="grid cols-auto" style="margin-bottom:16px">
-    <div class="card kpi"><div class="stat"><span class="lbl">💰 ${tf('งบที่ตั้งไว้รวม','Total planned cost')}</span><span class="num tabular" style="font-size:19px">${fmtCurrency(totalPlanned)}</span></div></div>
-    <div class="card kpi"><div class="stat"><span class="lbl">💸 ${tf('จ่ายจริงรวม','Total actual cost')}</span><span class="num tabular" style="font-size:19px">${fmtCurrency(totalActual)}</span></div></div>
-    <div class="card kpi"><div class="stat"><span class="lbl">${totalVariance>=0?'✅':'🔴'} ${tf('ส่วนต่างงบประมาณ','Cost variance')}</span><span class="num tabular" style="font-size:19px;color:${totalVariance>=0?'var(--mint-600)':'var(--coral-600)'}">${fmtCurrency(totalVariance)}</span></div></div>
+    <div class="card kpi"><div class="stat"><span class="lbl">💰 ${tf('ยอดซื้อรวมทั้งหมด','Total purchases')}</span><span class="num tabular" style="font-size:19px">${fmtCurrency(grandTotal)}</span></div></div>
+    <div class="card kpi"><div class="stat"><span class="lbl">🧾 ${tf('จำนวนรายการ','Entries')}</span><span class="num tabular" style="font-size:19px">${all.length}</span></div></div>
   </div>
   <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">${filterChips}</div>
-  ${all.length===0? `<div class="empty"><span class="ic">🧾</span>${tf('ยังไม่มีบันทึกต้นทุนการจัดซื้อ กด "เพิ่มรายการ" เพื่อเริ่มบันทึก','No cost log entries yet -- tap "Add entry" to start logging')}</div>` : `
-  <div class="table-wrap"><table class="budget-table"><thead><tr>
-    <th>${tf('PO/รหัส','PO / code')}</th><th>${tf('รายการ','Item')}</th><th>${tf('หมวดหมู่','Category')}</th>
-    <th>${tf('ปริมาณ (แผน/จริง)','Qty (planned/actual)')}</th><th>${tf('หน่วย','Unit')}</th><th>${tf('ราคา/หน่วย','Unit cost')}</th>
-    <th>${tf('งบที่ตั้งไว้','Planned cost')}</th><th>${tf('จ่ายจริง','Actual cost')}</th><th>${tf('ส่วนต่าง','Variance')}</th>
-    <th>${tf('สถานะ','Status')}</th><th>${tf('วันที่ต้องใช้ / ได้รับจริง','Required / delivered')}</th>
+  ${all.length===0? `<div class="empty"><span class="ic">🧾</span>${tf('ยังไม่มีบันทึกต้นทุนการจัดซื้อ กด "เพิ่มรายการ" เพื่อเริ่มบันทึก','No cost log entries yet -- tap "Add row" to start logging')}</div>` : `
+  <div class="table-wrap"><table class="budget-table cl-table"><thead><tr>
+    <th>${tf('ลำดับ','No.')}</th><th>${tf('วันที่','Date')}</th><th>${tf('เลขใบสั่งซื้อ','PO No.')}</th>
+    <th>${tf('ประเภทงาน','Work type')}</th><th>${tf('ลักษณะงาน','Work nature')}</th><th>${tf('รายการสินค้า','Item')}</th>
+    <th>${tf('เชื่อมงาน','Linked task')}</th><th>${tf('หน่วย','Unit')}</th><th>${tf('จำนวน','Qty')}</th><th>${tf('ราคาต่อหน่วย','Unit price')}</th>
+    <th>${tf('ยอดเงินรวม','Total')}</th><th>${tf('ผู้สั่ง','Ordered by')}</th><th>${tf('สถานะ','Status')}</th><th>${tf('หมายเหตุ','Note')}</th><th></th>
   </tr></thead><tbody>${rows}</tbody></table></div>`}
   `;
 }
 function wireCostLog(){
+  const proj = P();
   const addBtn = $('#btn-add-costlog');
-  if(addBtn) addBtn.onclick = ()=>{ openCostLogDraft('new'); render(); };
-  $$('[data-open-costlog]').forEach(row=> row.onclick = ()=>{ openCostLogDraft(row.dataset.openCostlog); render(); });
+  if(addBtn) addBtn.onclick = ()=>{
+    proj.costLog = proj.costLog||[];
+    proj.costLog.push(newCostLogEntry());
+    saveData(); render();
+  };
   $$('[data-cl-filter]').forEach(b=> b.onclick = ()=>{ costLogStatusFilter=b.dataset.clFilter; render(); });
+  // Inline "spreadsheet" editing: typing into a cell mutates the underlying
+  // entry directly and, for qty/unit price, recomputes just that row's total
+  // cell in place -- deliberately NOT calling render() on every keystroke,
+  // since a full re-render rebuilds the DOM and would steal focus/cursor
+  // position out from under whatever the user is still typing into (same
+  // reasoning as the pattern used for material-request line inputs above).
+  // The change is written to localStorage on blur, once the user leaves the
+  // cell, not on every keystroke.
+  $$('[data-cl-row]').forEach(row=>{
+    const id = row.dataset.clRow;
+    const entry = (proj.costLog||[]).find(c=>c.id===id);
+    if(!entry) return;
+    row.querySelectorAll('input[data-cl-field]').forEach(inp=>{
+      const field = inp.dataset.clField;
+      inp.oninput = ()=>{
+        if(field==='qty' || field==='unitCost'){
+          entry[field] = inp.value===''? null : parseNumLoose(inp.value);
+          costLogRecalcTotal(entry);
+          const totalCell = row.querySelector('[data-cl-total]');
+          if(totalCell) totalCell.textContent = fmtCurrency(entry.total||0);
+        } else {
+          entry[field] = inp.value;
+        }
+      };
+      inp.onblur = ()=> saveData();
+    });
+    row.querySelectorAll('select[data-cl-field]').forEach(sel=>{
+      sel.onchange = ()=>{
+        entry[sel.dataset.clField] = sel.value;
+        saveData();
+        render(); // status affects the filter-chip counts, so refresh those
+      };
+    });
+  });
+  $$('[data-cl-delete]').forEach(btn=>{
+    btn.onclick = ()=>{
+      if(!confirm(tf('ลบรายการนี้หรือไม่?','Delete this entry?'))) return;
+      proj.costLog = (proj.costLog||[]).filter(c=>c.id!==btn.dataset.clDelete);
+      saveData(); render();
+    };
+  });
 }
 
 /* ============================= SCREEN: BUDGET (BOQ vs. Actual) ============================= */
@@ -6149,11 +6124,12 @@ function wireCostLog(){
 // item (line.taskId, set when the request was created) AND priced
 // (line.actualUnitCost, entered by procurement at delivery confirmation) --
 // see requestModalHtml() and the #dt-schedule handler in wireDetailModal().
-// The Procurement Cost Log's entries are rolled in the same way, once linked
-// to a BOQ item (taskId) and priced (actualCost) -- see wireCostLogModal()
-// above. Unlinked/unpriced lines from either flow still count toward the
-// project-wide "total actual cost" KPI (real money spent) but can't be
-// attributed to one line item.
+// The Procurement Cost Log's entries roll up the same way, once linked to a
+// BOQ item (taskId) and past "pending" status -- see wireCostLog() above and
+// projectActualCostTotal() below, which applies the same pending/committed
+// distinction to the project-wide "total actual cost" KPI. An unlinked
+// cost-log row still counts toward that KPI but can't be attributed to one
+// BOQ line item.
 function boqActualsMap(){
   const map = {}; // taskId -> {qty, cost, refs:[{reqNo,poNumber,vendor,purchaseDate}]}
   P().materialRequests.filter(r=>!r.trashed).forEach(r=>{
@@ -6168,12 +6144,12 @@ function boqActualsMap(){
     });
   });
   (P().costLog||[]).forEach(c=>{
-    if(!c.taskId || c.actualCost==null) return;
-    const qty = (c.actualQty!=null? c.actualQty : (c.plannedQty||0)) || 0;
+    if(!c.taskId || c.status==='pending') return;
+    const qty = c.qty||0;
     if(!map[c.taskId]) map[c.taskId] = {qty:0, cost:0, refs:[]};
     map[c.taskId].qty += qty;
-    map[c.taskId].cost += c.actualCost;
-    map[c.taskId].refs.push({reqNo:c.poNumber||tf('บันทึกต้นทุน','cost log'), poNumber:c.poNumber||'', vendor:'', purchaseDate:c.actualDeliveryDate||''});
+    map[c.taskId].cost += (c.total||0);
+    map[c.taskId].refs.push({reqNo:c.po||tf('บันทึกต้นทุน','cost log'), poNumber:c.po||'', vendor:c.orderedBy||'', purchaseDate:c.date||''});
   });
   return map;
 }
@@ -6187,7 +6163,7 @@ function projectActualCostTotal(){
     const qty = (l.actualQty!=null? l.actualQty : l.qty) || 0;
     total += qty*l.actualUnitCost;
   }));
-  (P().costLog||[]).forEach(c=>{ if(c.actualCost!=null) total += c.actualCost; });
+  (P().costLog||[]).forEach(c=>{ if(c.status!=='pending') total += (c.total||0); });
   return total;
 }
 function renderBudget(){
