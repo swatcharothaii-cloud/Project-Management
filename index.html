@@ -5665,8 +5665,19 @@ function wireDailyLog(){
       const {date, photoFailCount} = await saveDailyLogAndReturnDate();
       state.reportDate = date; state.tab = 'report'; render();
       if(photoFailCount>0) toast(tf(`แนบรูปไม่สำเร็จ ${photoFailCount} รูป (พื้นที่จัดเก็บเต็ม หรือเบราว์เซอร์ไม่รองรับ) — ส่วนที่เหลือบันทึกแล้ว`, `${photoFailCount} photo(s) failed to attach (storage full or unsupported) -- the rest was saved`));
-      // Call window.print() immediately (no setTimeout) -- deferring it via a timer
-      // loses the "user activation" context on iOS Safari and silently no-ops there.
+      // render() above kicks off wireReport()'s own refreshReportPhotos() call,
+      // but that call isn't awaited there (wireReport() itself isn't async --
+      // it's called from the generic screen router for every tab, not just
+      // this export flow). Without waiting for it here too, window.print()
+      // was firing while the photo grid still said "กำลังโหลดรูปภาพ..." (the
+      // photos hadn't finished loading from IndexedDB yet), so exporting
+      // straight from the Daily Log page printed a report missing the very
+      // photos the user just attached. Awaiting it here ensures the grid has
+      // the real <img> tags in before we print.
+      await refreshReportPhotos(date);
+      // Call window.print() immediately after that resolves (no setTimeout) --
+      // deferring it via a timer loses the "user activation" context on iOS
+      // Safari and silently no-ops there.
       window.print();
     }catch(err){
       console.error('Export PDF failed', err);
@@ -5684,6 +5695,10 @@ function wireDailyLog(){
         ? tf(`แนบรูปไม่สำเร็จ ${photoFailCount} รูป แต่บันทึกส่วนที่เหลือแล้ว กำลังสร้างรูปภาพรายงาน...`, `${photoFailCount} photo(s) failed to attach, but the rest was saved -- generating the report image...`)
         : tf('บันทึกแล้ว กำลังสร้างรูปภาพรายงาน...','Saved -- generating the report image...'));
       state.reportDate = date; state.tab = 'report'; render();
+      // Same reasoning as the PDF export handler above: wait for the photo
+      // grid to actually finish loading before html2canvas captures it, or
+      // newly attached photos are missing from the generated image too.
+      await refreshReportPhotos(date);
       await exportReportAsImage();
     }catch(err){
       console.error('Export image failed', err);
