@@ -6398,8 +6398,17 @@ function buildSCurve(asOf){
 let reportPhotoCache = {}; // id -> dataUrl
 async function loadReportPhotos(log, reqs){
   const out=[];
+  // Each idbGet() is caught individually rather than letting one rejected
+  // read (a corrupted entry, or a browser that blocks IndexedDB outright --
+  // private browsing, some in-app webviews) throw out of the whole loop.
+  // Before this, one bad photo id meant the report's photo grid stayed
+  // stuck on "Loading photos..." forever, with no error shown and every
+  // other photo silently withheld too.
   for(const pid of (log?log.photoIds:[])||[]){
-    if(!reportPhotoCache[pid]) reportPhotoCache[pid] = await idbGet(pid);
+    if(!reportPhotoCache[pid]){
+      try{ reportPhotoCache[pid] = await idbGet(pid); }
+      catch(err){ continue; }
+    }
     if(reportPhotoCache[pid]){
       const meta = (log.photoMeta&&log.photoMeta[pid]) || (log._captions? {caption:log._captions[pid]} : {});
       const caption = (meta.tag? '['+meta.tag+'] ' : '') + (meta.caption || tf('ภาพหน้างาน','site photo'));
@@ -6409,7 +6418,10 @@ async function loadReportPhotos(log, reqs){
   }
   for(const r of (reqs||[])){
     for(const pid of (r.photoIds||[])){
-      if(!reportPhotoCache[pid]) reportPhotoCache[pid] = await idbGet(pid);
+      if(!reportPhotoCache[pid]){
+        try{ reportPhotoCache[pid] = await idbGet(pid); }
+        catch(err){ continue; }
+      }
       if(reportPhotoCache[pid]){
         const meta = (r.photoMeta&&r.photoMeta[pid]) || {};
         const kind = meta.kind || dataUrlKind(reportPhotoCache[pid]);
@@ -6461,26 +6473,27 @@ function reqReportBlock(r){
 function reportBodyHtml(date){
   const proj = P();
   const log = proj.logs.find(l=>l.date===date);
-  const summary = proj.boq.length? projectSummary(date, proj.boq, proj.logs) : null;
   const dayReqs = reqsForDate(date);
   const c = state.contractor||{};
   if(!proj.boq.length){
     return `<div class="rp-section"><div class="empty">${tf('ยังไม่มีข้อมูลแผนงานสำหรับสร้างรายงาน','No plan data yet to build a report')}</div></div>`;
   }
-  const rows = proj.boq.map(item=>{
-    const todayQty = todayQtyFor(item,date,proj.logs);
-    const planned = plannedCumAt(item,date), actual = actualCumAt(item,date,proj.logs);
-    const st = actual+1e-9>=planned ? 'ok' : 'bad';
-    const pct = clamp((actual/item.qtyTotal)*100,0,100);
-    const diff = actual-planned;
+  // The exported/printed report deliberately mirrors the Daily Log form
+  // itself -- just today's entries as typed in -- rather than a computed
+  // project-wide analytics table (ahead/behind %, completion forecast,
+  // every BOQ item's cumulative progress). Those lived here previously but
+  // were dropped at the user's request in favor of a plain record of what
+  // was logged today, under the same heading as the form's own progress
+  // section ("บันทึกความคืบหน้างานตาม BOQ" / "Progress Logged Today").
+  const entryRows = (log && log.entries && log.entries.length) ? log.entries.map(e=>{
+    const item = proj.boq.find(i=>i.id===e.itemId);
     return `<tr>
-      <td>${escapeHtml(item.name)}</td>
-      <td class="tabular">${fmtNum(todayQty,2)} ${escapeHtml(item.unit)}</td>
-      <td class="tabular">${fmtNum(actual,2)} / ${fmtNum(planned,2)} ${escapeHtml(item.unit)}</td>
-      <td style="min-width:120px"><div class="progress ${st}"><i style="width:${pct}%"></i></div></td>
-      <td>${st==='ok'? `<span class="badge ok">🟢 ${tf('เร็วกว่า','ahead by')} ${fmtNum(Math.abs(diff),1)}</span>` : `<span class="badge bad">🔴 ${tf('ล่าช้า','behind by')} ${fmtNum(Math.abs(diff),1)}</span>`}</td>
+      <td>${escapeHtml((item&&item.name)||e.itemId||'-')}</td>
+      <td>${escapeHtml(e.category||(item&&item.category)||'-')}</td>
+      <td class="tabular">${fmtNum(e.actualQty,2)} ${escapeHtml((item&&item.unit)||'')}</td>
+      <td>${escapeHtml(e.note||'-')}</td>
     </tr>`;
-  }).join('');
+  }).join('') : '';
   return `
     <div class="rp-head">
       <div style="display:flex;align-items:center;gap:14px">
@@ -6501,21 +6514,13 @@ function reportBodyHtml(date){
       <div><b>${tf('ประจำวันที่','Report date')}</b>${fmtDate(date)}</div>
       <div><b>${tf('ผู้รับเหมาดูแลหน้างาน','Site contractor')}</b>${escapeHtml(c.nickname||c.fullname||'-')}${c.phone?' | '+escapeHtml(c.phone):''}</div>
     </div>
-    <div class="rp-section">
-      <h3>${tf('สรุปสถานะโครงการประจำวันนี้','Today’s Project Status Summary')}</h3>
-      <div class="rp-summary">
-        <div class="box"><div class="sub">${tf('ภาพรวมทั้งโปรเจกต์','Overall project')}</div><div class="v" style="color:${summary.delta>=0?'#0D9668':'#DC3B3B'}">${summary.delta>=0?tf('เร็วกว่าแผนสะสม','Ahead of cumulative plan'):tf('ล่าช้ากว่าแผนสะสม','Behind cumulative plan')} ${fmtNum(Math.abs(summary.delta),1)}%</div></div>
-        <div class="box"><div class="sub">${tf('คาดการณ์วันเสร็จสิ้น','Completion forecast')}</div><div class="v" style="font-size:13px">${summary.anyPrediction? (summary.delayDays>0? tf('ช้ากว่าแผน ','behind plan by ')+summary.delayDays+tf(' วัน (',' day(s) (')+fmtDate(summary.predictedEnd)+')' : summary.delayDays<0? tf('เร็วกว่าแผน ','ahead of plan by ')+Math.abs(summary.delayDays)+tf(' วัน (',' day(s) (')+fmtDate(summary.predictedEnd)+')' : tf('ตรงตามแผน (','on plan (')+fmtDate(summary.predictedEnd)+')') : tf('รอข้อมูลเพิ่มเติม','awaiting more data')}</div></div>
-      </div>
-    </div>
-    <div class="rp-section">
-      <h3>${tf('ตารางเปรียบเทียบปริมาณงาน (อ้างอิง Master Plan & BOQ)','Quantity Comparison (Master Plan & BOQ)')}</h3>
-      <div class="table-wrap"><table><thead><tr><th>${tf('รายการงาน','Work item')}</th><th>${tf('ทำได้วันนี้','Done today')}</th><th>${tf('ทำจริงสะสม / แผนสะสม','Actual / planned to date')}</th><th>${tf('ความคืบหน้า','Progress')}</th><th>${tf('สถานะ','Status')}</th></tr></thead><tbody>${rows}</tbody></table></div>
-    </div>
     ${log && (log.weather || (log.workforce&&log.workforce.length)) ? `<div class="rp-section"><h3>🌦️ ${tf('สภาพหน้างานและกำลังพล','Site Condition & Workforce')}</h3>
       ${log.weather? `<p style="font-size:13px;line-height:1.7"><b>${tf('สภาพหน้างาน:','Condition:')}</b> ${escapeHtml(log.weather)}</p>` : ''}
       ${(log.workforce&&log.workforce.length)? `<div class="table-wrap" style="margin-top:8px"><table><thead><tr><th>${tf('ทีมงาน','Team')}</th><th>${tf('จำนวนคน','Headcount')}</th><th>${tf('ประเภทงาน','Work type')}</th></tr></thead><tbody>${log.workforce.map(w=>`<tr><td>${escapeHtml(w.team||'-')}</td><td class="tabular">${escapeHtml(String(w.count||'-'))}</td><td>${escapeHtml(w.workType||'-')}</td></tr>`).join('')}</tbody></table></div>` : ''}
     </div>` : ''}
+    <div class="rp-section"><h3>📋 ${tf('บันทึกความคืบหน้างานตาม BOQ','Progress Logged Today')}</h3>
+      ${entryRows? `<div class="table-wrap"><table><thead><tr><th>${tf('รายการงาน','Work item')}</th><th>${tf('หมวดหมู่','Category')}</th><th>${tf('ปริมาณที่ได้วันนี้','Done today')}</th><th>${tf('หมายเหตุ','Note')}</th></tr></thead><tbody>${entryRows}</tbody></table></div>` : `<p class="sub" style="font-size:13px">${tf('ไม่มีรายการความคืบหน้าที่บันทึกในวันนี้','No progress entries logged for this day')}</p>`}
+    </div>
     ${log && log.issues && log.issues.length ? `<div class="rp-section"><h3>⚠️ ${tf('ปัญหาและอุปสรรคหน้างาน','Site Issues & Defect Log')}</h3>
       ${log.issues.map(iss=>`<p style="font-size:13px;line-height:1.7">${severityInfo(iss.severity).ic} <b>${escapeHtml(iss.type||'')}</b> — ${escapeHtml(iss.detail||'')}</p>`).join('')}
     </div>` : (log && log.note ? `<div class="rp-section"><h3>⚠️ ${tf('บันทึกอุปสรรคหน้างาน','Site Issues & Notes')}</h3><p style="font-size:13px;line-height:1.7">${escapeHtml(log.note)}</p></div>` : '')}
@@ -6532,16 +6537,36 @@ function reportBodyHtml(date){
   `;
 }
 async function refreshReportPhotos(date){
-  const proj = P();
-  const log = proj.logs.find(l=>l.date===date);
-  const reqs = reqsForDate(date);
-  const photos = await loadReportPhotos(log, reqs);
   const grid = $('#rp-photogrid');
-  if(!grid) return;
-  grid.innerHTML = photos.length? photos.map(p=> p.kind==='pdf'?
-    `<figure class="rp-pdf-figure"><a href="${p.dataUrl}" target="_blank" rel="noopener" download="${escapeHtml(p.name||'document.pdf')}"><div class="rp-pdf-icon">📄</div></a><figcaption>${escapeHtml(p.name||'PDF')}${p.caption? ' — '+escapeHtml(p.caption) : ''}</figcaption></figure>`
-    : `<figure><img src="${p.dataUrl}"><figcaption>${escapeHtml(p.caption||tf('ภาพหน้างาน','site photo'))}</figcaption></figure>`
-  ).join('') : `<span class="sub">${tf('ไม่มีรูปภาพสำหรับวันนี้','No photos for this day')}</span>`;
+  try{
+    const proj = P();
+    const log = proj.logs.find(l=>l.date===date);
+    const reqs = reqsForDate(date);
+    const photos = await loadReportPhotos(log, reqs);
+    if(!grid) return;
+    if(photos.length){
+      grid.innerHTML = photos.map(p=> p.kind==='pdf'?
+        `<figure class="rp-pdf-figure"><a href="${p.dataUrl}" target="_blank" rel="noopener" download="${escapeHtml(p.name||'document.pdf')}"><div class="rp-pdf-icon">📄</div></a><figcaption>${escapeHtml(p.name||'PDF')}${p.caption? ' — '+escapeHtml(p.caption) : ''}</figcaption></figure>`
+        : `<figure><img src="${p.dataUrl}"><figcaption>${escapeHtml(p.caption||tf('ภาพหน้างาน','site photo'))}</figcaption></figure>`
+      ).join('');
+    } else {
+      // loadReportPhotos() silently drops any photo id it couldn't read (see
+      // its own per-photo try/catch), so an expected count > 0 with zero
+      // photos actually loaded means every read failed -- distinguish that
+      // from "nothing was ever attached" instead of just saying "no photos".
+      const expectedCount = ((log&&log.photoIds)||[]).length + (reqs||[]).reduce((s,r)=> s+((r.photoIds||[]).length), 0);
+      grid.innerHTML = expectedCount>0
+        ? `<span class="sub" style="color:var(--coral-600)">${tf('มีรูปภาพแนบไว้ แต่โหลดไม่สำเร็จ (เบราว์เซอร์นี้อาจบล็อกการจัดเก็บรูปภาพ)','Photos are attached, but failed to load (this browser may be blocking photo storage)')}</span>`
+        : `<span class="sub">${tf('ไม่มีรูปภาพสำหรับวันนี้','No photos for this day')}</span>`;
+    }
+  }catch(err){
+    // loadReportPhotos() already guards each individual photo read, so this
+    // only fires on something unexpected (e.g. IndexedDB unavailable at all
+    // in this browser) -- surface it instead of leaving the grid stuck on
+    // "Loading photos..." forever with no explanation.
+    console.error('Failed to load report photos', err);
+    if(grid) grid.innerHTML = `<span class="sub" style="color:var(--coral-600)">${tf('โหลดรูปภาพไม่สำเร็จ (เบราว์เซอร์นี้อาจบล็อกการจัดเก็บรูปภาพ)','Failed to load photos (this browser may be blocking photo storage)')}</span>`;
+  }
 }
 function wireReport(){
   refreshReportPhotos(state.reportDate);
