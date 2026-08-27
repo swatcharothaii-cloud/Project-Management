@@ -253,6 +253,12 @@ tbody tr:hover{background:var(--surface-2)}
 .cl-table td{padding:5px 6px;vertical-align:middle}
 .cl-table input,.cl-table select{padding:6px 8px;font-size:12px;border-radius:6px;min-width:0}
 .cl-table td[data-cl-total]{white-space:nowrap;font-weight:600;padding:9px 10px}
+.cl-cat-chart{display:flex;flex-direction:column;gap:10px}
+.cl-cat-row{display:grid;grid-template-columns:minmax(120px,220px) 1fr auto;align-items:center;gap:12px}
+.cl-cat-label{font-size:12.5px;font-weight:600;color:var(--ink-700);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cl-cat-bar-track{height:10px;border-radius:999px;background:var(--line-soft);overflow:hidden}
+.cl-cat-bar-fill{height:100%;border-radius:999px;background:linear-gradient(90deg,var(--purple-600),var(--purple-700));min-width:3px}
+.cl-cat-amt{font-size:12.5px;font-weight:600;white-space:nowrap}
 .budget-cat-row td{background:var(--purple-50);color:var(--purple-700);font-family:var(--font-display);font-weight:600;font-size:12.5px;white-space:normal}
 .mp-table tr.mp-cat-row{cursor:pointer;user-select:none}
 .mp-table tr.mp-cat-row td{background:var(--purple-50);color:var(--purple-700);font-family:var(--font-display);font-weight:600;font-size:12.5px;padding:9px 12px;white-space:normal;transition:background .12s}
@@ -3205,7 +3211,7 @@ function richmondProject(){
       "workType": "งานไฟฟ้า",
       "workNature": "main",
       "itemName": "ปลั๊กไฟ 10A (Schneider)",
-      "taskId": "rc-8_1",
+      "taskId": "4. งานไฟฟ้า-เดินสายไฟ",
       "unit": "ชิ้น",
       "qty": 25,
       "unitCost": 780,
@@ -3222,7 +3228,7 @@ function richmondProject(){
       "workType": "งานเตรียมการ",
       "workNature": "main",
       "itemName": "งานเตรียมพื้นที่/ป้องกันหน้างาน (Preliminary)",
-      "taskId": "rc-1",
+      "taskId": "1. งานเตรียมการ/ป้องกันหน้างาน",
       "unit": "L/S",
       "qty": 1,
       "unitCost": 30000,
@@ -6073,6 +6079,41 @@ function newCostLogEntry(){
   };
 }
 function costLogRecalcTotal(c){ c.total = (c.qty||0) * (c.unitCost||0); return c.total; }
+// Horizontal bar breakdown of every logged entry's total (regardless of
+// status -- matches the page's own "ยอดซื้อรวมทั้งหมด" KPI, unlike the
+// stricter "committed spend only" rule used for the Budget tab's rollup),
+// grouped by the BOQ category it's linked to. Entries with no category
+// link land in one "not linked" bucket at the end. Hand-rolled with plain
+// divs (not SVG/canvas) since it's just proportional bar widths, matching
+// the app's existing convention of building charts from scratch rather
+// than pulling in a charting library.
+function costLogCategoryChartHtml(all){
+  if(!all.length) return '';
+  const proj = P();
+  const catOrder = boqCategoryGroups(proj.boq||[]).map(g=>g.cat).filter(Boolean);
+  const totals = {};
+  all.forEach(c=>{ const key = c.taskId||''; totals[key] = (totals[key]||0) + (c.total||0); });
+  const keys = catOrder.filter(cat=>totals[cat]!=null);
+  if(totals['']!=null) keys.push('');
+  const grand = keys.reduce((s,k)=> s+totals[k], 0);
+  if(!grand) return '';
+  const maxVal = Math.max(...keys.map(k=>totals[k]));
+  const rows = keys.map(k=>{
+    const label = k? k : tf('ไม่ได้เชื่อมกับหมวดหมู่งาน','Not linked to a category');
+    const val = totals[k];
+    const pct = grand? (val/grand*100) : 0;
+    const barPct = maxVal? (val/maxVal*100) : 0;
+    return `<div class="cl-cat-row">
+      <div class="cl-cat-label" title="${escapeHtml(label)}">${escapeHtml(label)}</div>
+      <div class="cl-cat-bar-track"><div class="cl-cat-bar-fill" style="width:${barPct}%"></div></div>
+      <div class="cl-cat-amt tabular">${fmtCurrency(val)} <span class="hint">(${fmtNum(pct,1)}%)</span></div>
+    </div>`;
+  }).join('');
+  return `<div class="card" style="margin-bottom:16px">
+    <b style="font-family:var(--font-display)">📊 ${tf('สรุปต้นทุนจัดซื้อแยกตามหมวดหมู่งาน (BOQ)','Purchase Cost by BOQ Category')}</b>
+    <div class="cl-cat-chart" style="margin-top:12px">${rows}</div>
+  </div>`;
+}
 function renderCostLog(){
   const proj = P();
   const all = proj.costLog||[];
@@ -6082,7 +6123,12 @@ function renderCostLog(){
     const count = f.v==='all'? all.length : all.filter(c=>c.status===f.v).length;
     return `<button class="btn ${costLogStatusFilter===f.v?'primary':'ghost'} sm" data-cl-filter="${f.v}">${f.label} (${count})</button>`;
   }).join('');
-  const boqItems = proj.boq||[];
+  // "เชื่อมงาน" links to a BOQ *category* (the main work heading, e.g. "4.
+  // งานไฟฟ้า-เดินสายไฟ") rather than one specific line item -- item-level
+  // granularity isn't needed here, and picking from a short category list
+  // is faster than hunting through every BOQ line while typing a purchase
+  // in. See costLogCategoryTotals()/renderBudget() for how this rolls up.
+  const boqCategories = boqCategoryGroups(proj.boq||[]).map(g=>g.cat).filter(Boolean);
   const rows = filtered.map((c,idx)=>{
     return `<tr data-cl-row="${c.id}">
       <td class="tabular hint">${idx+1}</td>
@@ -6091,7 +6137,7 @@ function renderCostLog(){
       <td><input type="text" data-cl-field="workType" value="${escapeHtml(c.workType||'')}" placeholder="${tf('เช่น งานไฟฟ้า','e.g. Electrical')}" style="width:120px"></td>
       <td><select data-cl-field="workNature">${COSTLOG_WORK_NATURE.map(w=>`<option value="${w.v}" ${c.workNature===w.v?'selected':''}>${escapeHtml(tf(w.th,w.en))}</option>`).join('')}</select></td>
       <td><input type="text" data-cl-field="itemName" value="${escapeHtml(c.itemName||'')}" placeholder="${tf('รายการสินค้า','Item')}" style="width:180px"></td>
-      <td><select data-cl-field="taskId"><option value="">${tf('— ไม่เชื่อม —','— none —')}</option>${boqItems.map(it=>`<option value="${it.id}" ${c.taskId===it.id?'selected':''}>${escapeHtml((it.itemCode?it.itemCode+' — ':'')+it.name)}</option>`).join('')}</select></td>
+      <td><select data-cl-field="taskId"><option value="">${tf('— ไม่เชื่อม —','— none —')}</option>${boqCategories.map(cat=>`<option value="${escapeHtml(cat)}" ${c.taskId===cat?'selected':''}>${escapeHtml(cat)}</option>`).join('')}</select></td>
       <td><input type="text" data-cl-field="unit" value="${escapeHtml(c.unit||'')}" placeholder="${tf('หน่วย','Unit')}" style="width:70px"></td>
       <td><input type="number" step="0.01" min="0" data-cl-field="qty" value="${c.qty==null?'':c.qty}" style="width:80px"></td>
       <td><input type="number" step="0.01" min="0" data-cl-field="unitCost" value="${c.unitCost==null?'':c.unitCost}" style="width:100px"></td>
@@ -6111,6 +6157,7 @@ function renderCostLog(){
     <div class="card kpi"><div class="stat"><span class="lbl">💰 ${tf('ยอดซื้อรวมทั้งหมด','Total purchases')}</span><span class="num tabular" style="font-size:19px">${fmtCurrency(grandTotal)}</span></div></div>
     <div class="card kpi"><div class="stat"><span class="lbl">🧾 ${tf('จำนวนรายการ','Entries')}</span><span class="num tabular" style="font-size:19px">${all.length}</span></div></div>
   </div>
+  ${costLogCategoryChartHtml(all)}
   <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">${filterChips}</div>
   ${all.length===0? `<div class="empty"><span class="ic">🧾</span>${tf('ยังไม่มีบันทึกต้นทุนการจัดซื้อ กด "เพิ่มรายการ" เพื่อเริ่มบันทึก','No cost log entries yet -- tap "Add row" to start logging')}</div>` : `
   <div class="table-wrap"><table class="budget-table cl-table"><thead><tr>
@@ -6180,12 +6227,13 @@ function wireCostLog(){
 // item (line.taskId, set when the request was created) AND priced
 // (line.actualUnitCost, entered by procurement at delivery confirmation) --
 // see requestModalHtml() and the #dt-schedule handler in wireDetailModal().
-// The Procurement Cost Log's entries roll up the same way, once linked to a
-// BOQ item (taskId) and past "pending" status -- see wireCostLog() above and
-// projectActualCostTotal() below, which applies the same pending/committed
-// distinction to the project-wide "total actual cost" KPI. An unlinked
-// cost-log row still counts toward that KPI but can't be attributed to one
-// BOQ line item.
+// The Procurement Cost Log links each entry to a whole BOQ *category*
+// (the main work heading, e.g. "4. งานไฟฟ้า-เดินสายไฟ") rather than one
+// specific line item -- see the "เชื่อมงาน" field in renderCostLog()/
+// wireCostLog() below. That coarser link means its costs can't be folded
+// into this item-level map; they roll up separately by category in
+// costLogCategoryTotals(), and renderBudget() displays that on each
+// category's header row instead of any single item's row.
 function boqActualsMap(){
   const map = {}; // taskId -> {qty, cost, refs:[{reqNo,poNumber,vendor,purchaseDate}]}
   P().materialRequests.filter(r=>!r.trashed).forEach(r=>{
@@ -6199,13 +6247,20 @@ function boqActualsMap(){
       map[l.taskId].refs.push({reqNo:r.reqNo, poNumber:(r.procurement&&r.procurement.poNumber)||'', vendor:(r.procurement&&r.procurement.vendor)||'', purchaseDate:(r.procurement&&r.procurement.deliveryDate)||''});
     });
   });
+  return map;
+}
+// Cost Log spend grouped by the BOQ category it's linked to (taskId now
+// holds a category string, not an item id -- see the comment above
+// boqActualsMap()). Only "ordered"/"delivered" entries count as committed
+// spend, same rule as projectActualCostTotal() below; a "pending" entry is
+// still just a request.
+function costLogCategoryTotals(){
+  const map = {}; // category string -> {cost, count}
   (P().costLog||[]).forEach(c=>{
     if(!c.taskId || c.status==='pending') return;
-    const qty = c.qty||0;
-    if(!map[c.taskId]) map[c.taskId] = {qty:0, cost:0, refs:[]};
-    map[c.taskId].qty += qty;
+    if(!map[c.taskId]) map[c.taskId] = {cost:0, count:0};
     map[c.taskId].cost += (c.total||0);
-    map[c.taskId].refs.push({reqNo:c.po||tf('บันทึกต้นทุน','cost log'), poNumber:c.po||'', vendor:c.orderedBy||'', purchaseDate:c.date||''});
+    map[c.taskId].count += 1;
   });
   return map;
 }
@@ -6228,11 +6283,14 @@ function renderBudget(){
     return `<div class="page-head"><div><h2>${tf('งบประมาณ (BOQ เทียบต้นทุนจริง)','Budget (BOQ vs. Actual)')}</h2></div></div><div class="empty"><span class="ic">💰</span>${tf('เพิ่มรายการงานในแผนงานหลักก่อน เพื่อเริ่มติดตามงบประมาณ','Add work items in the Master Plan first to start tracking budget')}</div>`;
   }
   const actuals = boqActualsMap();
+  const catActuals = costLogCategoryTotals();
   const groups = boqCategoryGroups(proj.boq);
   let totalBoqBudget=0, no=0;
   const rows = groups.map(g=>{
     const label = g.cat? escapeHtml(g.cat) : tf('ไม่ระบุหมวดหมู่','Uncategorized');
-    const catHeader = `<tr class="budget-cat-row"><td colspan="15">📁 ${label}</td></tr>`;
+    const ca = g.cat? catActuals[g.cat] : null;
+    const catCostLogNote = ca? ` · 🧾 ${tf('ต้นทุนจากบันทึกจัดซื้อ','Cost log spend')}: <b class="tabular">${fmtCurrency(ca.cost)}</b> (${ca.count} ${tf('รายการ','entries')})` : '';
+    const catHeader = `<tr class="budget-cat-row"><td colspan="15">📁 ${label}${catCostLogNote}</td></tr>`;
     const itemRows = g.items.map(item=>{
       no++;
       const boqQty = item.qtyTotal;
