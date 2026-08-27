@@ -508,7 +508,33 @@ tbody tr:hover{background:var(--surface-2)}
 @media print{
   body *{visibility:hidden}
   #reportPrintable,#reportPrintable *{visibility:visible}
-  #reportPrintable{position:absolute;left:0;top:0;width:100%;box-shadow:none;border:none}
+  #reportPrintable{position:absolute;left:0;top:0;width:100%;box-shadow:none;border:none;border-radius:0}
+  @page{size:auto;margin:8mm}
+  /* The on-screen report is spaced for comfortable reading, which was
+     overflowing onto a second printed page even for a fairly short day's
+     entries (the default browser print margin alone is ~19mm/side, on top
+     of this generous padding). These overrides only kick in when printing
+     -- !important is needed since several of the sizes below are set as
+     inline styles at render time in reportBodyHtml(). A very long day
+     (many workforce rows, entries, or photos) can still spill onto a
+     second page -- that's real content, not something to shrink away --
+     but a typical day's report now fits on one. */
+  #reportPrintable .rp-head{padding:12px 16px 10px!important}
+  #reportPrintable .rp-head img{width:30px!important;height:30px!important}
+  #reportPrintable .rp-head .tag{font-size:8.5px!important}
+  #reportPrintable .rp-head h1{font-size:15px!important;margin-top:3px!important}
+  #reportPrintable .rp-company-info{font-size:10px!important;margin-top:5px!important;line-height:1.35!important}
+  #reportPrintable .rp-meta{padding:8px 16px!important;gap:4px 14px!important;font-size:10.5px!important}
+  #reportPrintable .rp-meta b{font-size:9px!important;margin-bottom:0!important}
+  #reportPrintable .rp-section{padding:8px 16px!important;page-break-inside:avoid}
+  #reportPrintable .rp-section h3{font-size:11px!important;margin-bottom:6px!important}
+  #reportPrintable .rp-section p{font-size:10.5px!important;line-height:1.4!important}
+  #reportPrintable table{font-size:10.5px!important}
+  #reportPrintable th,#reportPrintable td{padding:4px 7px!important}
+  #reportPrintable .rp-photogrid{grid-template-columns:repeat(auto-fill,minmax(85px,1fr))!important;gap:6px!important}
+  #reportPrintable .rp-photogrid img{height:65px!important}
+  #reportPrintable .rp-photogrid figcaption{font-size:8.5px!important;padding:3px 5px!important}
+  #reportPrintable .rp-foot{padding:6px 16px!important;font-size:9px!important}
 }
 .exported-wrap{margin-top:10px;text-align:center}
 .exported-wrap img{max-width:100%;border-radius:12px;border:1px solid var(--line)}
@@ -5090,6 +5116,22 @@ function categoriesInBoq(boq){
 function boqItemSearchLabel(item){
   return `${item.itemCode? item.itemCode+' ' : ''}${item.name}${item.category? ' — '+item.category : ''}`;
 }
+// Renders a "done so far" quantity as a % of an item's total planned qty,
+// for both the Daily Log composer's live hint and the report/mini-row
+// display of entries[].actualQty (see the note above renderDailyLog()'s
+// itemHint for why actualQty is what's stored, %  is just how it's shown).
+// A % over 999 almost always means a legacy/mistaken entry -- actualQty
+// entered as a raw quantity under the old (pre-%) input, or a typo -- so
+// rather than silently clamping the number down to a suspicious-looking
+// flat "999%" (which reads as a hardcoded bug, especially when several
+// rows all show the exact same value), this shows it honestly as ">999%"
+// so it's obviously a data outlier worth checking, not a real precise figure.
+function pctOfLabel(actualQty, qtyTotal){
+  const pct = qtyTotal? (Number(actualQty)||0)/qtyTotal*100 : 0;
+  if(pct<0) return '0%';
+  if(pct>999) return '>999%';
+  return fmtNum(pct,1)+'%';
+}
 
 function ensureDailyDraft(){
   const date = state.selectedLogDate;
@@ -5270,16 +5312,15 @@ function renderDailyLog(){
     const doneToday = d.entries.filter(e=>e.itemId===selectedItem.id).reduce((s,e)=> s+(Number(e.actualQty)||0), 0);
     const doneSoFar = doneBefore + doneToday;
     const total = selectedItem.qtyTotal||0;
-    const donePct = total? clamp(doneSoFar/total*100,0,999) : 0;
     const remaining = Math.max(0, total - doneSoFar);
     const remainingPct = total? clamp(remaining/total*100,0,100) : 0;
-    itemHint = `<div class="hint" style="margin-top:4px">${tf('ทำไปแล้ว','Done so far')} <b class="tabular">${fmtNum(donePct,1)}%</b> (${fmtNum(doneSoFar,2)}/${fmtNum(total,2)} ${escapeHtml(selectedItem.unit||'')}) · ${tf('เหลืออีก','Remaining')} <b class="tabular">${fmtNum(remainingPct,1)}%</b></div>`;
+    itemHint = `<div class="hint" style="margin-top:4px">${tf('ทำไปแล้ว','Done so far')} <b class="tabular">${pctOfLabel(doneSoFar,total)}</b> (${fmtNum(doneSoFar,2)}/${fmtNum(total,2)} ${escapeHtml(selectedItem.unit||'')}) · ${tf('เหลืออีก','Remaining')} <b class="tabular">${fmtNum(remainingPct,1)}%</b></div>`;
   }
   const itemDatalist = proj.boq.map(i=>`<option value="${escapeHtml(boqItemSearchLabel(i))}"></option>`).join('');
   const entryRows = d.entries.map((e,idx)=>{
     const it = proj.boq.find(i=>i.id===e.itemId);
     const catLabel = e.category || e.zone || '';
-    const pctLabel = (it && it.qtyTotal) ? fmtNum(clamp((Number(e.actualQty)||0)/it.qtyTotal*100,0,999),1)+'%' : fmtNum(e.actualQty,2)+(it?' '+escapeHtml(it.unit):'');
+    const pctLabel = (it && it.qtyTotal) ? pctOfLabel(e.actualQty, it.qtyTotal) : fmtNum(e.actualQty,2)+(it?' '+escapeHtml(it.unit):'');
     return `<div class="mini-row">
       <div class="txt">
         <span class="t1">${it? escapeHtml(it.name) : tf('(รายการนี้ถูกลบออกจากแผนแล้ว)','(item removed from plan)')}</span>
@@ -5558,6 +5599,12 @@ function wireDailyLog(){
     const pct = parseFloat(dailyEntryDraft.qty); // entered as a % of the item's qtyTotal, see the note above renderDailyLog()'s itemHint
     if(!item || !pct || pct<=0){ toast(tf('กรุณาเลือกรายการงานจากตัวเลือกที่แนะนำ และใส่ % ให้ถูกต้อง','Please pick a work item from the suggestions and enter a valid %')); return; }
     if(!item.qtyTotal){ toast(tf('รายการนี้ไม่มีปริมาณรวมในแผน จึงคำนวณ % ไม่ได้','This item has no total quantity in the plan, so % can’t be calculated')); return; }
+    // A single day's entry over 100% is almost always a typo or a leftover
+    // habit of typing a raw quantity instead of a % (the old input, before
+    // this became a % field) -- confirm before accepting it rather than
+    // silently recording something like "999%" that then looks like a bug
+    // everywhere it's displayed later.
+    if(pct>100 && !confirm(tf(`ปริมาณที่กรอก (${pct}%) มากกว่า 100% ของรายการนี้ทั้งหมด ใช่ % จริงหรือไม่ (ไม่ใช่ปริมาณเป็นหน่วย)? กด OK เพื่อบันทึกต่อ`,`The entered amount (${pct}%) is over 100% of this item's total. Is that really a % (not a raw quantity)? Press OK to save it anyway.`))) return;
     // Convert the entered % straight to a real quantity so everything
     // downstream (actualCumAt, Dashboard, S-Curve) keeps summing plain
     // quantities exactly as before -- the % is purely an input convenience.
@@ -6660,7 +6707,7 @@ function reportBodyHtml(date){
   // % back rather than a re-derived unit count.
   const entryRows = (log && log.entries && log.entries.length) ? log.entries.map(e=>{
     const item = proj.boq.find(i=>i.id===e.itemId);
-    const pctLabel = (item && item.qtyTotal) ? fmtNum(clamp((Number(e.actualQty)||0)/item.qtyTotal*100,0,999),1)+'%' : (fmtNum(e.actualQty,2)+' '+escapeHtml((item&&item.unit)||''));
+    const pctLabel = (item && item.qtyTotal) ? pctOfLabel(e.actualQty, item.qtyTotal) : (fmtNum(e.actualQty,2)+' '+escapeHtml((item&&item.unit)||''));
     return `<tr>
       <td>${escapeHtml(e.category||(item&&item.category)||'-')}</td>
       <td class="tabular">${pctLabel}</td>
@@ -6676,7 +6723,7 @@ function reportBodyHtml(date){
           <h1>${tf('รายงานความคืบหน้าและวิเคราะห์หน้างานตกแต่งภายใน','Interior Fit-Out Progress & Analysis Report')}</h1>
         </div>
       </div>
-      ${c.company? `<div style="margin-top:10px;font-size:12.5px;opacity:.92;line-height:1.6">
+      ${c.company? `<div class="rp-company-info" style="margin-top:10px;font-size:12.5px;opacity:.92;line-height:1.6">
         <b style="font-weight:600">${escapeHtml(c.company)}</b>
         ${c.address? `<br>${escapeHtml(c.address)}` : ''}
         ${(c.taxId||c.email)? `<br>${c.taxId? tf('เลขผู้เสียภาษี ','Tax ID ')+escapeHtml(c.taxId) : ''}${c.taxId&&c.email?' · ':''}${c.email? escapeHtml(c.email) : ''}` : ''}
