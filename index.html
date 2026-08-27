@@ -508,8 +508,26 @@ tbody tr:hover{background:var(--surface-2)}
 @media print{
   body *{visibility:hidden}
   #reportPrintable,#reportPrintable *{visibility:visible}
+  /* .screen's "rise" entrance animation (see .screen{animation:rise...})
+     finishes on transform:none, but with animation-fill-mode:both still
+     holding it there, some browsers compute that as an explicit identity
+     matrix rather than the literal keyword "none" -- and *any* computed
+     transform on an ancestor, even a no-op one, makes it the containing
+     block for a position:absolute/fixed descendant. That silently made
+     #reportPrintable position itself relative to .screen (which still sits
+     below the now-hidden topbar/tabbar in normal flow) instead of the
+     actual page top, printing with a large dead gap above the report no
+     matter how small @page's own margin was set. Killing the animation for
+     print removes that stray containing block so top:0 means the real top.
+  */
+  .screen{animation:none!important;transform:none!important}
   #reportPrintable{position:absolute;left:0;top:0;width:100%;box-shadow:none;border:none;border-radius:0}
-  @page{size:auto;margin:8mm}
+  @page{size:auto;margin:5mm}
+  /* Note: the bigger gap some browsers still show above/below the page --
+     the one with the page title/URL/date/page-number printed in it -- is
+     the browser's own "Headers and footers" print option, not page margin.
+     CSS/@page cannot turn that off; it's a checkbox in the print dialog's
+     "More settings" that the person printing controls on their end. */
   /* The on-screen report is spaced for comfortable reading, which was
      overflowing onto a second printed page even for a fairly short day's
      entries (the default browser print margin alone is ~19mm/side, on top
