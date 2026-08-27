@@ -5360,7 +5360,25 @@ async function saveDailyLogAndReturnDate(){
   let log = P().logs.find(l=>l.date===date);
   const newPhotoIds = [];
   const newPhotoMeta = {};
-  for(const p of pendingPhotos){ const id=uid(); await idbPut(id,p.dataUrl); newPhotoIds.push(id); newPhotoMeta[id] = {caption:p.caption||'', tag:p.tag||'', kind:p.kind||'image', name:p.name||''}; }
+  // Write each pending photo to IndexedDB individually, catching failures
+  // per-photo rather than letting one bad photo (or a browser that blocks
+  // IndexedDB entirely -- private browsing, some in-app webviews, storage
+  // quota exceeded) throw out of the whole function. Without this, an
+  // uncaught rejection here would abort the save before it ever reaches the
+  // text fields below or saveData() -- the log looks unsaved with no error
+  // shown, even though weather/workforce/entries/issues have nothing to do
+  // with photo storage and should still be savable.
+  let photoFailCount = 0;
+  for(const p of pendingPhotos){
+    const id=uid();
+    try{
+      await idbPut(id,p.dataUrl);
+      newPhotoIds.push(id);
+      newPhotoMeta[id] = {caption:p.caption||'', tag:p.tag||'', kind:p.kind||'image', name:p.name||''};
+    }catch(err){
+      photoFailCount++;
+    }
+  }
   if(!log){ log = {id:uid(),date,entries:[],photoIds:[]}; P().logs.push(log); }
   log.weather = dailyDraft.weather;
   log.workforce = dailyDraft.workforce.filter(w=> (w.team||'').trim()).map(w=>({team:w.team,count:w.count,workType:w.workType}));
@@ -5374,7 +5392,11 @@ async function saveDailyLogAndReturnDate(){
   saveData();
   pendingPhotos=[];
   dailyDraft=null;
-  return date;
+  // Returned as an object (not just the date string) so callers can fold
+  // photoFailCount into a single combined toast -- calling toast() twice in
+  // a row here would just have the second call silently overwrite the first
+  // in the shared #toast element before the user ever reads it.
+  return {date, photoFailCount};
 }
 function wireDailyLog(){
   const dateInput = $('#log-date');
@@ -5451,30 +5473,64 @@ function wireDailyLog(){
   };
   $$('[data-rm-entry]').forEach(b=> b.onclick = ()=>{ syncDailyDraftFromDom(); dailyDraft.entries.splice(Number(b.dataset.rmEntry),1); render(); });
 
+  // All three handlers below wrap saveDailyLogAndReturnDate() in try/catch.
+  // Without it, any exception the async save hits (a rejected IndexedDB
+  // write that slipped past the per-photo guard above, a corrupted
+  // localStorage entry, anything unexpected) becomes an uncaught promise
+  // rejection: the button stays disabled with its "...กำลังบันทึก" label
+  // forever, nothing renders, and the user sees no error at all -- just a
+  // button that silently stopped responding. Catching it here guarantees
+  // the button always re-enables and the user always sees *something*,
+  // even in a failure case this code didn't anticipate.
   const saveBtn = $('#btn-save-log');
   if(saveBtn) saveBtn.onclick = async ()=>{
     saveBtn.disabled = true; saveBtn.textContent=tf('กำลังบันทึก...','Saving...');
-    const date = await saveDailyLogAndReturnDate();
-    toast(tf('บันทึกรายงานประจำวันแล้ว','Daily report saved'));
-    state.reportDate = date;
-    render();
+    try{
+      const {date, photoFailCount} = await saveDailyLogAndReturnDate();
+      toast(photoFailCount>0
+        ? tf(`บันทึกรายงานแล้ว แต่แนบรูปไม่สำเร็จ ${photoFailCount} รูป (พื้นที่จัดเก็บเต็ม หรือเบราว์เซอร์ไม่รองรับ)`, `Report saved, but ${photoFailCount} photo(s) failed to attach (storage full or unsupported by this browser)`)
+        : tf('บันทึกรายงานประจำวันแล้ว','Daily report saved'));
+      state.reportDate = date;
+      render();
+    }catch(err){
+      console.error('Daily log save failed', err);
+      toast(tf('บันทึกไม่สำเร็จ กรุณาลองอีกครั้ง ('+((err&&err.message)||tf('ข้อผิดพลาดไม่ทราบสาเหตุ','unknown error'))+')', 'Save failed, please try again ('+((err&&err.message)||'unknown error')+')'));
+      saveBtn.disabled = false; saveBtn.textContent = tf('บันทึกรายงานประจำวัน','Save daily report');
+    }
   };
   const exportPdfBtn = $('#btn-export-pdf-log');
   if(exportPdfBtn) exportPdfBtn.onclick = async ()=>{
     exportPdfBtn.disabled = true;
-    const date = await saveDailyLogAndReturnDate();
-    state.reportDate = date; state.tab = 'report'; render();
-    // Call window.print() immediately (no setTimeout) -- deferring it via a timer
-    // loses the "user activation" context on iOS Safari and silently no-ops there.
-    window.print();
+    try{
+      const {date, photoFailCount} = await saveDailyLogAndReturnDate();
+      state.reportDate = date; state.tab = 'report'; render();
+      if(photoFailCount>0) toast(tf(`แนบรูปไม่สำเร็จ ${photoFailCount} รูป (พื้นที่จัดเก็บเต็ม หรือเบราว์เซอร์ไม่รองรับ) — ส่วนที่เหลือบันทึกแล้ว`, `${photoFailCount} photo(s) failed to attach (storage full or unsupported) -- the rest was saved`));
+      // Call window.print() immediately (no setTimeout) -- deferring it via a timer
+      // loses the "user activation" context on iOS Safari and silently no-ops there.
+      window.print();
+    }catch(err){
+      console.error('Export PDF failed', err);
+      toast(tf('ส่งออก PDF ไม่สำเร็จ กรุณาลองอีกครั้ง ('+((err&&err.message)||tf('ข้อผิดพลาดไม่ทราบสาเหตุ','unknown error'))+')', 'PDF export failed, please try again ('+((err&&err.message)||'unknown error')+')'));
+    }finally{
+      exportPdfBtn.disabled = false;
+    }
   };
   const exportImgBtn = $('#btn-export-img-log');
   if(exportImgBtn) exportImgBtn.onclick = async ()=>{
     exportImgBtn.disabled = true;
-    const date = await saveDailyLogAndReturnDate();
-    toast(tf('บันทึกแล้ว กำลังสร้างรูปภาพรายงาน...','Saved -- generating the report image...'));
-    state.reportDate = date; state.tab = 'report'; render();
-    exportReportAsImage();
+    try{
+      const {date, photoFailCount} = await saveDailyLogAndReturnDate();
+      toast(photoFailCount>0
+        ? tf(`แนบรูปไม่สำเร็จ ${photoFailCount} รูป แต่บันทึกส่วนที่เหลือแล้ว กำลังสร้างรูปภาพรายงาน...`, `${photoFailCount} photo(s) failed to attach, but the rest was saved -- generating the report image...`)
+        : tf('บันทึกแล้ว กำลังสร้างรูปภาพรายงาน...','Saved -- generating the report image...'));
+      state.reportDate = date; state.tab = 'report'; render();
+      await exportReportAsImage();
+    }catch(err){
+      console.error('Export image failed', err);
+      toast(tf('ส่งออกรูปภาพไม่สำเร็จ กรุณาลองอีกครั้ง ('+((err&&err.message)||tf('ข้อผิดพลาดไม่ทราบสาเหตุ','unknown error'))+')', 'Image export failed, please try again ('+((err&&err.message)||'unknown error')+')'));
+    }finally{
+      exportImgBtn.disabled = false;
+    }
   };
   const clearBtn = $('#btn-clear-log');
   if(clearBtn) clearBtn.onclick = ()=>{
