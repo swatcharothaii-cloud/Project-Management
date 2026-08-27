@@ -3721,7 +3721,7 @@ function resetTransient(){
   editingItemId=null; itemDraft=null;
   creatingRequest=false; requestForm=null; procureDetailId=null; refGalleryItemId=null;
   projectDraft=null; editingProjectId=null; boqImport=null;
-  dailyDraft=null; dailyEntryDraft={zone:'',itemId:'',qty:'',note:''};
+  dailyDraft=null; dailyEntryDraft={itemSearch:'',itemId:'',qty:'',note:''};
   contractorDraft=null; editingContractorId=null; contractorHistoryId=null;
   historyModalOpen=false; historyViewing=false;
   procureTrashOpen=false;
@@ -5014,7 +5014,7 @@ async function refreshGalleryPhotos(){
 /* ============================= SCREEN: DAILY LOG ============================= */
 let pendingPhotos = []; // {dataUrl, caption, tag}
 let dailyDraft = null;  // {date, weather, workforce:[], entries:[], issues:[], deliveryNote} -- persists across re-renders
-let dailyEntryDraft = {category:'', itemId:'', qty:'', note:''}; // the "not yet added" progress-entry composer row
+let dailyEntryDraft = {itemSearch:'', itemId:'', qty:'', note:''}; // the "not yet added" progress-entry composer row
 let historyModalOpen=false, historyDate=null, historyViewing=false; // Daily Log "history" viewer: pick a date, list saved logs, view read-only without touching today's draft
 const PHOTO_MAX = 30;
 const STANDARD_WORKTYPES = [
@@ -5049,6 +5049,16 @@ function categoriesInBoq(boq){
   const extra = used.filter(c=>!BOQ_CATEGORIES.includes(c));
   return BOQ_CATEGORIES.filter(c=>used.includes(c)).concat(extra);
 }
+// Single-line label used to search/pick a BOQ item by typing (Daily Log's
+// progress-entry composer, see renderDailyLog()/wireDailyLog() below) --
+// combines the item code, name and category into one string so a user can
+// find an item by any of the three without first drilling into a category
+// filter. Doubles as the exact-match key used to resolve typed text back to
+// a real item id, so keep this the single source of truth for that format
+// rather than re-formatting it ad hoc at each call site.
+function boqItemSearchLabel(item){
+  return `${item.itemCode? item.itemCode+' ' : ''}${item.name}${item.category? ' — '+item.category : ''}`;
+}
 
 function ensureDailyDraft(){
   const date = state.selectedLogDate;
@@ -5062,7 +5072,7 @@ function ensureDailyDraft(){
     issues: existing ? (existing.issues && existing.issues.length ? existing.issues.map(i=>({...i})) : (existing.note ? [{type:tf('อื่นๆ','Other'),detail:existing.note,severity:'amber'}] : [])) : [],
     deliveryNote: existing ? (existing.deliveryNote||'') : '',
   };
-  dailyEntryDraft = {category:'', itemId:'', qty:'', note:''};
+  dailyEntryDraft = {itemSearch:'', itemId:'', qty:'', note:''};
 }
 function syncDailyDraftFromDom(){
   if(!dailyDraft) return;
@@ -5071,8 +5081,7 @@ function syncDailyDraftFromDom(){
   const dn=g('#log-delivery'); if(dn!==undefined) dailyDraft.deliveryNote=dn;
   $$('[data-wf]').forEach(inp=>{ const row=dailyDraft.workforce[Number(inp.dataset.idx)]; if(row) row[inp.dataset.wf]=inp.value; });
   $$('[data-issue]').forEach(inp=>{ const row=dailyDraft.issues[Number(inp.dataset.idx)]; if(row) row[inp.dataset.issue]=inp.value; });
-  const cat=g('#de-category'); if(cat!==undefined) dailyEntryDraft.category=cat;
-  const it=g('#de-item'); if(it!==undefined) dailyEntryDraft.itemId=it;
+  const isv=g('#de-item-search'); if(isv!==undefined) dailyEntryDraft.itemSearch=isv;
   const q=g('#de-qty'); if(q!==undefined) dailyEntryDraft.qty=q;
   const n=g('#de-note'); if(n!==undefined) dailyEntryDraft.note=n;
 }
@@ -5200,12 +5209,30 @@ function renderDailyLog(){
     </div>
   </div>`;
 
-  /* ---- Section 3: BOQ progress entries (category -> item -> qty -> note) ---- */
-  const cats = categoriesInBoq(proj.boq);
-  const categoryOptions = `<option value="">${tf('ทุกหมวดงาน','All categories')}</option>` + cats.map(c=>`<option value="${escapeHtml(c)}" ${dailyEntryDraft.category===c?'selected':''}>${escapeHtml(c)}</option>`).join('');
-  const filteredItems = dailyEntryDraft.category ? proj.boq.filter(i=>(i.category||'')===dailyEntryDraft.category) : proj.boq;
-  const itemOptions = filteredItems.map(i=>`<option value="${i.id}" ${dailyEntryDraft.itemId===i.id?'selected':''}>${escapeHtml(i.name)}</option>`).join('');
-  const selectedItem = filteredItems.find(i=>i.id===dailyEntryDraft.itemId) || proj.boq.find(i=>i.id===dailyEntryDraft.itemId);
+  /* ---- Section 3: BOQ progress entries (search-as-you-type item picker -> qty -> note) ---- */
+  // Replaces the old two-step "pick a category, then pick an item within it"
+  // pair of dropdowns with a single searchable field: an <input list=...>
+  // backed by a <datalist> of every BOQ item labeled "code name — category"
+  // (see boqItemSearchLabel()), so a user can jump straight to any item by
+  // typing its name, code or category -- fewer fields, no need to know which
+  // category something is filed under first. The typed text is resolved back
+  // to a real item by an exact match against that same label (see the
+  // #de-add handler in wireDailyLog()), so it still carries a real itemId --
+  // the per-item Dashboard/S-Curve progress tracking that reads
+  // entries[].itemId keeps working exactly as before.
+  const itemSearchValue = dailyEntryDraft.itemSearch || '';
+  const selectedItem = proj.boq.find(i=> boqItemSearchLabel(i)===itemSearchValue);
+  let itemHint = '';
+  if(itemSearchValue && !selectedItem){
+    itemHint = `<div class="hint" style="color:var(--danger,#c0392b);margin-top:4px">${tf('ไม่พบรายการนี้ในแผนงาน — เลือกจากตัวเลือกที่ระบบแนะนำขณะพิมพ์','No matching item in the plan -- pick one of the suggestions as you type')}</div>`;
+  } else if(selectedItem){
+    const doneBefore = actualCumAt(selectedItem, addDays(d.date,-1), proj.logs);
+    const doneToday = d.entries.filter(e=>e.itemId===selectedItem.id).reduce((s,e)=> s+(Number(e.actualQty)||0), 0);
+    const doneSoFar = doneBefore + doneToday;
+    const remaining = Math.max(0, (selectedItem.qtyTotal||0) - doneSoFar);
+    itemHint = `<div class="hint" style="margin-top:4px">${tf('ทำไปแล้ว','Done so far')} <b class="tabular">${fmtNum(doneSoFar,2)}</b> / ${fmtNum(selectedItem.qtyTotal,2)} ${escapeHtml(selectedItem.unit||'')} · ${tf('เหลืออีก','Remaining')} <b class="tabular">${fmtNum(remaining,2)} ${escapeHtml(selectedItem.unit||'')}</b></div>`;
+  }
+  const itemDatalist = proj.boq.map(i=>`<option value="${escapeHtml(boqItemSearchLabel(i))}"></option>`).join('');
   const entryRows = d.entries.map((e,idx)=>{
     const it = proj.boq.find(i=>i.id===e.itemId);
     const catLabel = e.category || e.zone || '';
@@ -5221,8 +5248,11 @@ function renderDailyLog(){
   <div class="card">
     <b style="font-family:var(--font-display)">📐 ${tf('บันทึกความคืบหน้างานตาม BOQ','BOQ Progress Entries')}</b>
     <div class="grid cols-2" style="margin-top:12px">
-      <div class="field"><label>${tf('หมวดงานหลัก (ประเภทงานที่ทำ)','Main category (type of work)')}</label><select id="de-category">${categoryOptions}</select></div>
-      <div class="field"><label>${tf('รายการงาน (จาก Master Plan)','Work item (from Master Plan)')}</label><select id="de-item">${itemOptions || `<option value="">${tf('ไม่มีรายการในหมวดนี้','No items in this category')}</option>`}</select></div>
+      <div class="field" style="grid-column:1/-1"><label>${tf('รายการงาน (พิมพ์ค้นหาจาก Master Plan)','Work item (search the Master Plan)')}</label>
+        <input type="text" id="de-item-search" list="de-item-datalist" value="${escapeHtml(itemSearchValue)}" placeholder="${tf('พิมพ์ชื่อรายการ รหัสงาน หรือหมวดงาน...','Type an item name, code or category...')}" autocomplete="off">
+        <datalist id="de-item-datalist">${itemDatalist}</datalist>
+        ${itemHint}
+      </div>
       <div class="field"><label>${tf('ปริมาณที่ทำได้วันนี้','Actual qty today')}</label><input type="number" step="0.01" min="0" id="de-qty" value="${escapeHtml(String(dailyEntryDraft.qty||''))}" placeholder="0"></div>
       <div class="field"><label>${tf('หน่วยวัด','Unit')}</label><input type="text" value="${selectedItem?escapeHtml(selectedItem.unit):'-'}" disabled></div>
       <div class="field" style="grid-column:1/-1"><label>${tf('หมายเหตุความคืบหน้า (ไม่บังคับ)','Progress note (optional)')}</label><input type="text" id="de-note" value="${escapeHtml(dailyEntryDraft.note)}" placeholder="${tf('เช่น เดินสายไฟแสงสว่างในตู้เสื้อผ้าเสร็จแล้ว รอฝ้าปิดทับ','e.g. wardrobe wiring done, awaiting ceiling close-up')}"></div>
@@ -5464,17 +5494,27 @@ function wireDailyLog(){
   if(issueAdd) issueAdd.onclick = ()=>{ syncDailyDraftFromDom(); dailyDraft.issues.push({type:ISSUE_TYPES[0],detail:'',severity:'amber'}); render(); };
   $$('[data-rm-issue]').forEach(b=> b.onclick = ()=>{ syncDailyDraftFromDom(); dailyDraft.issues.splice(Number(b.dataset.rmIssue),1); render(); });
 
-  const catSel = $('#de-category');
-  if(catSel) catSel.onchange = ()=>{ syncDailyDraftFromDom(); dailyEntryDraft.itemId=''; render(); };
-  const itemSel = $('#de-item');
-  if(itemSel) itemSel.onchange = ()=>{ syncDailyDraftFromDom(); render(); };
+  // The item-search field only re-renders on "change" (leaving the field, or
+  // picking a datalist suggestion), not on every keystroke -- an oninput
+  // handler that called render() on each character would rebuild the whole
+  // form mid-keystroke and steal focus out from under the user, same reason
+  // every other continuous-typing field in this app avoids it. "change"
+  // still fires as soon as a suggestion is picked, so the "done so far /
+  // remaining" hint and the unit field update the moment a real item is
+  // chosen, without disrupting free typing before that.
+  const itemSearchInp = $('#de-item-search');
+  if(itemSearchInp){
+    itemSearchInp.oninput = ()=>{ dailyEntryDraft.itemSearch = itemSearchInp.value; };
+    itemSearchInp.onchange = ()=>{ syncDailyDraftFromDom(); render(); };
+  }
   const deAdd = $('#de-add');
   if(deAdd) deAdd.onclick = ()=>{
     syncDailyDraftFromDom();
-    const itemId = dailyEntryDraft.itemId, qty = parseFloat(dailyEntryDraft.qty);
-    if(!itemId || !qty || qty<=0){ toast(tf('กรุณาเลือกรายการงานและใส่ปริมาณให้ถูกต้อง','Please choose a work item and enter a valid quantity')); return; }
-    dailyDraft.entries.push({itemId, category:dailyEntryDraft.category||'', actualQty:qty, note:(dailyEntryDraft.note||'').trim()});
-    dailyEntryDraft = {category:dailyEntryDraft.category, itemId:'', qty:'', note:''};
+    const item = P().boq.find(i=> boqItemSearchLabel(i)===(dailyEntryDraft.itemSearch||''));
+    const qty = parseFloat(dailyEntryDraft.qty);
+    if(!item || !qty || qty<=0){ toast(tf('กรุณาเลือกรายการงานจากตัวเลือกที่แนะนำ และใส่ปริมาณให้ถูกต้อง','Please pick a work item from the suggestions and enter a valid quantity')); return; }
+    dailyDraft.entries.push({itemId:item.id, category:item.category||'', actualQty:qty, note:(dailyEntryDraft.note||'').trim()});
+    dailyEntryDraft = {itemSearch:'', itemId:'', qty:'', note:''};
     render();
   };
   $$('[data-rm-entry]').forEach(b=> b.onclick = ()=>{ syncDailyDraftFromDom(); dailyDraft.entries.splice(Number(b.dataset.rmEntry),1); render(); });
@@ -5542,7 +5582,7 @@ function wireDailyLog(){
   if(clearBtn) clearBtn.onclick = ()=>{
     if(!confirm(tf('ล้างข้อมูลในฟอร์มของวันนี้ทั้งหมด (ที่ยังไม่ได้บันทึก)? การกดบันทึกหลังจากนี้จะบันทึกทับด้วยฟอร์มเปล่า','Clear everything in today’s form (unsaved changes)? Saving afterwards will overwrite with a blank form.'))) return;
     dailyDraft = {date: state.selectedLogDate, weather:'', workforce:[], entries:[], issues:[], deliveryNote:''};
-    dailyEntryDraft = {category:'', itemId:'', qty:'', note:''};
+    dailyEntryDraft = {itemSearch:'', itemId:'', qty:'', note:''};
     pendingPhotos = [];
     toast(tf('เคลียร์ฟอร์มแล้ว','Form cleared'));
     render();
@@ -6145,12 +6185,12 @@ function renderCostLog(){
       <td><input type="text" data-cl-field="orderedBy" value="${escapeHtml(c.orderedBy||'')}" placeholder="${tf('ผู้สั่ง','Ordered by')}" style="width:100px"></td>
       <td><select data-cl-field="status">${COSTLOG_STATUS.map(s=>`<option value="${s.v}" ${c.status===s.v?'selected':''}>${s.ic} ${escapeHtml(tf(s.th,s.en))}</option>`).join('')}</select></td>
       <td><input type="text" data-cl-field="note" value="${escapeHtml(c.note||'')}" placeholder="${tf('หมายเหตุ','Note')}" style="width:140px"></td>
-      <td><button class="iconbtn" data-cl-delete="${c.id}" title="${tf('ลบ','Delete')}">🗑️</button></td>
+      <td style="white-space:nowrap"><button class="iconbtn" data-cl-duplicate="${c.id}" title="${tf('เพิ่มอีกรายการในใบสั่งซื้อเดียวกัน (คัดลอกวันที่/เลขที่/ประเภทงาน/ผู้สั่ง)','Add another item to this same PO (copies date/PO no./work type/ordered by)')}">➕🧾</button><button class="iconbtn" data-cl-delete="${c.id}" title="${tf('ลบ','Delete')}">🗑️</button></td>
     </tr>`;
   }).join('');
   return `
   <div class="page-head">
-    <div><h2>${tf('บันทึกต้นทุนการจัดซื้อ','Procurement Cost Log')}</h2><div class="sub">${tf('กรอกรายการซื้อของแต่ละครั้งลงตารางได้เลย ยอดเงินรวมคำนวณอัตโนมัติจากจำนวน × ราคาต่อหน่วย','Type each purchase straight into the table -- the total is calculated automatically from quantity × unit price')}</div></div>
+    <div><h2>${tf('บันทึกต้นทุนการจัดซื้อ','Procurement Cost Log')}</h2><div class="sub">${tf('กรอกรายการซื้อของแต่ละครั้งลงตารางได้เลย ยอดเงินรวมคำนวณอัตโนมัติจากจำนวน × ราคาต่อหน่วย · ใบสั่งซื้อเดียวกันมีได้หลายรายการ กด ➕🧾 ที่แถวเพื่อเพิ่มรายการถัดไปในใบสั่งซื้อเดิม','Type each purchase straight into the table -- the total is calculated automatically from quantity × unit price. One PO can have several items -- tap ➕🧾 on a row to add the next item under the same PO')}</div></div>
     <button class="btn primary" id="btn-add-costlog">+ ${tf('เพิ่มรายการ','Add row')}</button>
   </div>
   <div class="grid cols-auto" style="margin-bottom:16px">
@@ -6215,6 +6255,27 @@ function wireCostLog(){
     btn.onclick = ()=>{
       if(!confirm(tf('ลบรายการนี้หรือไม่?','Delete this entry?'))) return;
       proj.costLog = (proj.costLog||[]).filter(c=>c.id!==btn.dataset.clDelete);
+      saveData(); render();
+    };
+  });
+  // "Add another item to this same PO": one PO number can cover several
+  // line items (e.g. wire + sockets on the same purchase order), so this
+  // inserts a fresh row right after the source row, pre-filled with the
+  // fields that are normally shared across a whole PO (date, PO no., work
+  // type/nature, linked category, ordered by, status) -- leaving only the
+  // item-specific fields (item name, unit, qty, unit price, note) blank for
+  // the user to fill in. The generic "+ เพิ่มรายการ" button above still adds
+  // a fully blank row, for an unrelated purchase.
+  $$('[data-cl-duplicate]').forEach(btn=>{
+    btn.onclick = ()=>{
+      const src = (proj.costLog||[]).find(c=>c.id===btn.dataset.clDuplicate);
+      if(!src) return;
+      const dup = newCostLogEntry();
+      dup.date = src.date; dup.po = src.po; dup.workType = src.workType;
+      dup.workNature = src.workNature; dup.taskId = src.taskId;
+      dup.orderedBy = src.orderedBy; dup.status = src.status;
+      const idx = proj.costLog.indexOf(src);
+      proj.costLog.splice(idx+1, 0, dup);
       saveData(); render();
     };
   });
