@@ -231,6 +231,7 @@ textarea{resize:vertical;min-height:70px;font-family:var(--font-body)}
 .progress > i{display:block;height:100%;border-radius:999px;background:linear-gradient(90deg,var(--purple-600),var(--purple-700))}
 .progress.ok > i{background:linear-gradient(90deg,var(--mint-500),var(--mint-600))}
 .progress.bad > i{background:linear-gradient(90deg,var(--coral-500),var(--coral-600))}
+.progress.warn > i{background:linear-gradient(90deg,var(--amber-500),var(--amber-600))}
 
 table{width:100%;border-collapse:collapse;font-size:13px}
 .table-wrap{overflow-x:auto;border-radius:var(--radius-sm);border:1px solid var(--line)}
@@ -266,19 +267,22 @@ tbody tr:hover{background:var(--surface-2)}
 .mp-table tr.mp-cat-row.open td{border-bottom:1px solid var(--purple-100,var(--line))}
 .mp-table{table-layout:fixed;width:100%}
 .mp-table th,.mp-table td{white-space:normal;word-break:break-word;padding:9px 8px;vertical-align:top;font-size:12.5px}
-.mp-table th:nth-child(1),.mp-table td:nth-child(1){width:5%}
-.mp-table th:nth-child(2),.mp-table td:nth-child(2){width:15%}
-.mp-table th:nth-child(3),.mp-table td:nth-child(3){width:11%}
-.mp-table th:nth-child(4),.mp-table td:nth-child(4){width:11%}
-.mp-table th:nth-child(5),.mp-table td:nth-child(5){width:8%}
-.mp-table th:nth-child(6),.mp-table td:nth-child(6){width:9%}
-.mp-table th:nth-child(7),.mp-table td:nth-child(7){width:9%}
-.mp-table th:nth-child(8),.mp-table td:nth-child(8){width:5%}
-.mp-table th:nth-child(9),.mp-table td:nth-child(9){width:9%}
-.mp-table th:nth-child(10),.mp-table td:nth-child(10){width:9%}
-.mp-table th:nth-child(11),.mp-table td:nth-child(11){width:9%}
-.mp-table td:nth-child(11){display:flex;gap:5px;flex-wrap:wrap}
-.mp-table td:nth-child(11) .btn{padding:6px 8px;min-width:0}
+.mp-table th:nth-child(1),.mp-table td:nth-child(1){width:4%}
+.mp-table th:nth-child(2),.mp-table td:nth-child(2){width:12%}
+.mp-table th:nth-child(3),.mp-table td:nth-child(3){width:8%}
+.mp-table th:nth-child(4),.mp-table td:nth-child(4){width:8%}
+.mp-table th:nth-child(5),.mp-table td:nth-child(5){width:6%}
+.mp-table th:nth-child(6),.mp-table td:nth-child(6){width:6%}
+.mp-table th:nth-child(7),.mp-table td:nth-child(7){width:6%}
+.mp-table th:nth-child(8),.mp-table td:nth-child(8){width:4%}
+.mp-table th:nth-child(9),.mp-table td:nth-child(9){width:7%}
+.mp-table th:nth-child(10),.mp-table td:nth-child(10){width:7%}
+.mp-table th:nth-child(11),.mp-table td:nth-child(11){width:8%}
+.mp-table th:nth-child(12),.mp-table td:nth-child(12){width:7%}
+.mp-table th:nth-child(13),.mp-table td:nth-child(13){width:8%}
+.mp-table th:nth-child(14),.mp-table td:nth-child(14){width:9%}
+.mp-table td:nth-child(14){display:flex;gap:5px;flex-wrap:wrap}
+.mp-table td:nth-child(14) .btn{padding:6px 8px;min-width:0}
 .mp-sub{display:block;font-size:11px;color:var(--ink-500);margin-top:3px;line-height:1.35;font-weight:400}
 .mp-days-badge{display:inline-block;font-size:10px;color:var(--ink-500);background:var(--line-soft,var(--purple-50));padding:1px 6px;border-radius:8px;white-space:nowrap}
 .mp-date-input{width:100%;font-size:11px;padding:4px 3px;border-radius:6px;border:1px solid var(--line);font-family:var(--font-mono);color:var(--ink-700);background:var(--surface)}
@@ -298,6 +302,12 @@ tbody tr:hover{background:var(--surface-2)}
 .mp-status-dot.near-due{background:var(--amber-500)}
 .mp-status-dot.overdue{background:var(--coral-500)}
 .mp-status-dot.done{background:var(--mint-500)}
+.mp-procure-dot{display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:5px;vertical-align:middle}
+.mp-procure-dot.pending{background:var(--amber-500)}
+.mp-procure-dot.approved{background:var(--mint-500)}
+.mp-procure-dot.rejected{background:var(--coral-500)}
+.mp-procure-dot.scheduled{background:var(--blue-500)}
+.mp-procure-dot.idle{background:var(--purple-500)}
 .mp-cat-chevron{display:inline-block;width:14px;margin-right:2px;font-size:11px;opacity:.7}
 .mp-cat-count{font-weight:400;opacity:.75;font-size:11.5px}
 .mp-expand-controls{display:flex;gap:8px;margin:0 0 12px}
@@ -4759,6 +4769,30 @@ function itemScheduleStatus(item){
   if(daysLeft<=3) return 'near-due';
   return 'on-track';
 }
+// ---------- Procurement linkage for Master Plan rows (order/delivery date + status) ----------
+// Finds the most relevant material request tied to this BOQ item (matched via
+// lines[].taskId) so the Master Plan table/Gantt can show a live-linked order
+// date, delivery date and colored status without any re-entry -- the source
+// of truth stays the Purchasing & Approval screen's materialRequests array.
+// When several requests reference the same item, prefer the furthest-along
+// status (scheduled > approved > pending > rejected), then the newest.
+function itemProcureInfo(item){
+  const reqs = (P().materialRequests||[]).filter(r=> !r.trashed && (r.lines||[]).some(l=>l.taskId===item.id));
+  if(!reqs.length) return null;
+  const rank = {scheduled:3, approved:2, pending:1, rejected:0};
+  reqs.sort((a,b)=> (rank[b.status]||0)-(rank[a.status]||0) || (b.createdAt||'').localeCompare(a.createdAt||''));
+  const best = reqs[0];
+  const line = best.lines.find(l=>l.taskId===item.id);
+  return {
+    request: best,
+    status: best.status,
+    deliveryDate: (best.procurement && best.procurement.deliveryDate) || null,
+    neededDate: line? line.neededDate : null
+  };
+}
+// Target order date: 5 days before the item's planned start date, so there is
+// a lead-time reminder even before any material request has been created yet.
+function itemOrderDate(item){ return item.startDate? addDays(item.startDate,-5) : ''; }
 let mpView='table'; // 'table' | 'gantt' -- Master Plan & BOQ display mode, not persisted (resets to table on reload)
 function fmtMonthYear(dateStr){
   const d = parseYMD(dateStr);
@@ -4861,12 +4895,16 @@ function ganttChartHtml(groups){
       const offset = daysBetween(minDate,item.startDate)*dayW;
       const width = Math.max((daysBetween(item.startDate,item.endDate)+1)*dayW, 10);
       const showInside = width>=90;
-      const title = `${item.name} · ${fmtDate(item.startDate)} - ${fmtDate(item.endDate)} · ${statusLabel} · ${progress}%`;
+      const procureInfo = itemProcureInfo(item);
+      const orderDate = itemOrderDate(item);
+      const procStatusKey = procureInfo? procureInfo.status : 'idle';
+      const procStatusLabel = procureInfo? STATUS_LABEL[procureInfo.status] : tf('ยังไม่ได้สั่งของ','Not ordered');
+      const title = `${item.name} · ${fmtDate(item.startDate)} - ${fmtDate(item.endDate)} · ${statusLabel} · ${progress}% · ${tf('สั่งของภายใน','Order by')} ${fmtDate(orderDate)}${procureInfo && procureInfo.deliveryDate? ' · '+tf('ส่งของ','Delivery')+' '+fmtDate(procureInfo.deliveryDate) : ''} · ${procStatusLabel}`;
       itemCenterY[item.id] = y + GANTT_ITEM_ROW_H/2;
       y += GANTT_ITEM_ROW_H;
       return `<div class="gantt-row">
         <div class="gantt-label-col item-cols" style="width:${labelW}px" data-edit-item="${item.id}" title="${escapeHtml(title)}">
-          <div class="gl-task"><span class="mp-status-dot ${status}"></span>${escapeHtml(item.name)}</div>
+          <div class="gl-task"><span class="mp-status-dot ${status}"></span><span class="mp-procure-dot ${procStatusKey}"></span>${escapeHtml(item.name)}</div>
           <div class="gl-num">${fmtDateShort(item.startDate)}</div>
           <div class="gl-num">${fmtDateShort(item.endDate)}</div>
           <div class="gl-num">${days}${tf('ว','d')}</div>
@@ -4947,6 +4985,8 @@ function itemRowHtml(item){
   const progress = (item.progress==null || item.progress==='')? 0 : Number(item.progress);
   const status = itemScheduleStatus(item);
   const statusLabel = tf(SCHEDULE_STATUS_LABEL[status][0], SCHEDULE_STATUS_LABEL[status][1]);
+  const orderDate = itemOrderDate(item);
+  const procureInfo = itemProcureInfo(item);
   return `<tr class="mp-row-${status}">
     <td data-label="${tf('ภาพ','Photo')}">
       <div class="mp-thumb" ${photoCount? `data-open-gallery="${item.id}"` : `data-quick-attach="${item.id}"`}>
@@ -4960,6 +5000,9 @@ function itemRowHtml(item){
     <td data-label="${tf('วันเริ่ม','Start date')}" class="tabular"><input type="date" class="mp-date-input" data-date-item="${item.id}" data-date-field="startDate" value="${item.startDate}">${hasActual? `<span class="mp-sub">${tf('จริง','Actual')}: ${fmtDate(item.actualStartDate)}</span>` : ''}</td>
     <td data-label="${tf('วันเสร็จ','End date')}" class="tabular"><input type="date" class="mp-date-input" data-date-item="${item.id}" data-date-field="endDate" value="${item.endDate}">${hasActual? `<span class="mp-sub">${tf('จริง','Actual')}: ${fmtDate(item.actualEndDate)}</span>` : ''}</td>
     <td data-label="${tf('จำนวนวัน','Days')}" class="tabular"><span class="mp-days-badge">${days} ${tf('วัน','d')}</span></td>
+    <td data-label="${tf('วันสั่งของ (เป้าหมาย 5 วันก่อนเริ่มงาน)','Target order date (5 days before start)')}" class="tabular">${orderDate? fmtDate(orderDate) : '<span class="hint">-</span>'}</td>
+    <td data-label="${tf('วันส่งของ','Delivery date')}" class="tabular">${procureInfo && procureInfo.deliveryDate? fmtDate(procureInfo.deliveryDate) : '<span class="hint">-</span>'}</td>
+    <td data-label="${tf('สถานะสั่งซื้อ','Order status')}"><span class="badge ${procureInfo? procureInfo.status : 'idle'}">${procureInfo? STATUS_LABEL[procureInfo.status] : tf('ยังไม่ได้สั่ง','Not ordered')}</span></td>
     <td data-label="${tf('ความคืบหน้า','Progress')}" class="tabular">
       <div class="mp-progress-wrap">
         <input type="number" min="0" max="100" step="5" class="mp-progress-input" data-progress-item="${item.id}" value="${progress}">
@@ -4979,7 +5022,7 @@ function renderMasterPlan(){
     const label = g.cat? escapeHtml(g.cat) : tf('ไม่ระบุหมวดหมู่','Uncategorized');
     const key = g.cat || '__uncategorized__';
     const expanded = mpExpandedCats.has(key);
-    const header = `<tr class="mp-cat-row${expanded?' open':''}" data-toggle-cat="${escapeHtml(key)}"><td colspan="11"><span class="mp-cat-chevron">${expanded?'▾':'▸'}</span>📁 ${label} <span class="mp-cat-count">${g.items.length} ${tf('รายการ','item(s)')}</span></td></tr>`;
+    const header = `<tr class="mp-cat-row${expanded?' open':''}" data-toggle-cat="${escapeHtml(key)}"><td colspan="14"><span class="mp-cat-chevron">${expanded?'▾':'▸'}</span>📁 ${label} <span class="mp-cat-count">${g.items.length} ${tf('รายการ','item(s)')}</span></td></tr>`;
     return header + (expanded? g.items.map(itemRowHtml).join('') : '');
   }).join('');
   return `
@@ -5005,7 +5048,7 @@ function renderMasterPlan(){
   </div>` : ''}
   ${P().boq.length===0? `<div class="empty"><span class="ic">📋</span>${tf('ยังไม่มีรายการงานใน BOQ','No BOQ items yet')}<br>${tf('กด “เพิ่มรายการงาน” เพื่อเริ่มต้น','Tap “Add work item” to get started')}</div>` : (mpView==='gantt'? ganttChartHtml(groups) : `
   <div class="table-wrap mp-wrap"><table class="mp-table">
-    <thead><tr><th>${tf('ภาพ','Photo')}</th><th>${tf('รายการงาน','Work item')}</th><th>${tf('ทีมงาน','Team')}</th><th>${tf('ลักษณะงาน','Work type')}</th><th>${tf('ปริมาณรวม','Total qty')}</th><th>${tf('วันเริ่ม','Start date')}</th><th>${tf('วันเสร็จ','End date')}</th><th>${tf('จำนวนวัน','Days')}</th><th>${tf('ความคืบหน้า','Progress')}</th><th>${tf('หมายเหตุ','Notes')}</th><th></th></tr></thead>
+    <thead><tr><th>${tf('ภาพ','Photo')}</th><th>${tf('รายการงาน','Work item')}</th><th>${tf('ทีมงาน','Team')}</th><th>${tf('ลักษณะงาน','Work type')}</th><th>${tf('ปริมาณรวม','Total qty')}</th><th>${tf('วันเริ่ม','Start date')}</th><th>${tf('วันเสร็จ','End date')}</th><th>${tf('จำนวนวัน','Days')}</th><th>${tf('วันสั่งของ','Order date')}</th><th>${tf('วันส่งของ','Delivery date')}</th><th>${tf('สถานะสั่งซื้อ','Order status')}</th><th>${tf('ความคืบหน้า','Progress')}</th><th>${tf('หมายเหตุ','Notes')}</th><th></th></tr></thead>
     <tbody>${bodyHtml}</tbody>
   </table></div>`)}
   <div class="card tint">
@@ -6014,13 +6057,32 @@ function procureSummary(requests){
 }
 function approverRowHtml(a){
   const active = a.active!==false;
+  const hasPin = !!(a.pin && String(a.pin).trim());
   return `<div class="mini-row">
-    <div class="txt"><span class="t1">${escapeHtml(a.name)}</span></div>
+    <div class="txt"><span class="t1">${hasPin?'🔒':'🔓'} ${escapeHtml(a.name)}</span><span class="t2">${hasPin? tf('ตั้ง PIN แล้ว','PIN set') : tf('ยังไม่ได้ตั้ง PIN -- ใครก็กดอนุมัติแทนได้','No PIN set -- anyone can approve as this person')}</span></div>
     <div style="display:flex;gap:12px;align-items:center">
       <label style="font-size:11.5px;display:flex;align-items:center;gap:4px;cursor:pointer"><input type="checkbox" data-apv-active="${a.id}" ${active?'checked':''}> ${tf('ใช้งาน','active')}</label>
+      <button class="iconbtn" data-apv-set-pin="${a.id}" title="${tf('ตั้ง/เปลี่ยน PIN','Set/change PIN')}">🔑</button>
       <button class="iconbtn" data-apv-remove="${a.id}">✕</button>
     </div>
   </div>`;
+}
+// Looks up an approver by their display name (as stored on a request's
+// approverName / approval.by) -- used to find whose PIN must be checked.
+function approverByName(name){ return (state.approvers||[]).find(a=>a.name===name); }
+// Gate for every approve/reject action: if the named approver has a PIN set,
+// prompt for it and refuse to proceed unless it matches. This is a light,
+// client-side deterrent (not real authentication -- there is still no login
+// system and no server-side check) meant to stop a teammate from simply
+// switching their role view to "PM" and approving their own request; anyone
+// who actually knows the approver's PIN can still approve from any device.
+function requireApproverPin(name){
+  const apv = approverByName(name);
+  if(!apv || !apv.pin) return true;
+  const entered = prompt(tf(`กรอกรหัส PIN ของ "${name}" เพื่อยืนยันการอนุมัติ/ปฏิเสธ:`,`Enter "${name}"'s PIN to confirm this approve/reject:`));
+  if(entered===null) return false;
+  if(entered.trim()!==String(apv.pin).trim()){ toast(tf('รหัส PIN ไม่ถูกต้อง','Incorrect PIN')); return false; }
+  return true;
 }
 function approverSettingsCardHtml(){
   const approvers = state.approvers||[];
@@ -6030,12 +6092,13 @@ function approverSettingsCardHtml(){
       <span class="mp-cat-chevron">${approverSettingsOpen?'▾':'▸'}</span>
     </div>
     ${approverSettingsOpen? `
-    <div class="sub" style="margin:8px 0 10px">${tf('รายชื่อผู้มีสิทธิ์อนุมัติใบสั่งของ จะปรากฏเป็นตัวเลือกในหน้าจอตอนกดอนุมัติ','People allowed to approve requests -- shown as a choice on the approve screen.')}</div>
+    <div class="sub" style="margin:8px 0 10px">${tf('รายชื่อผู้มีสิทธิ์อนุมัติใบสั่งของ จะปรากฏเป็นตัวเลือกในหน้าจอตอนกดอนุมัติ ถ้าตั้ง PIN ไว้ ต้องกรอก PIN ให้ถูกก่อนถึงจะกดอนุมัติ/ปฏิเสธผ่านได้ -- ป้องกันไม่ให้คนอื่นสลับมุมมองมาอนุมัติแทน','People allowed to approve requests -- shown as a choice on the approve screen. If a PIN is set, it must be entered correctly before an approve/reject goes through -- this stops someone else from switching views and approving on their behalf.')}</div>
     <div style="display:flex;flex-direction:column;gap:8px">
       ${approvers.length? approvers.map(approverRowHtml).join('') : `<div class="hint" style="padding:4px 2px">${tf('ยังไม่มีรายชื่อผู้อนุมัติ','No approvers configured yet')}</div>`}
     </div>
-    <div style="display:flex;gap:8px;margin-top:10px">
-      <input type="text" id="apv-new-name" placeholder="${tf('ชื่อผู้มีสิทธิ์อนุมัติ','Approver name')}" style="flex:1">
+    <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">
+      <input type="text" id="apv-new-name" placeholder="${tf('ชื่อผู้มีสิทธิ์อนุมัติ','Approver name')}" style="flex:1;min-width:140px">
+      <input type="text" inputmode="numeric" maxlength="6" id="apv-new-pin" placeholder="${tf('ตั้ง PIN (ไม่บังคับ)','Set PIN (optional)')}" style="width:130px">
       <button class="btn ghost sm" id="apv-add">+ ${tf('เพิ่ม','Add')}</button>
     </div>` : ''}
   </div>`;
@@ -6105,7 +6168,7 @@ function renderProcure(){
 function reqCardHtml(r){
   const firstLine = r.lines[0]||{name:'-',qty:0,unit:''};
   const moreCount = r.lines.length-1;
-  const quickApprove = (r.status==='pending' && state.role==='pm');
+  const quickApprove = (r.status==='pending');
   const canTrash = state.role==='pm' || state.role==='procurement';
   const dueStatus = procureDueStatus(r);
   const dueBadge = dueStatus==='overdue'? `<span class="badge bad" style="margin-top:6px;display:inline-block">🔴 ${tf('เกินกำหนดส่งมอบ','Overdue')}</span>`
@@ -6159,6 +6222,7 @@ function requestModalHtml(){
   <div class="modal-bg" id="req-modal-bg">
     <div class="modal">
       <div class="modal-head"><h3>${tf('สร้างใบสั่งของ','New material request')}</h3><button class="iconbtn" id="req-modal-close">✕</button></div>
+      ${(()=>{ const bs = purchaseBudgetStatus(); if(bs.cap<=0) return ''; if(bs.level==='over') return `<div class="role-note" style="margin-bottom:12px;background:var(--coral-50);border-color:var(--coral-500);color:var(--coral-600)">🔴 ${tf('ใช้จ่ายเกินงบจัดซื้อแล้ว (เพดาน 70% ของ BOQ รวม)','Spending has exceeded the purchasing cap (70% of total BOQ)')} — ${tf('ใช้ไป','Spent')} ${fmtCurrency(bs.totalActualAll)} / ${tf('เพดาน','cap')} ${fmtCurrency(bs.cap)} — ${tf('โปรดพิจารณาก่อนสั่งของเพิ่ม','please consider carefully before ordering more')}</div>`; if(bs.level==='warn') return `<div class="role-note" style="margin-bottom:12px;background:var(--amber-50);border-color:var(--amber-500)">🟡 ${tf('ใกล้ถึงเพดานงบจัดซื้อแล้ว (เพดาน 70% ของ BOQ รวม)','Approaching the purchasing cap (70% of total BOQ)')} — ${tf('ใช้ไป','Spent')} ${fmtCurrency(bs.totalActualAll)} / ${tf('เพดาน','cap')} ${fmtCurrency(bs.cap)}</div>`; return `<div class="role-note" style="margin-bottom:12px">🛒 ${tf('งบจัดซื้อ','Purchasing budget')}: ${tf('ใช้ไป','spent')} ${fmtCurrency(bs.totalActualAll)} / ${tf('เพดาน 70% ของ BOQ','70%-of-BOQ cap')} ${fmtCurrency(bs.cap)}</div>`; })()}
       <div class="grid cols-2">
         <div class="field"><label>${tf('ผู้สั่งของ','Requested by')}</label><input type="text" id="rq-by" value="${escapeHtml(f.requestedBy)}" placeholder="${tf('ชื่อช่าง/ทีมงาน','crew / team name')}"></div>
         <div class="field"><label>${tf('ประเภทงาน','Work type')}</label><input type="text" id="rq-worktype" value="${escapeHtml(f.workType)}" placeholder="${tf('เช่น งานฝ้า, งานสี','e.g. ceiling, painting')}"></div>
@@ -6274,7 +6338,7 @@ function detailModalHtml(){
   const dueNote = dueStatus? `<div class="role-note" style="margin-top:12px;background:${dueStatus==='overdue'?'var(--coral-50)':'var(--amber-50)'};border-color:${dueStatus==='overdue'?'var(--coral-500)':'var(--amber-500)'}">🔔 ${dueStatus==='overdue'? tf('เกินกำหนดส่งมอบแล้ว','Past the delivery due date') : tf('ใกล้ถึงกำหนดส่งมอบ (ภายใน 3 วัน)','Due within 3 days')} — ${fmtDate(dueDate)}</div>` : '';
   const activeApprovers = (state.approvers||[]).filter(a=>a.active!==false);
   let actions='';
-  if(r.status==='pending' && state.role==='pm'){
+  if(r.status==='pending'){
     actions = `<div class="field" style="margin-top:14px"><label>${tf('ผู้อนุมัติ','Approver')}</label>
         ${activeApprovers.length? `<select id="dt-approver">${activeApprovers.map(a=>`<option value="${escapeHtml(a.name)}" ${r.approverName===a.name?'selected':''}>${escapeHtml(a.name)}</option>`).join('')}</select>`
           : `<input type="text" id="dt-approver-text" value="${escapeHtml(currentActorName())}" placeholder="${tf('ชื่อผู้อนุมัติ','approver name')}">`}
@@ -6293,8 +6357,6 @@ function detailModalHtml(){
         <div class="table-wrap" style="margin-top:6px"><table><thead><tr><th>${tf('วัสดุ','Material')}</th><th>${tf('จำนวนที่ซื้อจริง','Actual qty')}</th><th>${tf('ราคา/หน่วยจริง','Actual unit cost')}</th></tr></thead><tbody>${costRows}</tbody></table></div>
       </div>
       <div class="action-row"><button class="btn schedule" id="dt-schedule">🚚 ${tf('ยืนยันวันจัดส่ง','Confirm delivery date')}</button></div>`;
-  } else if(r.status==='pending'){
-    actions = `<div class="role-note" style="margin-top:14px">${tf('รอ PM / ผู้บริหารตรวจสอบและอนุมัติ (สลับมุมมองเป็น “PM” เพื่อทดสอบขั้นตอนนี้)','Waiting for the PM / owner to review and approve (switch view to “PM” to try this step)')}</div>`;
   } else if(r.status==='approved'){
     actions = `<div class="role-note" style="margin-top:14px">${tf('รอฝ่ายจัดซื้อระบุวันจัดส่ง (สลับมุมมองเป็น “จัดซื้อ” เพื่อทดสอบขั้นตอนนี้)','Waiting for procurement to set a delivery date (switch view to “Buy” to try this step)')}</div>`;
   }
@@ -6341,16 +6403,20 @@ function wireDetailModal(){
   };
   const approveBtn=$('#dt-approve');
   if(approveBtn) approveBtn.onclick=()=>{
+    const name = selectedApproverName();
+    if(!requireApproverPin(name)) return;
     const r = P().materialRequests.find(x=>x.id===procureDetailId);
-    r.status='approved'; r.approval={by:selectedApproverName(), at:new Date().toISOString(), reason:$('#dt-reason').value.trim()};
+    r.status='approved'; r.approval={by:name, at:new Date().toISOString(), reason:$('#dt-reason').value.trim()};
     saveData(); procureDetailId=null; toast(tf('อนุมัติใบสั่งของแล้ว','Request approved')); render();
   };
   const rejectBtn=$('#dt-reject');
   if(rejectBtn) rejectBtn.onclick=()=>{
     const reason=$('#dt-reason').value.trim();
     if(!reason){ toast(tf('กรุณาระบุเหตุผลการปฏิเสธ','Please enter a reason for rejecting')); return; }
+    const name = selectedApproverName();
+    if(!requireApproverPin(name)) return;
     const r = P().materialRequests.find(x=>x.id===procureDetailId);
-    r.status='rejected'; r.approval={by:selectedApproverName(), at:new Date().toISOString(), reason};
+    r.status='rejected'; r.approval={by:name, at:new Date().toISOString(), reason};
     saveData(); procureDetailId=null; toast(tf('ปฏิเสธใบสั่งของแล้ว','Request rejected')); render();
   };
   const schedBtn=$('#dt-schedule');
@@ -6436,13 +6502,22 @@ function wireProcure(){
   if(apvAddBtn) apvAddBtn.onclick = ()=>{
     const name = $('#apv-new-name').value.trim();
     if(!name){ toast(tf('กรุณาระบุชื่อผู้อนุมัติ','Please enter an approver name')); return; }
+    const pinEl = $('#apv-new-pin');
+    const pin = pinEl? pinEl.value.trim() : '';
     state.approvers = state.approvers||[];
-    state.approvers.push({id:uid(), name, active:true});
+    state.approvers.push({id:uid(), name, active:true, pin});
     saveData(); render(); toast(tf('เพิ่มผู้อนุมัติแล้ว','Approver added'));
   };
   $$('[data-apv-active]').forEach(cb=> cb.onchange = ()=>{
     const a = (state.approvers||[]).find(x=>x.id===cb.dataset.apvActive); if(!a) return;
     a.active = cb.checked; saveData();
+  });
+  $$('[data-apv-set-pin]').forEach(b=> b.onclick = ()=>{
+    const a = (state.approvers||[]).find(x=>x.id===b.dataset.apvSetPin); if(!a) return;
+    const newPin = prompt(tf(`ตั้งรหัส PIN ใหม่สำหรับ "${a.name}" (เว้นว่างเพื่อยกเลิก PIN):`,`Set a new PIN for "${a.name}" (leave blank to remove the PIN):`), a.pin||'');
+    if(newPin===null) return;
+    a.pin = newPin.trim();
+    saveData(); render(); toast(a.pin? tf('ตั้ง PIN แล้ว','PIN set') : tf('ยกเลิก PIN แล้ว','PIN removed'));
   });
   $$('[data-apv-remove]').forEach(b=> b.onclick = ()=>{
     state.approvers = (state.approvers||[]).filter(a=>a.id!==b.dataset.apvRemove);
@@ -6451,7 +6526,9 @@ function wireProcure(){
   $$('[data-quick-approve]').forEach(b=> b.onclick=(e)=>{
     e.stopPropagation();
     const r = P().materialRequests.find(x=>x.id===b.dataset.quickApprove); if(!r) return;
-    r.status='approved'; r.approval={by:r.approverName||currentActorName(), at:new Date().toISOString(), reason:tf('อนุมัติด่วนจากหน้าจัดซื้อ','Quick-approved from procurement board')};
+    const approverName = r.approverName || currentActorName();
+    if(!requireApproverPin(approverName)) return;
+    r.status='approved'; r.approval={by:approverName, at:new Date().toISOString(), reason:tf('อนุมัติด่วนจากหน้าจัดซื้อ','Quick-approved from procurement board')};
     saveData(); toast(tf('อนุมัติใบสั่งของแล้ว','Request approved')); render();
   });
   $$('[data-quick-reject]').forEach(b=> b.onclick=(e)=>{
@@ -6459,7 +6536,9 @@ function wireProcure(){
     const reason = prompt(tf('เหตุผลการปฏิเสธ:','Reason for rejecting:'));
     if(!reason || !reason.trim()){ if(reason!==null) toast(tf('กรุณาระบุเหตุผล','Please enter a reason')); return; }
     const r = P().materialRequests.find(x=>x.id===b.dataset.quickReject); if(!r) return;
-    r.status='rejected'; r.approval={by:currentActorName(), at:new Date().toISOString(), reason:reason.trim()};
+    const approverName = r.approverName || currentActorName();
+    if(!requireApproverPin(approverName)) return;
+    r.status='rejected'; r.approval={by:approverName, at:new Date().toISOString(), reason:reason.trim()};
     saveData(); toast(tf('ปฏิเสธใบสั่งของแล้ว','Request rejected')); render();
   });
 }
@@ -6748,6 +6827,21 @@ function projectActualCostTotal(){
   (P().costLog||[]).forEach(c=>{ if(c.status!=='pending') total += (c.total||0); });
   return total;
 }
+// Purchasing budget guardrail: material/procurement spend is capped at 70% of
+// the project's total planned BOQ value, with an early warning once spend
+// reaches 49% of that BOQ total (i.e. 70% of the 70% cap has already been
+// used, leaving 30% of the cap still available). This is a soft guardrail --
+// it warns loudly but never blocks creating or approving a request.
+function purchaseBudgetStatus(){
+  let totalBoqBudget=0;
+  P().boq.forEach(item=>{ if(item.unitPrice!=null) totalBoqBudget += item.qtyTotal*item.unitPrice; });
+  const totalActualAll = projectActualCostTotal();
+  const cap = totalBoqBudget*0.7;
+  const warnAt = totalBoqBudget*0.49;
+  const pctOfCap = cap>0? (totalActualAll/cap*100) : 0;
+  const level = (cap>0 && totalActualAll>=cap)? 'over' : (cap>0 && totalActualAll>=warnAt)? 'warn' : 'ok';
+  return {totalBoqBudget, totalActualAll, cap, warnAt, pctOfCap, level};
+}
 function renderBudget(){
   const proj = P();
   if(!proj.boq.length){
@@ -6804,14 +6898,28 @@ function renderBudget(){
   }).join('');
   const totalActualAll = projectActualCostTotal();
   const remaining = totalBoqBudget - totalActualAll;
+  const purchaseCap = totalBoqBudget*0.7;
+  const purchaseWarnAt = totalBoqBudget*0.49;
+  const capPct = purchaseCap>0? (totalActualAll/purchaseCap*100) : 0;
+  const capLevel = (purchaseCap>0 && totalActualAll>=purchaseCap)? 'over' : (purchaseCap>0 && totalActualAll>=purchaseWarnAt)? 'warn' : 'ok';
+  const capAlert = capLevel==='over'
+    ? `<div class="role-note" style="margin-bottom:16px;background:var(--coral-50);border-color:var(--coral-500);color:var(--coral-600)">🔴 ${tf('ใช้จ่ายเกินงบจัดซื้อแล้ว (เพดาน 70% ของ BOQ รวม)','Spending has exceeded the purchasing cap (70% of total BOQ)')} — ${tf('ใช้ไป','Spent')} ${fmtCurrency(totalActualAll)} / ${tf('เพดาน','cap')} ${fmtCurrency(purchaseCap)}</div>`
+    : capLevel==='warn'
+    ? `<div class="role-note" style="margin-bottom:16px;background:var(--amber-50);border-color:var(--amber-500)">🟡 ${tf('ใกล้ถึงเพดานงบจัดซื้อแล้ว (เพดาน 70% ของ BOQ รวม)','Approaching the purchasing cap (70% of total BOQ)')} — ${tf('ใช้ไป','Spent')} ${fmtCurrency(totalActualAll)} / ${tf('เพดาน','cap')} ${fmtCurrency(purchaseCap)} (${fmtNum(capPct,0)}%)</div>`
+    : '';
   return `
   <div class="page-head">
     <div><h2>${tf('งบประมาณ (BOQ เทียบต้นทุนจริง)','Budget (BOQ vs. Actual)')}</h2><div class="sub">${tf('เปรียบเทียบงบประมาณตามแผน (BOQ) กับต้นทุนจ่ายจริงที่ยืนยันจากขั้นตอนจัดซื้อ · แตะแถวเพื่อตั้งราคาต่อหน่วยตามแผน','Compares the planned BOQ budget against actual costs confirmed during procurement -- tap a row to set its planned unit price')}</div></div>
   </div>
+  ${capAlert}
   <div class="grid cols-auto" style="margin-bottom:16px">
     <div class="card kpi"><div class="stat"><span class="lbl">💰 ${tf('งบประมาณตั้งต้นรวม','Total BOQ budget')}</span><span class="num tabular" style="font-size:19px">${fmtCurrency(totalBoqBudget)}</span></div></div>
     <div class="card kpi"><div class="stat"><span class="lbl">💸 ${tf('ต้นทุนจ่ายจริงรวม','Total actual cost')}</span><span class="num tabular" style="font-size:19px">${fmtCurrency(totalActualAll)}</span></div></div>
     <div class="card kpi"><div class="stat"><span class="lbl">${remaining>=0?'✅':'🔴'} ${tf('คงเหลืองบประมาณสุทธิ','Remaining budget')}</span><span class="num tabular" style="font-size:19px;color:${remaining>=0?'var(--mint-600)':'var(--coral-600)'}">${fmtCurrency(remaining)}</span></div></div>
+    <div class="card kpi"><div class="stat"><span class="lbl">🛒 ${tf('งบจัดซื้อ (เพดาน 70% ของ BOQ)','Purchasing cap (70% of BOQ)')}</span><span class="num tabular" style="font-size:19px">${fmtCurrency(purchaseCap)}</span></div>
+      <div class="progress ${capLevel==='over'?'bad':capLevel==='warn'?'warn':'ok'}" style="margin-top:8px"><i style="width:${clamp(capPct,0,100)}%"></i></div>
+      <div class="sub" style="margin-top:4px">${tf('ใช้ไปแล้ว','Used')} ${fmtNum(clamp(capPct,0,999),0)}% ${tf('ของเพดาน','of cap')} · ${tf('แจ้งเตือนที่','warns at')} ${fmtCurrency(purchaseWarnAt)}</div>
+    </div>
   </div>
   <div class="table-wrap"><table class="budget-table"><thead><tr>
     <th>${tf('No.','No.')}</th><th>${tf('รหัส','Code')}</th><th>${tf('รายการ','Description')}</th><th>${tf('หน่วย','Unit')}</th>
