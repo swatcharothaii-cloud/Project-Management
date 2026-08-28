@@ -378,13 +378,19 @@ tbody tr:hover{background:var(--surface-2)}
 .gantt-days{display:flex;height:20px;box-sizing:border-box}
 .gantt-daycell{flex-shrink:0;font-size:9.5px;color:var(--ink-300);text-align:center;display:flex;align-items:center;justify-content:center;border-right:1px solid var(--line-soft);box-sizing:border-box}
 .gantt-daycell.weekend{background:var(--surface-2)}
-.gantt-bar{position:absolute;top:11px;height:24px;border-radius:6px;overflow:hidden;cursor:pointer;box-shadow:var(--shadow-sm);display:flex;align-items:center}
+.gantt-bar{position:absolute;top:11px;height:24px;border-radius:6px;overflow:visible;cursor:grab;box-shadow:var(--shadow-sm);display:flex;align-items:center;touch-action:none}
+.gantt-bar.dragging{cursor:grabbing;box-shadow:0 4px 14px rgba(20,18,36,.28);z-index:3;opacity:.92}
 .gantt-bar.on-track{background:var(--blue-500)}
 .gantt-bar.near-due{background:var(--amber-500)}
 .gantt-bar.overdue{background:var(--coral-500)}
 .gantt-bar.done{background:var(--mint-500)}
-.gantt-bar-fill{position:absolute;left:0;top:0;bottom:0;background:rgba(255,255,255,.32)}
-.gantt-bar-label{position:relative;z-index:1;color:#fff;font-size:11px;font-weight:600;padding:0 8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-shadow:0 1px 2px rgba(0,0,0,.3)}
+.gantt-bar-fill{position:absolute;left:0;top:0;bottom:0;background:rgba(255,255,255,.32);border-radius:6px;overflow:hidden}
+.gantt-bar-resize{position:absolute;top:0;bottom:0;width:9px;cursor:ew-resize;z-index:2}
+.gantt-bar-resize.left{left:-2px}
+.gantt-bar-resize.right{right:-2px}
+.gantt-bar-resize::after{content:'';position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:3px;height:12px;border-radius:2px;background:rgba(255,255,255,.85);opacity:0;transition:opacity .12s}
+.gantt-bar:hover .gantt-bar-resize::after,.gantt-bar.dragging .gantt-bar-resize::after{opacity:1}
+.gantt-bar-label{position:relative;z-index:1;color:#fff;font-size:11px;font-weight:600;padding:0 8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-shadow:0 1px 2px rgba(0,0,0,.3);pointer-events:none}
 .gantt-bar-label-outside{position:absolute;top:11px;height:24px;display:flex;align-items:center;font-size:11px;color:var(--ink-700);white-space:nowrap}
 .gantt-nodate-placeholder{position:absolute;top:11px;left:10px;height:24px;display:flex;align-items:center;font-size:10.5px;color:var(--ink-300);font-style:italic;white-space:nowrap}
 .gantt-today-line{position:absolute;top:0;bottom:0;width:2px;background:var(--coral-500);z-index:3;pointer-events:none}
@@ -5086,9 +5092,11 @@ function ganttChartHtml(groups){
         const offset = daysBetween(minDate,item.startDate)*dayW;
         const width = Math.max((daysBetween(item.startDate,item.endDate)+1)*dayW, 10);
         const showInside = width>=90;
-        timelineInner = `<div class="gantt-bar ${status}" style="left:${offset}px;width:${width}px" data-edit-item="${item.id}" title="${escapeHtml(title)}">
+        timelineInner = `<div class="gantt-bar ${status}" style="left:${offset}px;width:${width}px" data-edit-item="${item.id}" data-drag-item="${item.id}" title="${escapeHtml(title)}${tf(' — ลากเพื่อเลื่อนวันที่ ลากขอบเพื่อปรับวันเริ่ม/สิ้นสุด',' -- drag to shift dates, drag an edge to resize')}">
             <div class="gantt-bar-fill" style="width:${clamp(progress,0,100)}%"></div>
             ${showInside? `<span class="gantt-bar-label">${escapeHtml(item.name)}</span>` : ''}
+            <div class="gantt-bar-resize left" data-resize-edge="start"></div>
+            <div class="gantt-bar-resize right" data-resize-edge="end"></div>
           </div>
           ${!showInside? `<span class="gantt-bar-label-outside" style="left:${offset+width+8}px">${escapeHtml(item.name)}</span>` : ''}`;
       } else {
@@ -5097,8 +5105,8 @@ function ganttChartHtml(groups){
       return `<div class="gantt-row">
         <div class="gantt-label-col item-cols" style="width:${labelW}px" data-edit-item="${item.id}" title="${escapeHtml(title)}">
           <div class="gl-taskwrap"><div class="gl-task"><span class="mp-status-dot ${status}"></span><span class="mp-procure-dot ${procStatusKey}"></span>${escapeHtml(item.name)}</div>${sub? `<div class="gl-sub">${escapeHtml(sub)}</div>` : ''}</div>
-          <div class="gl-num">${hasDates? fmtDateShort(item.startDate) : '-'}</div>
-          <div class="gl-num">${hasDates? fmtDateShort(item.endDate) : '-'}</div>
+          <div data-stop-card-open><input type="date" class="gl-mini-input" data-date-item="${item.id}" data-date-field="startDate" value="${item.startDate||''}" title="${tf('วันเริ่ม (แก้ไขได้)','Start date (editable)')}"></div>
+          <div data-stop-card-open><input type="date" class="gl-mini-input" data-date-item="${item.id}" data-date-field="endDate" value="${item.endDate||''}" title="${tf('วันสิ้นสุด (แก้ไขได้)','End date (editable)')}"></div>
           <div class="gl-num">${hasDates? days+tf('ว','d') : '-'}</div>
           ${orderCell}
           ${deliveryCell}
@@ -5147,7 +5155,7 @@ function ganttChartHtml(groups){
   </div>
   <div class="gantt-topscroll" id="gantt-topscroll"><div style="width:${labelW+totalW}px"></div></div>
   <div class="gantt-outer" id="gantt-scroll-container">
-    <div class="gantt-inner" style="width:${labelW+totalW}px">
+    <div class="gantt-inner" style="width:${labelW+totalW}px" data-day-w="${dayW}" data-min-date="${minDate}">
       ${depsSvg}
       ${showTodayLine? `<div class="gantt-today-line" style="left:${labelW+todayOffset}px" title="${tf('วันนี้','Today')}"></div>` : ''}
       <div class="gantt-row gantt-header-row">
@@ -5199,6 +5207,7 @@ function renderMasterPlan(){
   `;
 }
 let mpExpandedCats=new Set(); // categories currently expanded on Master Plan & BOQ screen (collapsed by default for a tidier view)
+let ganttJustDragged=false; // set right before the synthetic click that follows a real drag's mouseup, so the shared [data-edit-item] click handler can swallow it instead of popping the edit modal open
 let editingItemId=null;
 let itemDraft=null; // {name,category,zone,team,qtyTotal,unit,startDate,endDate,actualStartDate,actualEndDate,notes,existingPhotoIds,pendingPhotos,removedPhotoIds} -- persists across re-renders (e.g. photo add/remove) so in-progress typing is never lost
 function openItemDraft(id){
@@ -5281,6 +5290,88 @@ function itemModalHtml(){
     </div>
   </div>`;
 }
+// Lets a Gantt bar be dragged left/right to shift both start and end dates
+// together (same duration), or its left/right edge dragged to resize just
+// one end -- either way the เริ่ม/สิ้นสุด (start/end) columns and the bar's
+// own position update together since they're both driven off item.startDate
+// / item.endDate. Pure mouse events (no drag library): visual feedback is a
+// direct style tweak on the dragged bar during the move, the real state
+// (and a full re-render) only happens once on mouseup. ganttJustDragged
+// swallows the synthetic click that always follows a real drag's mouseup,
+// so a drag never also pops the item-edit modal open.
+function wireGanttBarDrag(){
+  const ganttInner = $('.gantt-inner');
+  if(!ganttInner) return;
+  const dayW = Number(ganttInner.dataset.dayW)||0;
+  if(!dayW) return;
+  $$('[data-drag-item]').forEach(bar=>{
+    const itemId = bar.dataset.dragItem;
+    const outsideLabel = bar.parentElement ? bar.parentElement.querySelector(`.gantt-bar-label-outside`) : null;
+    const beginDrag = (e, mode)=>{
+      if(e.button!==undefined && e.button!==0) return; // left mouse button only
+      const it = P().boq.find(i=>i.id===itemId);
+      if(!it || !it.startDate || !it.endDate) return;
+      e.preventDefault(); e.stopPropagation();
+      const startX = e.clientX;
+      const origLeft = parseFloat(bar.style.left)||0;
+      const origWidth = parseFloat(bar.style.width)||0;
+      const origStart = it.startDate, origEnd = it.endDate;
+      let moved = false;
+      bar.classList.add('dragging');
+      if(outsideLabel) outsideLabel.style.visibility = 'hidden';
+      const onMove = (ev)=>{
+        const dx = ev.clientX - startX;
+        if(Math.abs(dx)>3) moved = true;
+        if(mode==='move'){
+          bar.style.left = (origLeft+dx)+'px';
+        } else if(mode==='resize-start'){
+          let newLeft = Math.min(origLeft+dx, origLeft+origWidth-dayW);
+          bar.style.left = newLeft+'px';
+          bar.style.width = (origLeft+origWidth-newLeft)+'px';
+        } else if(mode==='resize-end'){
+          const newWidth = Math.max(origWidth+dx, dayW);
+          bar.style.width = newWidth+'px';
+        }
+      };
+      const onUp = (ev)=>{
+        document.removeEventListener('mousemove', onMove);
+        document.removeEventListener('mouseup', onUp);
+        bar.classList.remove('dragging');
+        if(!moved) return; // a plain click -- let the normal [data-edit-item] handler open the edit modal
+        // Browsers only synthesize a trailing 'click' after mouseup when the
+        // pointer barely moved -- a real multi-pixel drag like this one
+        // usually fires no click at all, so the flag below is a safety net
+        // for the borderline case, not something to rely on. Auto-clear it
+        // on the next tick so it can never leak into a later, unrelated
+        // click if no trailing click actually arrives to consume it.
+        ganttJustDragged = true;
+        setTimeout(()=>{ ganttJustDragged = false; }, 0);
+        const dayDelta = Math.round((ev.clientX-startX)/dayW);
+        if(dayDelta===0) return;
+        if(mode==='move'){
+          it.startDate = addDays(origStart, dayDelta);
+          it.endDate = addDays(origEnd, dayDelta);
+        } else if(mode==='resize-start'){
+          let newStart = addDays(origStart, dayDelta);
+          if(newStart>it.endDate) newStart = it.endDate;
+          it.startDate = newStart;
+        } else if(mode==='resize-end'){
+          let newEnd = addDays(origEnd, dayDelta);
+          if(newEnd<it.startDate) newEnd = it.startDate;
+          it.endDate = newEnd;
+        }
+        saveData(); render(); toast(tf('อัปเดตวันที่แล้ว','Dates updated'));
+      };
+      document.addEventListener('mousemove', onMove);
+      document.addEventListener('mouseup', onUp);
+    };
+    bar.addEventListener('mousedown', (e)=>{
+      const edge = e.target.closest('[data-resize-edge]');
+      if(edge){ beginDrag(e, edge.dataset.resizeEdge==='start' ? 'resize-start' : 'resize-end'); return; }
+      beginDrag(e, 'move');
+    });
+  });
+}
 function wireMasterPlan(){
   $('#btn-add-item').onclick = ()=>{ openItemDraft('new'); render(); };
   const ganttScroll = $('#gantt-scroll-container');
@@ -5336,7 +5427,12 @@ function wireMasterPlan(){
     it.progress = v;
     saveData(); render(); toast(tf('อัปเดตความคืบหน้าแล้ว','Progress updated'));
   });
-  $$('[data-edit-item]').forEach(b=> b.onclick = (e)=>{ if(e.target.closest('[data-stop-card-open]')) return; openItemDraft(b.dataset.editItem); render(); });
+  $$('[data-edit-item]').forEach(b=> b.onclick = (e)=>{
+    if(ganttJustDragged){ ganttJustDragged=false; return; }
+    if(e.target.closest('[data-stop-card-open]')) return;
+    openItemDraft(b.dataset.editItem); render();
+  });
+  wireGanttBarDrag();
   $$('[data-mp-order-item]').forEach(inp=> inp.onchange = ()=>{
     const it = P().boq.find(i=>i.id===inp.dataset.mpOrderItem);
     if(!it) return;
