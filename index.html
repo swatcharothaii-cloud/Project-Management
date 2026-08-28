@@ -408,6 +408,27 @@ tbody tr:hover{background:var(--surface-2)}
 .progressline{height:6px;background:var(--line-soft);border-radius:999px;overflow:hidden}
 .progressline i{display:block;height:100%;background:var(--purple-600)}
 
+/* ---------- Request detail modal: two-column layout (info+table left, large photos right) ---------- */
+.dt-layout{display:grid;grid-template-columns:1fr 300px;gap:20px;align-items:start;margin-top:12px}
+.dt-photos{display:flex;flex-direction:column;gap:12px}
+.dt-photo-item{border-radius:var(--radius-md);overflow:hidden;border:1px solid var(--line);background:var(--surface-2);box-shadow:var(--shadow-sm)}
+.dt-photo-item img{width:100%;height:auto;max-height:340px;object-fit:contain;display:block;background:#000}
+.dt-photo-cap{padding:8px 10px;font-size:11.5px;color:var(--ink-500);border-top:1px solid var(--line)}
+.dt-photo-pdf{display:flex;align-items:center;gap:10px;padding:12px;cursor:pointer}
+.dt-photo-pdf .ic{font-size:26px}
+.dt-photo-pdf .nm{font-size:12px;font-weight:600;word-break:break-word}
+.dt-photo-empty{border:1.5px dashed var(--line);border-radius:var(--radius-md);padding:22px 10px;text-align:center;color:var(--ink-300);font-size:12px}
+@media(max-width:820px){.dt-layout{grid-template-columns:1fr}.dt-photo-item img{max-height:220px}}
+
+/* ---------- Per-line photo attachment (material request form) ---------- */
+.rq-line-row3{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:6px}
+.rq-line-photo-btn{font-size:11px;font-weight:600;color:var(--purple-700);background:var(--purple-50);border:1px solid var(--purple-100);border-radius:999px;padding:4px 10px;cursor:pointer;white-space:nowrap}
+.rq-line-photo-strip{display:flex;gap:6px;flex-wrap:wrap}
+.rq-line-thumb{position:relative;width:40px;height:40px;border-radius:6px;overflow:hidden;border:1px solid var(--line);background:var(--surface-2)}
+.rq-line-thumb img{width:100%;height:100%;object-fit:cover;display:block}
+.rq-line-thumb.pdf{display:flex;align-items:center;justify-content:center;font-size:16px;color:var(--ink-500)}
+.rq-line-thumb .rm{position:absolute;top:-2px;right:-2px;width:16px;height:16px;border-radius:50%;background:rgba(20,18,36,.7);color:#fff;border:none;font-size:9px;line-height:1}
+
 /* ---------- Dashboard ---------- */
 .kpi{padding:18px}
 .kpi .num{font-size:28px}
@@ -6121,7 +6142,7 @@ function wireDailyLog(){
 /* ============================= SCREEN: PROCUREMENT ============================= */
 let creatingRequest=false, requestForm=null, procureDetailId=null;
 function newRequestForm(){
-  return { requestedBy:(state.contractor&&state.contractor.nickname)||'', area:'', workType:'', necessityType:'', approverName:'', lines:[{name:'',qty:'',unit:'',neededDate:addDays(todayStr(),2),category:'',taskId:''}], photos:[] };
+  return { requestedBy:(state.contractor&&state.contractor.nickname)||'', area:'', workType:'', necessityType:'', approverName:'', lines:[{name:'',qty:'',unit:'',neededDate:addDays(todayStr(),2),category:'',taskId:'',photos:[]}], photos:[] };
 }
 function necessityLabel(v){ const n=NECESSITY_TYPES.find(x=>x.v===v); return n? n.label : ''; }
 function genReqNo(dateStr){
@@ -6311,7 +6332,13 @@ function reqCardHtml(r){
 function requestModalHtml(){
   const f = requestForm;
   const boqItems = P().boq;
-  const lineRows = f.lines.map((ln,idx)=>`
+  const lineRows = f.lines.map((ln,idx)=>{
+    const lnPhotos = ln.photos||[];
+    const thumbs = lnPhotos.map((p,pIdx)=> (p.kind==='pdf')?
+      `<div class="rq-line-thumb pdf">📄<button class="rm" data-rm-line-photo="${idx}:${pIdx}">✕</button></div>`
+      : `<div class="rq-line-thumb"><img src="${p.dataUrl}" alt=""><button class="rm" data-rm-line-photo="${idx}:${pIdx}">✕</button></div>`
+    ).join('');
+    return `
     <div class="rq-line-card">
       <div class="rq-line-row">
         <input type="text" placeholder="${tf('ชื่อวัสดุ','material name')}" data-line="name" data-idx="${idx}" value="${escapeHtml(ln.name)}">
@@ -6330,7 +6357,13 @@ function requestModalHtml(){
           ${boqItems.map(it=>`<option value="${it.id}" ${ln.taskId===it.id?'selected':''}>${escapeHtml(it.name)}</option>`).join('')}
         </select>
       </div>
-    </div>`).join('');
+      <div class="rq-line-row3">
+        <label class="rq-line-photo-btn" for="rq-line-photo-input-${idx}">📎 ${tf('แนบรูปวัสดุนี้','Attach photo')}${lnPhotos.length? ` (${lnPhotos.length})`:''}</label>
+        <input type="file" id="rq-line-photo-input-${idx}" data-line-photo-idx="${idx}" accept="image/*,application/pdf" multiple style="display:none">
+        ${thumbs? `<div class="rq-line-photo-strip">${thumbs}</div>` : ''}
+      </div>
+    </div>`;
+  }).join('');
   const photoCards = f.photos.map((p,idx)=> (p.kind==='pdf')?
     `<div class="photo-item"><div class="photo-pdf-icon">📄<span class="photo-pdf-name">${escapeHtml(p.name||'PDF')}</span></div><button class="rm" data-rm-req-photo="${idx}">✕</button></div>`
     : `<div class="photo-item"><img src="${p.dataUrl}" alt=""><button class="rm" data-rm-req-photo="${idx}">✕</button></div>`
@@ -6373,20 +6406,34 @@ function wireRequestModal(){
   const bg=$('#req-modal-bg'); if(!bg) return;
   $('#req-modal-close').onclick=()=>{ creatingRequest=false; requestForm=null; render(); };
   bg.addEventListener('click', e=>{ if(e.target===bg){ creatingRequest=false; requestForm=null; render(); } });
-  $('#rq-add-line').onclick=()=>{ requestForm.lines.push({name:'',qty:'',unit:'',neededDate:addDays(todayStr(),2),category:'',taskId:''}); render(); };
+  // Keep the top-level fields synced into requestForm as the user types --
+  // otherwise any action that re-renders the modal (add/remove a line,
+  // attach or remove a photo) would silently discard whatever was typed
+  // here, since the template always reflects requestForm, not raw DOM state.
+  const byInp=$('#rq-by'); if(byInp) byInp.oninput=()=>{ requestForm.requestedBy = byInp.value; };
+  const worktypeInp=$('#rq-worktype'); if(worktypeInp) worktypeInp.oninput=()=>{ requestForm.workType = worktypeInp.value; };
+  const areaInp=$('#rq-area'); if(areaInp) areaInp.oninput=()=>{ requestForm.area = areaInp.value; };
+  const necessitySel=$('#rq-necessity'); if(necessitySel) necessitySel.onchange=()=>{ requestForm.necessityType = necessitySel.value; };
+  const approverSel=$('#rq-approver'); if(approverSel) approverSel.onchange=()=>{ requestForm.approverName = approverSel.value; };
+  const approverTxt=$('#rq-approver-text'); if(approverTxt) approverTxt.oninput=()=>{ requestForm.approverName = approverTxt.value; };
+  $('#rq-add-line').onclick=()=>{ requestForm.lines.push({name:'',qty:'',unit:'',neededDate:addDays(todayStr(),2),category:'',taskId:'',photos:[]}); render(); };
   $$('[data-rm-line]').forEach(b=> b.onclick=()=>{ if(requestForm.lines.length>1){ requestForm.lines.splice(Number(b.dataset.rmLine),1); render(); } else toast(tf('ต้องมีอย่างน้อย 1 รายการ','At least one line is required')); });
   $$('[data-line]').forEach(inp=> inp.oninput=()=>{ requestForm.lines[Number(inp.dataset.idx)][inp.dataset.line] = inp.value; });
-  const processRequestFiles = async (fileList)=>{
+  // target defaults to the whole-request photo bucket (requestForm.photos);
+  // pass a specific line's own photos array to attach files to that material
+  // line instead -- same upload/compress logic either way.
+  const processRequestFiles = async (fileList, target)=>{
+    const bucket = target || requestForm.photos;
     const files = Array.from(fileList||[]);
     let skipped = 0;
     for(const f of files){
       try{
         if(f.type==='application/pdf'){
           const dataUrl = await fileToDataUrl(f);
-          requestForm.photos.push({dataUrl, name:f.name, kind:'pdf'});
+          bucket.push({dataUrl, name:f.name, kind:'pdf'});
         } else if(f.type.indexOf('image/')===0){
           const dataUrl = await compressImage(f);
-          requestForm.photos.push({dataUrl, name:f.name, kind:'image'});
+          bucket.push({dataUrl, name:f.name, kind:'image'});
         } else { skipped++; }
       }catch(err){ skipped++; }
       await new Promise(r=>setTimeout(r,0));
@@ -6405,6 +6452,18 @@ function wireRequestModal(){
     photoInput.value=''; render();
   };
   $$('[data-rm-req-photo]').forEach(b=> b.onclick=()=>{ requestForm.photos.splice(Number(b.dataset.rmReqPhoto),1); render(); });
+  $$('[data-line-photo-idx]').forEach(inp=> inp.onchange = async ()=>{
+    const idx = Number(inp.dataset.linePhotoIdx);
+    const line = requestForm.lines[idx]; if(!line) return;
+    line.photos = line.photos||[];
+    await processRequestFiles(inp.files, line.photos);
+    inp.value=''; render();
+  });
+  $$('[data-rm-line-photo]').forEach(b=> b.onclick=()=>{
+    const [li,pi] = b.dataset.rmLinePhoto.split(':').map(Number);
+    const line = requestForm.lines[li]; if(!line || !line.photos) return;
+    line.photos.splice(pi,1); render();
+  });
   $('#rq-submit').onclick = async ()=>{
     const by=$('#rq-by').value.trim(), area=$('#rq-area').value.trim(), wt=$('#rq-worktype').value.trim();
     const necessityType = $('#rq-necessity') ? $('#rq-necessity').value : '';
@@ -6417,10 +6476,19 @@ function wireRequestModal(){
     const reqNo = genReqNo(date);
     const photoIds=[]; const photoMeta={};
     for(const p of requestForm.photos){ const id=uid(); await idbPut(id,p.dataUrl); photoIds.push(id); photoMeta[id]={name:p.name||'', kind:p.kind||'image'}; }
+    // Each material line can carry its own photos (e.g. a photo of the exact
+    // tile/fitting wanted) in addition to the request-level attachments above
+    // -- uploaded to IndexedDB the same way, just keyed onto the line itself.
+    const savedLines = [];
+    for(const l of lines){
+      const linePhotoIds=[]; const linePhotoMeta={};
+      for(const p of (l.photos||[])){ const id=uid(); await idbPut(id,p.dataUrl); linePhotoIds.push(id); linePhotoMeta[id]={name:p.name||'', kind:p.kind||'image'}; }
+      savedLines.push({name:l.name.trim(),qty:parseFloat(l.qty),unit:l.unit.trim(),neededDate:l.neededDate,category:l.category||'',taskId:l.taskId||'',photoIds:linePhotoIds,photoMeta:linePhotoMeta});
+    }
     P().materialRequests.push({
       id:uid(), reqNo, createdAt:new Date().toISOString(), requestedBy:by, area, workType:wt,
       necessityType, approverName,
-      lines: lines.map(l=>({name:l.name.trim(),qty:parseFloat(l.qty),unit:l.unit.trim(),neededDate:l.neededDate,category:l.category||'',taskId:l.taskId||''})),
+      lines: savedLines,
       photoIds, photoMeta, status:'pending', approval:null, procurement:null,
       trashed:false
     });
@@ -6434,7 +6502,8 @@ function detailModalHtml(){
   const lines = r.lines.map(l=>{
     const task = l.taskId? P().boq.find(i=>i.id===l.taskId) : null;
     const actualCell = hasAnyActualCost? `<td class="tabular">${l.actualUnitCost!=null? fmtNum(l.actualQty!=null?l.actualQty:l.qty,2)+' × '+fmtCurrency(l.actualUnitCost)+' = '+fmtCurrency((l.actualQty!=null?l.actualQty:l.qty)*l.actualUnitCost) : '-'}</td>` : '';
-    return `<tr><td>${escapeHtml(l.name)}${l.category? `<div class="hint">${escapeHtml(procureCategoryLabel(l.category))}</div>`:''}${task? `<div class="hint">🔗 ${escapeHtml(task.name)}</div>`:''}</td><td class="tabular">${fmtNum(l.qty,2)} ${escapeHtml(l.unit)}</td><td class="tabular">${fmtDate(l.neededDate)}</td>${actualCell}</tr>`;
+    const linePhotoCount = (l.photoIds||[]).length;
+    return `<tr><td>${escapeHtml(l.name)}${linePhotoCount? ` <span class="hint">📎${linePhotoCount}</span>`:''}${l.category? `<div class="hint">${escapeHtml(procureCategoryLabel(l.category))}</div>`:''}${task? `<div class="hint">🔗 ${escapeHtml(task.name)}</div>`:''}</td><td class="tabular">${fmtNum(l.qty,2)} ${escapeHtml(l.unit)}</td><td class="tabular">${fmtDate(l.neededDate)}</td>${actualCell}</tr>`;
   }).join('');
   // Note: r.approval / r.procurement can be missing even when r.status is
   // 'approved'/'rejected'/'scheduled' if the status was set via the manual
@@ -6487,20 +6556,32 @@ function detailModalHtml(){
     </div>`;
   }
   const canTrashDetail = state.role==='pm' || state.role==='procurement';
-  return `<div class="modal-bg" id="dt-modal-bg"><div class="modal">
+  // Photo panel (right column) is filled in asynchronously by
+  // refreshDetailPhotos() right after this HTML mounts, since loading actual
+  // image data out of IndexedDB can't happen inside this synchronous render
+  // -- same pattern as the reference-photo gallery modal.
+  const totalPhotoCount = (r.photoIds||[]).length + r.lines.reduce((s,l)=> s+((l.photoIds||[]).length),0);
+  return `<div class="modal-bg" id="dt-modal-bg"><div class="modal" style="max-width:960px">
     <div class="modal-head"><h3>${r.reqNo}</h3><div style="display:flex;gap:6px"><button class="iconbtn" id="dt-share-link" title="${tf('คัดลอกลิงก์สำหรับส่งให้อนุมัติ','Copy an approval link to share')}">🔗</button>${canTrashDetail? `<button class="iconbtn" id="dt-trash" title="${tf('ลบ (ย้ายไปถังขยะ)','Delete (move to trash)')}">🗑️</button>` : ''}<button class="iconbtn" id="dt-modal-close">✕</button></div></div>
     <span class="badge ${r.status}">${STATUS_LABEL[r.status]}</span>
     ${dueNote}
-    <div class="grid cols-2" style="margin-top:12px">
-      <div class="field"><label class="hint">${tf('ผู้สั่งของ','Requested by')}</label><b>${escapeHtml(r.requestedBy)}</b></div>
-      <div class="field"><label class="hint">${tf('ประเภทงาน','Work type')}</label><b>${escapeHtml(r.workType||'-')}</b></div>
-      <div class="field"><label class="hint">${tf('ประเภทความจำเป็น','Necessity type')}</label><b>${r.necessityType? escapeHtml(necessityLabel(r.necessityType)) : '-'}</b></div>
-      <div class="field"><label class="hint">${tf('ผู้อนุมัติที่ระบุ','Named approver')}</label><b>${escapeHtml(r.approverName||'-')}</b></div>
-      <div class="field" style="grid-column:1/-1"><label class="hint">${tf('พื้นที่ที่ต้องใช้ของ','Area needed')}</label><b>${escapeHtml(r.area||'-')}</b></div>
+    <div class="dt-layout">
+      <div class="dt-main">
+        <div class="grid cols-2" style="margin-top:0">
+          <div class="field"><label class="hint">${tf('ผู้สั่งของ','Requested by')}</label><b>${escapeHtml(r.requestedBy)}</b></div>
+          <div class="field"><label class="hint">${tf('ประเภทงาน','Work type')}</label><b>${escapeHtml(r.workType||'-')}</b></div>
+          <div class="field"><label class="hint">${tf('ประเภทความจำเป็น','Necessity type')}</label><b>${r.necessityType? escapeHtml(necessityLabel(r.necessityType)) : '-'}</b></div>
+          <div class="field"><label class="hint">${tf('ผู้อนุมัติที่ระบุ','Named approver')}</label><b>${escapeHtml(r.approverName||'-')}</b></div>
+          <div class="field" style="grid-column:1/-1"><label class="hint">${tf('พื้นที่ที่ต้องใช้ของ','Area needed')}</label><b>${escapeHtml(r.area||'-')}</b></div>
+        </div>
+        <div class="table-wrap" style="margin-top:12px"><table><thead><tr><th>${tf('วัสดุ','Material')}</th><th>${tf('จำนวน','Qty')}</th><th>${tf('วันที่ต้องใช้','Needed by')}</th>${hasAnyActualCost? `<th>${tf('ต้นทุนจริง','Actual cost')}</th>`:''}</tr></thead><tbody>${lines}</tbody></table></div>
+        <div style="margin-top:14px"><b style="font-family:var(--font-display);font-size:13px">${tf('ไทม์ไลน์','Timeline')}</b><div class="timeline">${timeline}</div></div>
+        ${actions}
+      </div>
+      <div class="dt-photos" id="dt-photo-panel">
+        ${totalPhotoCount? `<span class="sub">${tf('กำลังโหลดรูปภาพ...','Loading photos...')}</span>` : `<div class="dt-photo-empty">📎 ${tf('ไม่มีไฟล์แนบ','No attachments')}</div>`}
+      </div>
     </div>
-    <div class="table-wrap" style="margin-top:12px"><table><thead><tr><th>${tf('วัสดุ','Material')}</th><th>${tf('จำนวน','Qty')}</th><th>${tf('วันที่ต้องใช้','Needed by')}</th>${hasAnyActualCost? `<th>${tf('ต้นทุนจริง','Actual cost')}</th>`:''}</tr></thead><tbody>${lines}</tbody></table></div>
-    <div style="margin-top:14px"><b style="font-family:var(--font-display);font-size:13px">${tf('ไทม์ไลน์','Timeline')}</b><div class="timeline">${timeline}</div></div>
-    ${actions}
   </div></div>`;
 }
 function wireDetailModal(){
@@ -6599,6 +6680,42 @@ function wireDetailModal(){
     r.status = newStatus;
     saveData(); procureDetailId=null; toast(tf('อัปเดตสถานะแล้ว','Status updated')); render();
   };
+  refreshDetailPhotos();
+}
+// ---------- Detail modal photo panel (request-level + per-line attachments) ----------
+let dtPhotoCache = {}; // photo id -> dataUrl, shared cache for the detail modal's right-side gallery
+async function loadReqPhoto(id){
+  if(dtPhotoCache[id]!==undefined) return dtPhotoCache[id];
+  const data = await idbGet(id);
+  dtPhotoCache[id] = data;
+  return data;
+}
+async function refreshDetailPhotos(){
+  const r = P().materialRequests.find(x=>x.id===procureDetailId);
+  const panel = $('#dt-photo-panel');
+  if(!r || !panel) return;
+  // Gather request-level attachments first, then each line's own photos
+  // (tagged with that line's material name as a caption) -- shown together
+  // as one gallery so nothing needs a second click to find.
+  const items = [];
+  (r.photoIds||[]).forEach(id=> items.push({id, meta:(r.photoMeta&&r.photoMeta[id])||{}, caption:null}));
+  r.lines.forEach(l=> (l.photoIds||[]).forEach(id=> items.push({id, meta:(l.photoMeta&&l.photoMeta[id])||{}, caption:l.name})));
+  if(!items.length){ panel.innerHTML = `<div class="dt-photo-empty">📎 ${tf('ไม่มีไฟล์แนบ','No attachments')}</div>`; return; }
+  const cards=[];
+  for(const it of items){
+    const data = await loadReqPhoto(it.id);
+    if(!data) continue;
+    if(it.meta.kind==='pdf'){
+      cards.push(`<div class="dt-photo-item dt-photo-pdf" data-view-pdf="${it.id}"><span class="ic">📄</span><span class="nm">${escapeHtml(it.meta.name||'PDF')}${it.caption? `<div class="hint">${escapeHtml(it.caption)}</div>`:''}</span></div>`);
+    } else {
+      cards.push(`<div class="dt-photo-item"><img src="${data}" alt="">${it.caption? `<div class="dt-photo-cap">${escapeHtml(it.caption)}</div>`:''}</div>`);
+    }
+  }
+  panel.innerHTML = cards.join('') || `<div class="dt-photo-empty">${tf('โหลดรูปภาพไม่สำเร็จ','Failed to load attachments')}</div>`;
+  $$('[data-view-pdf]').forEach(el=> el.onclick = async ()=>{
+    const data = await loadReqPhoto(el.dataset.viewPdf);
+    if(data) window.open(data, '_blank');
+  });
 }
 function wireProcure(){
   const newBtn=$('#btn-new-request');
@@ -6624,6 +6741,7 @@ function wireProcure(){
     const r = P().materialRequests.find(x=>x.id===b.dataset.deleteForeverReq); if(!r) return;
     if(!confirm(tf('ลบใบสั่งของ "'+r.reqNo+'" ถาวร ไม่สามารถกู้คืนได้อีก ยืนยันหรือไม่?','Permanently delete request "'+r.reqNo+'"? This cannot be undone.'))) return;
     for(const pid of (r.photoIds||[])){ try{ await idbDelete(pid); }catch(err){} }
+    for(const l of (r.lines||[])){ for(const pid of (l.photoIds||[])){ try{ await idbDelete(pid); }catch(err){} } }
     P().materialRequests = P().materialRequests.filter(x=>x.id!==r.id);
     saveData(); toast(tf('ลบถาวรแล้ว','Permanently deleted')); render();
   });
