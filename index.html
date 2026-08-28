@@ -476,15 +476,26 @@ tbody tr:hover{background:var(--surface-2)}
 .badge.duesoon{background:var(--amber-50);color:var(--amber-600)}
 .badge.warn{background:var(--amber-50);color:var(--amber-600)}
 
-/* ---------- Kanban ---------- */
-.kanban{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px;align-items:start}
-.kcol{display:flex;flex-direction:column;gap:10px}
-.kcol-head{display:flex;align-items:center;justify-content:space-between;padding:2px 4px}
-.kcol-head b{font-family:var(--font-display);font-size:13px}
-.kcol-head .count{font-size:11px;background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:2px 9px;font-weight:700;color:var(--ink-500)}
+/* ---------- Kanban ----------
+   The 4 status columns are a fixed set (not a variable-length list), so they
+   sit inside one shared .card -- like every other page in the app -- and
+   split it into even compartments with a hairline divider between them,
+   instead of floating loose on the page background with room to sprawl on
+   wide screens. Below 900px there usually isn't room for 4 columns side by
+   side without squeezing each one too narrow to read, so they stack into
+   one column and the divider becomes a bottom rule instead. */
+.kanban-card{padding:14px}
+.kanban{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:0}
+.kcol{display:flex;flex-direction:column;gap:8px;padding:0 12px;min-width:0}
+.kcol:first-child{padding-left:2px}
+.kcol:last-child{padding-right:2px}
+.kcol:not(:last-child){border-right:1px solid var(--line)}
+.kcol-head{display:flex;align-items:center;justify-content:space-between;padding:0 2px 8px;border-bottom:1px solid var(--line)}
+.kcol-head b{font-family:var(--font-display);font-size:12.5px}
+.kcol-head .count{font-size:11px;background:var(--surface-2,var(--surface));border:1px solid var(--line);border-radius:999px;padding:1px 8px;font-weight:700;color:var(--ink-500)}
 .kcard{
   background:var(--surface);border:1px solid var(--line);border-radius:var(--radius-sm);
-  padding:13px;cursor:pointer;display:flex;flex-direction:column;gap:7px;box-shadow:var(--shadow-sm);
+  padding:11px;cursor:pointer;display:flex;flex-direction:column;gap:6px;box-shadow:var(--shadow-sm);
   border-left:3px solid var(--line);
 }
 .kcard:hover{border-color:var(--purple-500)}
@@ -493,9 +504,14 @@ tbody tr:hover{background:var(--surface-2)}
 .kcard.rejected{border-left-color:var(--coral-500)}
 .kcard.scheduled{border-left-color:var(--blue-500)}
 .kcard .reqno{font-family:var(--font-mono);font-size:11px;color:var(--ink-300)}
-.kcard .title{font-weight:600;font-size:13.5px}
-.kcard .meta{font-size:11.5px;color:var(--ink-500)}
-.empty-col{border:1.5px dashed var(--line);border-radius:var(--radius-md);padding:18px;text-align:center;color:var(--ink-300);font-size:12px}
+.kcard .title{font-weight:600;font-size:13px;line-height:1.35}
+.kcard .meta{font-size:11px;color:var(--ink-500)}
+.empty-col{border:1.5px dashed var(--line);border-radius:var(--radius-sm);padding:12px 8px;text-align:center;color:var(--ink-300);font-size:11.5px}
+@media (max-width:900px){
+  .kanban{grid-template-columns:1fr;gap:16px}
+  .kcol{padding:0;border-right:none!important}
+  .kcol:not(:last-child){padding-bottom:14px;border-bottom:1px solid var(--line)}
+}
 
 /* ---------- Request detail / timeline ---------- */
 .rq-lines{display:flex;flex-direction:column;gap:8px}
@@ -756,12 +772,32 @@ function saveData(){
    what we just sent, so applyCloudMeta/applyCloudProject recognize it as an
    echo and skip re-applying it (which would otherwise be a harmless no-op
    render, but also the mechanism that would turn a real remote change loop
-   into an infinite one if something upstream ever double-fired). */
+   into an infinite one if something upstream ever double-fired).
+
+   Startup race (real incident, now fixed): bootstrap() runs synchronously
+   and calls saveData() several times while seeding this device's local
+   copy (demo data / the built-in Richmond project template) -- BEFORE
+   initCloudSync() has had a chance to check whether Firestore already has
+   real shared data. Firestore's very first read on a cold connection can
+   easily take longer than the 700ms debounce below, especially over a
+   slow/high-latency link. If it does, the debounced push fires first and
+   pushes this device's freshly-seeded local placeholder -- which does NOT
+   match the real shared project -- straight over the real documents via
+   .set(), silently destroying real data (this happened twice in
+   production: a whole batch of real material requests got overwritten
+   back to "trashed" because that's what happened to be true in the stale
+   local copy at that moment). The fix: cloudSyncReady stays false until
+   initCloudSync()'s first read has resolved (or definitively failed), and
+   scheduleCloudPush() refuses to arm the push timer until then -- saveData()
+   still saves locally right away either way, only the network push waits. */
 let cloudPushTimer = null;
 let lastPushedMetaJSON = null;
 let lastPushedProjectJSON = {}; // projectId -> last JSON we pushed/received for it
 let pendingSafeRerender = false;
+let cloudSyncReady = false; // true once initCloudSync()'s first read resolves/fails
+let pushPendingWhenReady = false; // a saveData() happened before we knew it was safe to push
 function scheduleCloudPush(){
+  if(!cloudSyncReady){ pushPendingWhenReady = true; return; }
   if(cloudPushTimer) clearTimeout(cloudPushTimer);
   cloudPushTimer = setTimeout(pushStateToCloud, 700);
 }
@@ -828,10 +864,15 @@ function removeCloudProject(id){
 // instantly on every load, then "catches up" to the shared cloud copy a
 // moment later once it arrives -- and stays live via onSnapshot from then on.
 async function initCloudSync(){
-  if(!cloudDb) return; // Firebase never loaded/initialized -- stay local-only, silently
+  if(!cloudDb){ cloudSyncReady = true; return; } // Firebase never loaded/initialized -- stay local-only, silently
   try{
     const metaSnap = await cloudDb.collection('meta').doc('settings').get();
     const projSnap = await cloudDb.collection('projects').get();
+    // We now know whether Firestore already holds real shared data -- from
+    // this point on it's safe to let scheduleCloudPush() actually push (see
+    // the big comment above cloudSyncReady's declaration for why this has
+    // to happen before, not after, deciding which branch below runs).
+    cloudSyncReady = true;
     if(!metaSnap.exists && projSnap.empty){
       // Nobody has synced anything yet -- this device's current state
       // (freshly seeded demo/Richmond data, most likely) becomes the shared
@@ -854,6 +895,8 @@ async function initCloudSync(){
       render();
     }
   }catch(e){ /* offline on first load, or Firestore unreachable -- keep working on local data */ }
+  cloudSyncReady = true; // still true if the try block threw before reaching the line above
+  if(pushPendingWhenReady){ pushPendingWhenReady = false; scheduleCloudPush(); }
   cloudDb.collection('meta').doc('settings').onSnapshot(
     snap=>{ if(snap.exists) applyCloudMeta(snap.data()); },
     ()=>{ /* listener error (e.g. offline) -- local data keeps working */ }
@@ -3663,6 +3706,22 @@ const OPEN_PROJECT_MODE = !FIELD_MODE && location.hash.replace('#','').split('&'
 function projectLink(projectId){
   return location.origin + location.pathname + location.search + '#open&project=' + encodeURIComponent(projectId);
 }
+// Approval link: opening the app with #approve&project=<id>&req=<reqId> jumps
+// straight to that project's Purchasing & Approval page with the specific
+// request's detail modal already open -- so a supervisor can be handed a
+// link (LINE, email, etc.) that goes right to the one request needing their
+// decision, instead of having to find it themselves. Like the open-project
+// link above, nothing about the UI is restricted; the existing approver PIN
+// check on the approve/reject buttons is still the actual gate.
+const APPROVE_LINK_MODE = !FIELD_MODE && location.hash.replace('#','').split('&').includes('approve');
+function approveLinkReqIdFromHash(){
+  const parts = location.hash.replace('#','').split('&');
+  const m = parts.find(s=> s.indexOf('req=')===0);
+  return m ? decodeURIComponent(m.slice('req='.length)) : null;
+}
+function approveLink(projectId, reqId){
+  return location.origin + location.pathname + location.search + '#approve&project=' + encodeURIComponent(projectId) + '&req=' + encodeURIComponent(reqId);
+}
 const ROLE_LABEL = {
   site: tf('ผู้รับเหมาหน้างาน / ทีมงาน','Site contractor / crew'),
   pm: tf('ผู้จัดการโครงการ / ผู้บริหาร','Project manager / owner'),
@@ -3812,6 +3871,19 @@ function bootstrap(){
     const pid = fieldProjectIdFromHash();
     const proj = state.projects.find(p=>p.id===pid);
     if(proj){ state.currentProjectId = proj.id; state.view='project'; state.tab='dashboard'; }
+  } else if(APPROVE_LINK_MODE){
+    // Approval deep link: jump straight to Purchasing & Approval with the
+    // one request's detail modal open. If this browser's local copy of the
+    // project hasn't caught up to the request yet (e.g. it was created on
+    // another device), the modal simply stays closed until cloud sync
+    // delivers it moments later -- detailModalHtml() already no-ops when
+    // procureDetailId doesn't resolve to a request yet.
+    const pid = fieldProjectIdFromHash();
+    const proj = state.projects.find(p=>p.id===pid);
+    if(proj){
+      state.currentProjectId = proj.id; state.view='project'; state.tab='procure';
+      procureDetailId = approveLinkReqIdFromHash();
+    }
   }
 }
 
@@ -6207,7 +6279,7 @@ function renderProcure(){
     <div class="card kpi"><div class="stat"><span class="lbl">🗓️ ${tf('ใบสั่งของสัปดาห์นี้','Requests this week')}</span><span class="num">${summary.week.count}</span></div><div class="sub" style="margin-top:4px">${summary.week.lines} ${tf('รายการวัสดุ','material line(s)')} · ${summary.week.pending} ${tf('รอการอนุมัติ','pending')}</div></div>
   </div>` : ''}
   ${FIELD_MODE? '' : `<div class="role-note">👁️ ${tf('มุมมองปัจจุบัน:','Current view:')} <b>${ROLE_LABEL[state.role]}</b> — ${tf('สลับมุมมองจากปุ่มมุมบนขวาเพื่อจำลองสิทธิ์แต่ละบทบาท (ข้อมูลทั้งหมดอยู่ในเบราว์เซอร์เครื่องนี้ ยังไม่ใช่ระบบล็อกอินผู้ใช้หลายคนจริง)','switch views from the top-right buttons to try each role’s permissions (all data lives in this browser -- this is not yet a real multi-user login system).')}</div>`}
-  ${activeRequests.length===0? `<div class="empty"><span class="ic">🛒</span>${tf('ยังไม่มีใบสั่งของ','No material requests yet')}${canCreate? tf(' กด “สร้างใบสั่งของ” เพื่อเริ่มต้น',' -- tap “New request” to get started'):''}</div>` : `<div class="kanban">${cols}</div>`}
+  ${activeRequests.length===0? `<div class="empty"><span class="ic">🛒</span>${tf('ยังไม่มีใบสั่งของ','No material requests yet')}${canCreate? tf(' กด “สร้างใบสั่งของ” เพื่อเริ่มต้น',' -- tap “New request” to get started'):''}</div>` : `<div class="card kanban-card"><div class="kanban">${cols}</div></div>`}
   `}
   `;
 }
@@ -6416,7 +6488,7 @@ function detailModalHtml(){
   }
   const canTrashDetail = state.role==='pm' || state.role==='procurement';
   return `<div class="modal-bg" id="dt-modal-bg"><div class="modal">
-    <div class="modal-head"><h3>${r.reqNo}</h3><div style="display:flex;gap:6px">${canTrashDetail? `<button class="iconbtn" id="dt-trash" title="${tf('ลบ (ย้ายไปถังขยะ)','Delete (move to trash)')}">🗑️</button>` : ''}<button class="iconbtn" id="dt-modal-close">✕</button></div></div>
+    <div class="modal-head"><h3>${r.reqNo}</h3><div style="display:flex;gap:6px"><button class="iconbtn" id="dt-share-link" title="${tf('คัดลอกลิงก์สำหรับส่งให้อนุมัติ','Copy an approval link to share')}">🔗</button>${canTrashDetail? `<button class="iconbtn" id="dt-trash" title="${tf('ลบ (ย้ายไปถังขยะ)','Delete (move to trash)')}">🗑️</button>` : ''}<button class="iconbtn" id="dt-modal-close">✕</button></div></div>
     <span class="badge ${r.status}">${STATUS_LABEL[r.status]}</span>
     ${dueNote}
     <div class="grid cols-2" style="margin-top:12px">
@@ -6434,6 +6506,19 @@ function detailModalHtml(){
 function wireDetailModal(){
   const bg=$('#dt-modal-bg'); if(!bg) return;
   $('#dt-modal-close').onclick=()=>{ procureDetailId=null; render(); };
+  const shareBtn = $('#dt-share-link');
+  if(shareBtn) shareBtn.onclick = async ()=>{
+    const link = approveLink(P().id, procureDetailId);
+    try{
+      await navigator.clipboard.writeText(link);
+      toast(tf('คัดลอกลิงก์อนุมัติแล้ว ส่งให้ผู้อนุมัติเปิดดูและกดอนุมัติได้เลย','Approval link copied -- send it to the approver'));
+    }catch(err){
+      // Clipboard API unavailable (older browser, no permission, non-HTTPS
+      // context, etc.) -- fall back to showing the link so it can still be
+      // copied by hand, same fallback pattern as the PIN prompt elsewhere.
+      prompt(tf('คัดลอกลิงก์นี้เพื่อส่งให้ผู้อนุมัติ:','Copy this link to share with the approver:'), link);
+    }
+  };
   const trashBtn = $('#dt-trash');
   if(trashBtn) trashBtn.onclick = ()=>{
     const r = P().materialRequests.find(x=>x.id===procureDetailId); if(!r) return;
