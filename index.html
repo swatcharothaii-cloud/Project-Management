@@ -267,22 +267,14 @@ tbody tr:hover{background:var(--surface-2)}
 .mp-table tr.mp-cat-row.open td{border-bottom:1px solid var(--purple-100,var(--line))}
 .mp-table{table-layout:fixed;width:100%}
 .mp-table th,.mp-table td{white-space:normal;word-break:break-word;padding:9px 8px;vertical-align:top;font-size:12.5px}
-.mp-table th:nth-child(1),.mp-table td:nth-child(1){width:4%}
-.mp-table th:nth-child(2),.mp-table td:nth-child(2){width:12%}
-.mp-table th:nth-child(3),.mp-table td:nth-child(3){width:8%}
-.mp-table th:nth-child(4),.mp-table td:nth-child(4){width:8%}
-.mp-table th:nth-child(5),.mp-table td:nth-child(5){width:6%}
-.mp-table th:nth-child(6),.mp-table td:nth-child(6){width:6%}
-.mp-table th:nth-child(7),.mp-table td:nth-child(7){width:6%}
-.mp-table th:nth-child(8),.mp-table td:nth-child(8){width:4%}
-.mp-table th:nth-child(9),.mp-table td:nth-child(9){width:7%}
-.mp-table th:nth-child(10),.mp-table td:nth-child(10){width:7%}
-.mp-table th:nth-child(11),.mp-table td:nth-child(11){width:8%}
-.mp-table th:nth-child(12),.mp-table td:nth-child(12){width:7%}
-.mp-table th:nth-child(13),.mp-table td:nth-child(13){width:8%}
-.mp-table th:nth-child(14),.mp-table td:nth-child(14){width:9%}
-.mp-table td:nth-child(14){display:flex;gap:5px;flex-wrap:wrap}
-.mp-table td:nth-child(14) .btn{padding:6px 8px;min-width:0}
+/* Column widths are set via <colgroup> in the markup (14 physical columns)
+   rather than th/td:nth-child, because the header now spans two rows with
+   grouped (colspan) cells -- nth-child position no longer lines up with the
+   physical column index once a header row has fewer, wider cells. */
+.mp-table th.mp-th-group{text-align:center;border-bottom:1px solid var(--line)}
+.mp-table th.mp-th-sub{font-size:11px;color:var(--ink-500);text-align:center;text-transform:none;letter-spacing:0}
+.mp-table td:last-child{display:flex;gap:5px;flex-wrap:wrap}
+.mp-table td:last-child .btn{padding:6px 8px;min-width:0}
 .mp-sub{display:block;font-size:11px;color:var(--ink-500);margin-top:3px;line-height:1.35;font-weight:400}
 .mp-days-badge{display:inline-block;font-size:10px;color:var(--ink-500);background:var(--line-soft,var(--purple-50));padding:1px 6px;border-radius:8px;white-space:nowrap}
 .mp-date-input{width:100%;font-size:11px;padding:4px 3px;border-radius:6px;border:1px solid var(--line);font-family:var(--font-mono);color:var(--ink-700);background:var(--surface)}
@@ -469,6 +461,7 @@ tbody tr:hover{background:var(--surface-2)}
 .badge.rejected{background:var(--coral-50);color:var(--coral-600)}
 .badge.scheduled{background:var(--blue-50);color:var(--blue-600)}
 .badge.duesoon{background:var(--amber-50);color:var(--amber-600)}
+.badge.warn{background:var(--amber-50);color:var(--amber-600)}
 
 /* ---------- Kanban ---------- */
 .kanban{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px;align-items:start}
@@ -5048,7 +5041,34 @@ function renderMasterPlan(){
   </div>` : ''}
   ${P().boq.length===0? `<div class="empty"><span class="ic">📋</span>${tf('ยังไม่มีรายการงานใน BOQ','No BOQ items yet')}<br>${tf('กด “เพิ่มรายการงาน” เพื่อเริ่มต้น','Tap “Add work item” to get started')}</div>` : (mpView==='gantt'? ganttChartHtml(groups) : `
   <div class="table-wrap mp-wrap"><table class="mp-table">
-    <thead><tr><th>${tf('ภาพ','Photo')}</th><th>${tf('รายการงาน','Work item')}</th><th>${tf('ทีมงาน','Team')}</th><th>${tf('ลักษณะงาน','Work type')}</th><th>${tf('ปริมาณรวม','Total qty')}</th><th>${tf('วันเริ่ม','Start date')}</th><th>${tf('วันเสร็จ','End date')}</th><th>${tf('จำนวนวัน','Days')}</th><th>${tf('วันสั่งของ','Order date')}</th><th>${tf('วันส่งของ','Delivery date')}</th><th>${tf('สถานะสั่งซื้อ','Order status')}</th><th>${tf('ความคืบหน้า','Progress')}</th><th>${tf('หมายเหตุ','Notes')}</th><th></th></tr></thead>
+    <colgroup>
+      <col style="width:4%"><col style="width:12%"><col style="width:8%"><col style="width:8%"><col style="width:6%">
+      <col style="width:6%"><col style="width:6%">
+      <col style="width:4%"><col style="width:7%"><col style="width:7%"><col style="width:8%">
+      <col style="width:7%"><col style="width:8%"><col style="width:9%">
+    </colgroup>
+    <thead>
+      <tr>
+        <th rowspan="2">${tf('ภาพ','Photo')}</th>
+        <th rowspan="2">${tf('รายการงาน','Work item')}</th>
+        <th rowspan="2">${tf('ทีมงาน','Team')}</th>
+        <th rowspan="2">${tf('ลักษณะงาน','Work type')}</th>
+        <th rowspan="2">${tf('ปริมาณรวม','Total qty')}</th>
+        <th colspan="2" class="mp-th-group">${tf('แผนงาน','Work plan')}</th>
+        <th colspan="4" class="mp-th-group">${tf('แผนการจัดซื้อ','Purchasing plan')}</th>
+        <th rowspan="2">${tf('ความคืบหน้า','Progress')}</th>
+        <th rowspan="2">${tf('หมายเหตุ','Notes')}</th>
+        <th rowspan="2"></th>
+      </tr>
+      <tr>
+        <th class="mp-th-sub">${tf('วันเริ่ม','Start date')}</th>
+        <th class="mp-th-sub">${tf('วันเสร็จ','End date')}</th>
+        <th class="mp-th-sub">${tf('จำนวนวัน','Days')}</th>
+        <th class="mp-th-sub">${tf('วันสั่งของ','Order date')}</th>
+        <th class="mp-th-sub">${tf('วันส่งของ','Delivery date')}</th>
+        <th class="mp-th-sub">${tf('สถานะสั่งซื้อ','Order status')}</th>
+      </tr>
+    </thead>
     <tbody>${bodyHtml}</tbody>
   </table></div>`)}
   <div class="card tint">
@@ -6855,7 +6875,7 @@ function renderBudget(){
     const label = g.cat? escapeHtml(g.cat) : tf('ไม่ระบุหมวดหมู่','Uncategorized');
     const ca = g.cat? catActuals[g.cat] : null;
     const catCostLogNote = ca? ` · 🧾 ${tf('ต้นทุนจากบันทึกจัดซื้อ','Cost log spend')}: <b class="tabular">${fmtCurrency(ca.cost)}</b> (${ca.count} ${tf('รายการ','entries')})` : '';
-    const catHeader = `<tr class="budget-cat-row"><td colspan="15">📁 ${label}${catCostLogNote}</td></tr>`;
+    const catHeader = `<tr class="budget-cat-row"><td colspan="17">📁 ${label}${catCostLogNote}</td></tr>`;
     const itemRows = g.items.map(item=>{
       no++;
       const boqQty = item.qtyTotal;
@@ -6874,6 +6894,16 @@ function renderBudget(){
       else if(!a){ statusLabel=tf('ยังไม่มีค่าใช้จ่าย','No spend yet'); statusClass='ok'; }
       else if(totalVariance>=0){ statusLabel=tf('ปกติ','On budget'); statusClass='ok'; }
       else { statusLabel=tf('เกินงบ','Over budget'); statusClass='bad'; }
+      // Per-item purchasing cap: same 70%-of-BOQ rule as the project-wide KPI
+      // card, applied to this single row's own BOQ total, with the same
+      // early-warning point at 49% (= 70% of the 70% cap) already used there.
+      const itemCap = boqTotal!=null? boqTotal*0.7 : null;
+      const itemWarnAt = boqTotal!=null? boqTotal*0.49 : null;
+      let capItemLabel, capItemClass;
+      if(itemCap==null){ capItemLabel=tf('ยังไม่ตั้งราคา','No price set'); capItemClass='idle'; }
+      else if(actualTotal>=itemCap){ capItemLabel=tf('🔴 เกินเพดาน','Over cap'); capItemClass='bad'; }
+      else if(actualTotal>=itemWarnAt){ capItemLabel=tf('🟡 ใกล้เพดาน','Near cap'); capItemClass='warn'; }
+      else { capItemLabel=tf('🟢 ปกติ','OK'); capItemClass='ok'; }
       const refs = a? a.refs : [];
       const refSummary = refs.length? refs.map(r=> [r.poNumber,r.vendor].filter(Boolean).join(' · ') || r.reqNo).join(', ') : '-';
       return `<tr data-edit-item="${item.id}" style="cursor:pointer">
@@ -6884,6 +6914,7 @@ function renderBudget(){
         <td class="tabular">${fmtNum(boqQty,2)}</td>
         <td class="tabular">${boqUnitPrice!=null? fmtCurrency(boqUnitPrice):'-'}</td>
         <td class="tabular">${boqTotal!=null? fmtCurrency(boqTotal):'-'}</td>
+        <td class="tabular">${itemCap!=null? fmtCurrency(itemCap):'-'}</td>
         <td class="tabular">${a? fmtNum(actualQty,2):'-'}</td>
         <td class="tabular">${actualUnitPrice!=null? fmtCurrency(actualUnitPrice):'-'}</td>
         <td class="tabular">${a? fmtCurrency(actualTotal):'-'}</td>
@@ -6891,6 +6922,7 @@ function renderBudget(){
         <td class="tabular" style="color:${qtyVariance!=null&&qtyVariance<0?'var(--coral-600)':'inherit'}">${qtyVariance!=null? fmtCurrency(qtyVariance):'-'}</td>
         <td class="tabular" style="color:${totalVariance!=null&&totalVariance<0?'var(--coral-600)':'inherit'}">${totalVariance!=null? fmtCurrency(totalVariance):'-'}</td>
         <td><span class="badge ${statusClass}">${statusLabel}</span></td>
+        <td><span class="badge ${capItemClass}">${capItemLabel}</span></td>
         <td class="hint" style="white-space:normal;max-width:200px" title="${escapeHtml(refSummary)}">${escapeHtml(refSummary)}</td>
       </tr>`;
     }).join('');
@@ -6924,8 +6956,10 @@ function renderBudget(){
   <div class="table-wrap"><table class="budget-table"><thead><tr>
     <th>${tf('No.','No.')}</th><th>${tf('รหัส','Code')}</th><th>${tf('รายการ','Description')}</th><th>${tf('หน่วย','Unit')}</th>
     <th>${tf('ปริมาณ BOQ','BOQ Qty')}</th><th>${tf('ราคา/หน่วย BOQ','BOQ Unit Price')}</th><th>${tf('รวม BOQ','BOQ Total')}</th>
+    <th>${tf('งบจัดซื้อ (เพดาน 70%)','Purchase cap (70%)')}</th>
     <th>${tf('ปริมาณจริง','Actual Qty')}</th><th>${tf('ราคา/หน่วยจริง','Actual Unit Price')}</th><th>${tf('รวมจริง','Actual Total')}</th>
-    <th>${tf('ผลต่างราคา','Price Variance')}</th><th>${tf('ผลต่างปริมาณ','Qty Variance')}</th><th>${tf('ผลต่างรวม','Total Variance')}</th><th>${tf('สถานะ','Status')}</th><th>${tf('อ้างอิง (PO/ผู้ขาย)','Reference (PO/Vendor)')}</th>
+    <th>${tf('ผลต่างราคา','Price Variance')}</th><th>${tf('ผลต่างปริมาณ','Qty Variance')}</th><th>${tf('ผลต่างรวม','Total Variance')}</th><th>${tf('สถานะ','Status')}</th>
+    <th>${tf('แจ้งเตือนงบจัดซื้อ','Purchase budget alert')}</th><th>${tf('อ้างอิง (PO/ผู้ขาย)','Reference (PO/Vendor)')}</th>
   </tr></thead><tbody>${rows}</tbody></table></div>
   `;
 }
