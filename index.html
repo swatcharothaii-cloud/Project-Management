@@ -313,15 +313,25 @@ tbody tr:hover{background:var(--surface-2)}
 .mp-procure-dot.rejected{background:var(--coral-500)}
 .mp-procure-dot.scheduled{background:var(--blue-500)}
 .mp-procure-dot.idle{background:var(--purple-500)}
+.mp-procure-dot.mps-order{background:var(--amber-500)}
+.mp-procure-dot.mps-payment{background:var(--purple-700)}
+.mp-procure-dot.mps-delivery{background:var(--blue-500)}
+.mp-procure-dot.mps-cancelled{background:var(--coral-500)}
 .mp-cat-chevron{display:inline-block;width:14px;margin-right:2px;font-size:11px;opacity:.7}
 .mp-cat-count{font-weight:400;opacity:.75;font-size:11.5px}
 .mp-expand-controls{display:flex;gap:8px;margin:0 0 12px}
 
-.mp-view-toggle{display:inline-flex;border:1px solid var(--line);border-radius:999px;padding:3px;background:var(--surface-2);gap:2px}
-.mp-view-toggle button{border:none;background:transparent;padding:6px 14px;border-radius:999px;font-size:12.5px;font-weight:600;color:var(--ink-500);cursor:pointer}
-.mp-view-toggle button.active{background:var(--surface);color:var(--purple-700);box-shadow:var(--shadow-sm)}
+/* ---------- Master Plan: full-bleed breakout ----------
+   main{} centers content at max-width:1180px, which is right for every
+   other screen but leaves distracting blank margins beside a wide
+   table+timeline. This one screen breaks out to the actual viewport width
+   (the classic negative-margin trick: 50% of the centered parent minus 50%
+   of the viewport cancels the parent's own centering) while keeping its own
+   side padding so content still isn't flush against the browser edge. */
+.mp-full-bleed{width:100vw;margin-left:calc(-50vw + 50%);margin-right:calc(-50vw + 50%);padding:0 18px;box-sizing:border-box}
+@media(max-width:900px){.mp-full-bleed{padding:0 10px}}
 
-/* ---------- Master Plan: Gantt chart ---------- */
+/* ---------- Master Plan: Gantt chart (the single, merged table+timeline view) ---------- */
 .gantt-toolbar{display:flex;align-items:center;gap:8px;margin-bottom:10px}
 .gantt-toolbar .hint{font-size:11.5px;color:var(--ink-300)}
 /* A second, synced horizontal scrollbar placed above the chart -- the real
@@ -339,17 +349,27 @@ tbody tr:hover{background:var(--surface-2)}
 .gantt-deps-svg{position:absolute;top:0;left:0;pointer-events:none;overflow:visible}
 .gantt-row{display:flex}
 .gantt-label-col{position:sticky;left:0;z-index:2;background:var(--surface);border-right:1px solid var(--line);padding:0 10px;font-size:12px;display:flex;flex-direction:column;justify-content:center;flex-shrink:0;box-sizing:border-box;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.gantt-label-col.item-cols{display:grid;grid-template-columns:1fr 52px 52px 34px 78px 40px;column-gap:6px;align-items:center}
+/* Item row grid: task name+sub, start, end, days, [order date | delivery
+   date | status -- the purchasing-plan columns folded in from the old
+   separate "table" view], progress%. */
+.gantt-label-col.item-cols{display:grid;grid-template-columns:1fr 44px 44px 30px 92px 92px 98px 36px;column-gap:6px;align-items:center}
 .gantt-label-col.item-cols>div{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:10.5px;color:var(--ink-500)}
-.gantt-label-col.item-cols .gl-task{font-size:12px;color:var(--ink-900);display:flex;align-items:center;gap:4px}
+.gantt-label-col.item-cols .gl-taskwrap{min-width:0;overflow:hidden}
+.gantt-label-col.item-cols .gl-task{font-size:12px;color:var(--ink-900);display:flex;align-items:center;gap:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.gantt-label-col.item-cols .gl-sub{font-size:9.5px;color:var(--ink-300);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding-left:16px}
 .gantt-label-col.item-cols .gl-num{font-family:var(--font-mono);text-align:center}
-.gantt-header-row .gantt-label-col{display:grid;grid-template-columns:1fr 52px 52px 34px 78px 40px;column-gap:6px;align-items:center;font-size:10px;font-weight:700;color:var(--ink-500);text-transform:uppercase;letter-spacing:.02em}
+.gl-mini-input,.gl-mini-select{font-size:9.5px;padding:2px 2px;border:1px solid var(--line);border-radius:4px;background:var(--surface);width:100%;box-sizing:border-box;color:var(--ink-700);font-family:var(--font-mono)}
+.gl-mini-select{font-family:var(--font-body,inherit);padding:2px 1px}
+.gl-mini-input:hover,.gl-mini-select:hover{border-color:var(--purple-400,var(--purple-500))}
+.gl-mini-input:focus,.gl-mini-select:focus{outline:2px solid var(--purple-100,var(--purple-50));border-color:var(--purple-500)}
+.gl-mini-badge{font-size:9px!important;padding:1px 5px!important;border-radius:999px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:inline-block;max-width:100%;box-sizing:border-box}
+.gantt-header-row .gantt-label-col{display:grid;grid-template-columns:1fr 44px 44px 30px 92px 92px 98px 36px;column-gap:6px;align-items:center;font-size:10px;font-weight:700;color:var(--ink-500);text-transform:uppercase;letter-spacing:.02em}
 .gantt-header-row .gantt-label-col>div{text-align:center;white-space:nowrap;overflow:hidden}
 .gantt-header-row .gantt-label-col>div:first-child{text-align:left}
-.gantt-cat-label{background:var(--surface-2);font-family:var(--font-display);font-weight:600;color:var(--ink-700);font-size:12.5px;padding:0 10px}
+.gantt-cat-label{background:var(--surface-2);font-family:var(--font-display);font-weight:600;color:var(--ink-700);font-size:12.5px;padding:0 10px;display:flex;flex-direction:row;align-items:center;justify-content:flex-start;gap:4px}
 .gantt-timeline-col{position:relative;flex-shrink:0;box-sizing:border-box}
-.gantt-row:not(.gantt-header-row):not(.gantt-cat-row) .gantt-timeline-col{height:34px;border-bottom:1px solid var(--line-soft)}
-.gantt-row:not(.gantt-header-row):not(.gantt-cat-row) .gantt-label-col{height:34px;border-bottom:1px solid var(--line-soft)}
+.gantt-row:not(.gantt-header-row):not(.gantt-cat-row) .gantt-timeline-col{height:46px;border-bottom:1px solid var(--line-soft)}
+.gantt-row:not(.gantt-header-row):not(.gantt-cat-row) .gantt-label-col{height:46px;border-bottom:1px solid var(--line-soft)}
 .gantt-cat-row .gantt-timeline-col,.gantt-cat-row .gantt-label-col{height:28px;background:var(--surface-2)}
 .gantt-header-row .gantt-timeline-col{height:42px}
 .gantt-header-row .gantt-label-col{height:42px;border-bottom:1px solid var(--line)}
@@ -358,14 +378,15 @@ tbody tr:hover{background:var(--surface-2)}
 .gantt-days{display:flex;height:20px;box-sizing:border-box}
 .gantt-daycell{flex-shrink:0;font-size:9.5px;color:var(--ink-300);text-align:center;display:flex;align-items:center;justify-content:center;border-right:1px solid var(--line-soft);box-sizing:border-box}
 .gantt-daycell.weekend{background:var(--surface-2)}
-.gantt-bar{position:absolute;top:5px;height:24px;border-radius:6px;overflow:hidden;cursor:pointer;box-shadow:var(--shadow-sm);display:flex;align-items:center}
+.gantt-bar{position:absolute;top:11px;height:24px;border-radius:6px;overflow:hidden;cursor:pointer;box-shadow:var(--shadow-sm);display:flex;align-items:center}
 .gantt-bar.on-track{background:var(--blue-500)}
 .gantt-bar.near-due{background:var(--amber-500)}
 .gantt-bar.overdue{background:var(--coral-500)}
 .gantt-bar.done{background:var(--mint-500)}
 .gantt-bar-fill{position:absolute;left:0;top:0;bottom:0;background:rgba(255,255,255,.32)}
 .gantt-bar-label{position:relative;z-index:1;color:#fff;font-size:11px;font-weight:600;padding:0 8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-shadow:0 1px 2px rgba(0,0,0,.3)}
-.gantt-bar-label-outside{position:absolute;top:5px;height:24px;display:flex;align-items:center;font-size:11px;color:var(--ink-700);white-space:nowrap}
+.gantt-bar-label-outside{position:absolute;top:11px;height:24px;display:flex;align-items:center;font-size:11px;color:var(--ink-700);white-space:nowrap}
+.gantt-nodate-placeholder{position:absolute;top:11px;left:10px;height:24px;display:flex;align-items:center;font-size:10.5px;color:var(--ink-300);font-style:italic;white-space:nowrap}
 .gantt-today-line{position:absolute;top:0;bottom:0;width:2px;background:var(--coral-500);z-index:3;pointer-events:none}
 
 .empty{
@@ -496,6 +517,11 @@ tbody tr:hover{background:var(--surface-2)}
 .badge.scheduled{background:var(--blue-50);color:var(--blue-600)}
 .badge.duesoon{background:var(--amber-50);color:var(--amber-600)}
 .badge.warn{background:var(--amber-50);color:var(--amber-600)}
+/* Manual BOQ-item order status (Master Plan & BOQ, items with no linked request) */
+.badge.mps-order{background:var(--amber-50);color:var(--amber-600)}
+.badge.mps-payment{background:var(--purple-50);color:var(--purple-700)}
+.badge.mps-delivery{background:var(--blue-50);color:var(--blue-600)}
+.badge.mps-cancelled{background:var(--coral-50);color:var(--coral-600)}
 
 /* ---------- Kanban ----------
    The 4 status columns are a fixed set (not a variable-length list), so they
@@ -3760,6 +3786,19 @@ const PSTATUS = [
   {id:'scheduled', label:tf('นัดส่งแล้ว','Scheduled'), ic:'🔵'},
   {id:'rejected', label:tf('ปฏิเสธ','Rejected'), ic:'🔴'},
 ];
+// Manual order-status vocabulary for BOQ items on the Master Plan & BOQ
+// screen that have NO linked material request (i.e. purchased outside the
+// full request/approval flow) -- kept deliberately separate from STATUS_LABEL
+// above, which reflects the *automatic*, request-driven status once an item
+// IS linked to a material request. th/en are resolved live via tf() at
+// render time (not baked into a const) so they stay correct across a
+// language switch without needing to be wired into rebuildLangConstants().
+const MP_PROCURE_STATUS_DEFS = [
+  {v:'pending_order', th:'รอสั่งซื้อ', en:'Pending order', cls:'mps-order'},
+  {v:'pending_payment', th:'รอชำระเงิน', en:'Pending payment', cls:'mps-payment'},
+  {v:'pending_delivery', th:'รอจัดส่ง', en:'Pending delivery', cls:'mps-delivery'},
+  {v:'cancelled', th:'ยกเลิก', en:'Cancelled', cls:'mps-cancelled'},
+];
 const NECESSITY_TYPES = [
   {v:'main', label:tf('งานหลัก','Main work')},
   {v:'corrective', label:tf('งานแก้ไข','Corrective work')},
@@ -4892,7 +4931,6 @@ function itemProcureInfo(item){
 // Target order date: 5 days before the item's planned start date, so there is
 // a lead-time reminder even before any material request has been created yet.
 function itemOrderDate(item){ return item.startDate? addDays(item.startDate,-5) : ''; }
-let mpView='table'; // 'table' | 'gantt' -- Master Plan & BOQ display mode, not persisted (resets to table on reload)
 function fmtMonthYear(dateStr){
   const d = parseYMD(dateStr);
   return state.lang==='en' ? (ENMONTHS[d.getMonth()]+' '+d.getFullYear()) : (THMONTHS[d.getMonth()]+' '+(d.getFullYear()+543));
@@ -4910,7 +4948,35 @@ function ganttDayWidth(totalDays){
   if(totalDays<=180) return 10;
   return 6;
 }
-const GANTT_HEADER_H = 42, GANTT_CAT_ROW_H = 28, GANTT_ITEM_ROW_H = 34;
+const GANTT_HEADER_H = 42, GANTT_CAT_ROW_H = 28, GANTT_ITEM_ROW_H = 46;
+// Renders the read-only (linked to a real material request) or editable
+// (no linked request -- e.g. purchased outside the full request/approval
+// flow) order-date / delivery-date / status cells shown inline in the
+// Master Plan & BOQ chart's label column. This is the same purchasing-plan
+// info that used to live only in the separate "table" view; folding it in
+// here is what makes the merged chart a genuine one-screen replacement for
+// both old views instead of just the timeline half.
+function procureCellsHtml(item){
+  const procureInfo = itemProcureInfo(item);
+  const autoOrderDate = itemOrderDate(item);
+  if(procureInfo){
+    const orderCell = `<div class="gl-num" title="${tf('วันสั่งของ (เป้าหมาย) — อัตโนมัติจากใบสั่งของที่เชื่อมไว้','Target order date -- automatic from the linked material request')}">${autoOrderDate? fmtDateShort(autoOrderDate) : '-'}</div>`;
+    const deliveryCell = `<div class="gl-num" title="${tf('วันส่งของ — อัตโนมัติจากใบสั่งของที่เชื่อมไว้','Delivery date -- automatic from the linked material request')}">${procureInfo.deliveryDate? fmtDateShort(procureInfo.deliveryDate) : '-'}</div>`;
+    const statusCell = `<div><span class="gl-mini-badge badge ${procureInfo.status}" title="${STATUS_LABEL[procureInfo.status]}">${STATUS_LABEL[procureInfo.status]}</span></div>`;
+    return {orderCell, deliveryCell, statusCell, procStatusKey:procureInfo.status};
+  }
+  const orderVal = item.procureOrderDateManual || '';
+  const deliveryVal = item.procureDeliveryDateManual || '';
+  const statusVal = item.procureStatusManual || '';
+  const statusDef = MP_PROCURE_STATUS_DEFS.find(s=>s.v===statusVal);
+  const orderCell = `<div data-stop-card-open><input type="date" class="gl-mini-input" data-mp-order-item="${item.id}" value="${orderVal}" title="${tf('วันสั่งของ (กรอกเอง — ไม่มีใบสั่งของเชื่อมอยู่)','Order date (manual -- no linked material request)')}"></div>`;
+  const deliveryCell = `<div data-stop-card-open><input type="date" class="gl-mini-input" data-mp-delivery-item="${item.id}" value="${deliveryVal}" title="${tf('วันส่งของ (กรอกเอง)','Delivery date (manual)')}"></div>`;
+  const statusCell = `<div data-stop-card-open><select class="gl-mini-select" data-mp-status-item="${item.id}" title="${tf('สถานะสั่งซื้อ (กรอกเอง)','Order status (manual)')}">
+    <option value="">${tf('- ยังไม่ระบุ -','- not set -')}</option>
+    ${MP_PROCURE_STATUS_DEFS.map(s=>`<option value="${s.v}" ${statusVal===s.v?'selected':''}>${escapeHtml(tf(s.th,s.en))}</option>`).join('')}
+  </select></div>`;
+  return {orderCell, deliveryCell, statusCell, procStatusKey: statusDef? statusDef.cls : 'idle'};
+}
 // Draws an orthogonal "elbow" connector from a predecessor bar's right edge
 // to a successor bar's left edge (classic finish-to-start Gantt dependency
 // line), routed via a short horizontal stub so it reads clearly even when
@@ -4930,25 +4996,37 @@ function ganttElbowPath(x1,y1,x2,y2){
 // same schedule-status used in the table view) with a translucent
 // progress-fill overlay, a "today" marker line, and finish-to-start
 // dependency connector arrows drawn from an item's predecessor(s) (set via
-// the "Predecessor tasks" field in the item editor). Items without both
-// dates are skipped since they have no span to draw; category grouping
-// mirrors the table view but always shows every item (ignores the table's
-// collapse/expand state, since a timeline is most useful seen in full).
+// the "Predecessor tasks" field in the item editor).
+//
+// This is the ONE Master Plan & BOQ view (the old separate "table" mode was
+// retired in favor of merging its columns in here -- see procureCellsHtml()
+// and the item-cols grid below): every BOQ item is shown, not just dated
+// ones -- an item without both a start and end date still gets a full row
+// (name, team, purchasing-plan fields, edit/delete) with an italic "no
+// date yet" placeholder in place of a timeline bar, since it has no span to
+// draw. The day-scale itself is still computed only from items that DO have
+// dates, so one un-dated item can't collapse the whole timeline down to a
+// meaningless single-day width; if literally nothing is dated yet, the
+// scale falls back to a one-day window centered on today so the chart still
+// renders (every row will then show the "no date" placeholder). Category
+// grouping respects mpExpandedCats (same collapse/expand state the old
+// table view used) so a long BOQ isn't forced fully open at all times.
 function ganttChartHtml(groups){
-  const datedGroups = groups.map(g=> ({...g, items:g.items.filter(i=>i.startDate && i.endDate)})).filter(g=>g.items.length);
-  const allItems = datedGroups.flatMap(g=>g.items);
-  if(!allItems.length){
-    return `<div class="empty"><span class="ic">📊</span>${tf('ยังไม่มีรายการที่ระบุวันเริ่มและวันสิ้นสุด ใส่วันที่ในรายการงานเพื่อดู Gantt chart','No items with both a start and end date yet -- add dates to your work items to see the Gantt chart')}</div>`;
+  const allDatedItems = groups.flatMap(g=>g.items).filter(i=>i.startDate && i.endDate);
+  const today = todayStr();
+  let minDate, maxDate;
+  if(allDatedItems.length){
+    minDate = allDatedItems.reduce((m,i)=> i.startDate<m? i.startDate : m, allDatedItems[0].startDate);
+    maxDate = allDatedItems.reduce((m,i)=> i.endDate>m? i.endDate : m, allDatedItems[0].endDate);
+    minDate = addDays(minDate,-1);
+    maxDate = addDays(maxDate,1);
+  } else {
+    minDate = today; maxDate = today;
   }
-  let minDate = allItems.reduce((m,i)=> i.startDate<m? i.startDate : m, allItems[0].startDate);
-  let maxDate = allItems.reduce((m,i)=> i.endDate>m? i.endDate : m, allItems[0].endDate);
-  minDate = addDays(minDate,-1);
-  maxDate = addDays(maxDate,1);
   const totalDays = daysBetween(minDate,maxDate)+1;
   const dayW = ganttDayWidth(totalDays);
   const totalW = totalDays*dayW;
-  const labelW = 460;
-  const today = todayStr();
+  const labelW = 800;
   const showTodayLine = today>=minDate && today<=maxDate;
   const todayOffset = daysBetween(minDate,today)*dayW;
 
@@ -4978,44 +5056,57 @@ function ganttChartHtml(groups){
   // exact row positions regardless of how many category groups precede them.
   let y = GANTT_HEADER_H;
   const itemCenterY = {};
-  const rowsHtml = datedGroups.map(g=>{
+  const rowsHtml = groups.map(g=>{
+    const key = g.cat || '__uncategorized__';
+    const expanded = mpExpandedCats.has(key);
     const label = g.cat? escapeHtml(g.cat) : tf('ไม่ระบุหมวดหมู่','Uncategorized');
-    const catHeader = `<div class="gantt-row gantt-cat-row">
-      <div class="gantt-label-col gantt-cat-label" style="width:${labelW}px">📁 ${label}</div>
+    const catHeader = `<div class="gantt-row gantt-cat-row" data-toggle-cat="${escapeHtml(key)}" style="cursor:pointer">
+      <div class="gantt-label-col gantt-cat-label" style="width:${labelW}px"><span class="mp-cat-chevron">${expanded?'▾':'▸'}</span>📁 ${label} <span class="mp-cat-count">${g.items.length} ${tf('รายการ','item(s)')}</span></div>
       <div class="gantt-timeline-col" style="width:${totalW}px"></div>
     </div>`;
     y += GANTT_CAT_ROW_H;
+    if(!expanded) return catHeader;
     const itemRows = g.items.map(item=>{
       const status = itemScheduleStatus(item);
       const statusLabel = tf(SCHEDULE_STATUS_LABEL[status][0], SCHEDULE_STATUS_LABEL[status][1]);
       const progress = (item.progress==null || item.progress==='')? 0 : Number(item.progress);
-      const days = daysBetween(item.startDate,item.endDate)+1;
-      const assignee = item.leader || item.team || '-';
-      const offset = daysBetween(minDate,item.startDate)*dayW;
-      const width = Math.max((daysBetween(item.startDate,item.endDate)+1)*dayW, 10);
-      const showInside = width>=90;
-      const procureInfo = itemProcureInfo(item);
+      const hasDates = !!(item.startDate && item.endDate);
+      const days = hasDates? daysBetween(item.startDate,item.endDate)+1 : null;
+      const subParts = [item.team, item.leader].filter(Boolean);
+      const sub = (item.zone? '📍 '+item.zone : '') + (subParts.length? (item.zone?' · ':'')+subParts.join(' · ') : '');
+      const { orderCell, deliveryCell, statusCell, procStatusKey } = procureCellsHtml(item);
       const orderDate = itemOrderDate(item);
-      const procStatusKey = procureInfo? procureInfo.status : 'idle';
-      const procStatusLabel = procureInfo? STATUS_LABEL[procureInfo.status] : tf('ยังไม่ได้สั่งของ','Not ordered');
-      const title = `${item.name} · ${fmtDate(item.startDate)} - ${fmtDate(item.endDate)} · ${statusLabel} · ${progress}% · ${tf('สั่งของภายใน','Order by')} ${fmtDate(orderDate)}${procureInfo && procureInfo.deliveryDate? ' · '+tf('ส่งของ','Delivery')+' '+fmtDate(procureInfo.deliveryDate) : ''} · ${procStatusLabel}`;
+      const procureInfo = itemProcureInfo(item);
+      const procStatusLabel = procureInfo? STATUS_LABEL[procureInfo.status] : (item.procureStatusManual? escapeHtml(tf((MP_PROCURE_STATUS_DEFS.find(s=>s.v===item.procureStatusManual)||{}).th||'', (MP_PROCURE_STATUS_DEFS.find(s=>s.v===item.procureStatusManual)||{}).en||'')) : tf('ยังไม่ได้สั่งของ','Not ordered'));
+      const title = `${item.name}${item.team? ' · '+tf('ทีม','Team')+' '+item.team : ''} · ${hasDates? fmtDate(item.startDate)+' - '+fmtDate(item.endDate) : tf('ยังไม่ระบุวันที่','No dates set')} · ${statusLabel} · ${progress}% · ${tf('สั่งของภายใน','Order by')} ${orderDate? fmtDate(orderDate) : '-'}${procureInfo && procureInfo.deliveryDate? ' · '+tf('ส่งของ','Delivery')+' '+fmtDate(procureInfo.deliveryDate) : ''} · ${procStatusLabel}`;
       itemCenterY[item.id] = y + GANTT_ITEM_ROW_H/2;
       y += GANTT_ITEM_ROW_H;
-      return `<div class="gantt-row">
-        <div class="gantt-label-col item-cols" style="width:${labelW}px" data-edit-item="${item.id}" title="${escapeHtml(title)}">
-          <div class="gl-task"><span class="mp-status-dot ${status}"></span><span class="mp-procure-dot ${procStatusKey}"></span>${escapeHtml(item.name)}</div>
-          <div class="gl-num">${fmtDateShort(item.startDate)}</div>
-          <div class="gl-num">${fmtDateShort(item.endDate)}</div>
-          <div class="gl-num">${days}${tf('ว','d')}</div>
-          <div>${escapeHtml(assignee)}</div>
-          <div class="gl-num">${progress}%</div>
-        </div>
-        <div class="gantt-timeline-col" style="width:${totalW}px">
-          <div class="gantt-bar ${status}" style="left:${offset}px;width:${width}px" data-edit-item="${item.id}" title="${escapeHtml(title)}">
+      let timelineInner;
+      if(hasDates){
+        const offset = daysBetween(minDate,item.startDate)*dayW;
+        const width = Math.max((daysBetween(item.startDate,item.endDate)+1)*dayW, 10);
+        const showInside = width>=90;
+        timelineInner = `<div class="gantt-bar ${status}" style="left:${offset}px;width:${width}px" data-edit-item="${item.id}" title="${escapeHtml(title)}">
             <div class="gantt-bar-fill" style="width:${clamp(progress,0,100)}%"></div>
             ${showInside? `<span class="gantt-bar-label">${escapeHtml(item.name)}</span>` : ''}
           </div>
-          ${!showInside? `<span class="gantt-bar-label-outside" style="left:${offset+width+8}px">${escapeHtml(item.name)}</span>` : ''}
+          ${!showInside? `<span class="gantt-bar-label-outside" style="left:${offset+width+8}px">${escapeHtml(item.name)}</span>` : ''}`;
+      } else {
+        timelineInner = `<span class="gantt-nodate-placeholder" data-edit-item="${item.id}">${tf('ยังไม่ระบุวันที่ — กดแก้ไขเพื่อกำหนดวันเริ่ม/สิ้นสุด','No dates yet -- click edit to set start/end')}</span>`;
+      }
+      return `<div class="gantt-row">
+        <div class="gantt-label-col item-cols" style="width:${labelW}px" data-edit-item="${item.id}" title="${escapeHtml(title)}">
+          <div class="gl-taskwrap"><div class="gl-task"><span class="mp-status-dot ${status}"></span><span class="mp-procure-dot ${procStatusKey}"></span>${escapeHtml(item.name)}</div>${sub? `<div class="gl-sub">${escapeHtml(sub)}</div>` : ''}</div>
+          <div class="gl-num">${hasDates? fmtDateShort(item.startDate) : '-'}</div>
+          <div class="gl-num">${hasDates? fmtDateShort(item.endDate) : '-'}</div>
+          <div class="gl-num">${hasDates? days+tf('ว','d') : '-'}</div>
+          ${orderCell}
+          ${deliveryCell}
+          ${statusCell}
+          <div class="gl-num">${progress}%</div>
+        </div>
+        <div class="gantt-timeline-col" style="width:${totalW}px">
+          ${timelineInner}
         </div>
       </div>`;
     }).join('');
@@ -5024,11 +5115,13 @@ function ganttChartHtml(groups){
   const contentH = y;
 
   const edges=[];
+  const allItems = groups.flatMap(g=>g.items);
   allItems.forEach(item=>{
+    if(!item.startDate || !item.endDate) return;
     (item.dependsOn||[]).forEach(predId=>{
       if(predId===item.id) return;
       const pred = allItems.find(i=>i.id===predId);
-      if(!pred || itemCenterY[predId]==null || itemCenterY[item.id]==null) return;
+      if(!pred || !pred.startDate || !pred.endDate || itemCenterY[predId]==null || itemCenterY[item.id]==null) return;
       const predOffset = daysBetween(minDate,pred.startDate)*dayW;
       const predWidth = Math.max((daysBetween(pred.startDate,pred.endDate)+1)*dayW,10);
       const succOffset = daysBetween(minDate,item.startDate)*dayW;
@@ -5063,7 +5156,9 @@ function ganttChartHtml(groups){
           <div>${tf('เริ่ม','Start')}</div>
           <div>${tf('สิ้นสุด','End')}</div>
           <div>${tf('วัน','Dur')}</div>
-          <div>${tf('ผู้รับผิดชอบ','Assignee')}</div>
+          <div>${tf('สั่งของ','Order')}</div>
+          <div>${tf('ส่งของ','Delivery')}</div>
+          <div>${tf('สถานะ','Status')}</div>
           <div>%</div>
         </div>
         <div class="gantt-timeline-col" style="width:${totalW}px">
@@ -5075,63 +5170,12 @@ function ganttChartHtml(groups){
     </div>
   </div>`;
 }
-function itemRowHtml(item){
-  const days = daysBetween(item.startDate,item.endDate)+1;
-  const photoCount = (item.refPhotoIds||[]).length;
-  const hasActual = item.actualStartDate && item.actualEndDate;
-  const teamSub = [item.leader?escapeHtml(item.leader):'', item.manpower?fmtNum(item.manpower,0)+' '+tf('คน','ppl'):''].filter(Boolean).join(' · ');
-  const workTypeMain = item.workType? (()=>{const w=workTypeInfo(item.workType); return w? w.ic+' '+escapeHtml(tf(w.th,w.en)) : '<span class="hint">-</span>';})() : '<span class="hint">-</span>';
-  const progress = (item.progress==null || item.progress==='')? 0 : Number(item.progress);
-  const status = itemScheduleStatus(item);
-  const statusLabel = tf(SCHEDULE_STATUS_LABEL[status][0], SCHEDULE_STATUS_LABEL[status][1]);
-  const orderDate = itemOrderDate(item);
-  const procureInfo = itemProcureInfo(item);
-  return `<tr class="mp-row-${status}">
-    <td data-label="${tf('ภาพ','Photo')}">
-      <div class="mp-thumb" ${photoCount? `data-open-gallery="${item.id}"` : `data-quick-attach="${item.id}"`}>
-        ${photoCount? `<img data-mp-thumb="${item.id}" alt="">${photoCount>1?`<span class="mp-thumb-count">+${photoCount-1}</span>`:''}` : `<span class="mp-thumb-empty">📷</span>`}
-      </div>
-    </td>
-    <td data-label="${tf('รายการงาน','Work item')}" class="mp-name-cell"><span class="mp-status-dot ${status}" title="${statusLabel}"></span>${escapeHtml(item.name)}${item.zone? `<span class="mp-sub">📍 ${escapeHtml(item.zone)}</span>` : ''}</td>
-    <td data-label="${tf('ทีมงาน','Team')}">${item.team? escapeHtml(item.team) : '<span class="hint">-</span>'}${teamSub? `<span class="mp-sub">${teamSub}</span>` : ''}</td>
-    <td data-label="${tf('ลักษณะงาน','Work type')}">${workTypeMain}${item.allowedHours? `<span class="mp-sub">${escapeHtml(item.allowedHours)}</span>` : ''}</td>
-    <td data-label="${tf('ปริมาณรวม','Total qty')}" class="tabular">${fmtNum(item.qtyTotal,2)} ${escapeHtml(item.unit)}<span class="mp-sub">${tf('เป้าหมาย','Target')} ${fmtNum(dailyTarget(item),2)}/${tf('วัน','day')}</span></td>
-    <td data-label="${tf('วันเริ่ม','Start date')}" class="tabular"><input type="date" class="mp-date-input" data-date-item="${item.id}" data-date-field="startDate" value="${item.startDate}">${hasActual? `<span class="mp-sub">${tf('จริง','Actual')}: ${fmtDate(item.actualStartDate)}</span>` : ''}</td>
-    <td data-label="${tf('วันเสร็จ','End date')}" class="tabular"><input type="date" class="mp-date-input" data-date-item="${item.id}" data-date-field="endDate" value="${item.endDate}">${hasActual? `<span class="mp-sub">${tf('จริง','Actual')}: ${fmtDate(item.actualEndDate)}</span>` : ''}</td>
-    <td data-label="${tf('จำนวนวัน','Days')}" class="tabular"><span class="mp-days-badge">${days} ${tf('วัน','d')}</span></td>
-    <td data-label="${tf('วันสั่งของ (เป้าหมาย 5 วันก่อนเริ่มงาน)','Target order date (5 days before start)')}" class="tabular">${orderDate? fmtDate(orderDate) : '<span class="hint">-</span>'}</td>
-    <td data-label="${tf('วันส่งของ','Delivery date')}" class="tabular">${procureInfo && procureInfo.deliveryDate? fmtDate(procureInfo.deliveryDate) : '<span class="hint">-</span>'}</td>
-    <td data-label="${tf('สถานะสั่งซื้อ','Order status')}"><span class="badge ${procureInfo? procureInfo.status : 'idle'}">${procureInfo? STATUS_LABEL[procureInfo.status] : tf('ยังไม่ได้สั่ง','Not ordered')}</span></td>
-    <td data-label="${tf('ความคืบหน้า','Progress')}" class="tabular">
-      <div class="mp-progress-wrap">
-        <input type="number" min="0" max="100" step="5" class="mp-progress-input" data-progress-item="${item.id}" value="${progress}">
-        <div class="progress mp-progress-bar"><i style="width:${clamp(progress,0,100)}%"></i></div>
-      </div>
-    </td>
-    <td data-label="${tf('หมายเหตุ','Notes')}">${item.notes? escapeHtml(item.notes) : '<span class="hint">-</span>'}</td>
-    <td data-label="">
-      <button class="btn ghost sm" data-edit-item="${item.id}" title="${tf('แก้ไข','Edit')}">✏️</button>
-      <button class="btn danger sm" data-del-item="${item.id}" title="${tf('ลบ','Delete')}">🗑️</button>
-    </td>
-  </tr>`;
-}
 function renderMasterPlan(){
   const groups = boqCategoryGroups(P().boq);
-  const bodyHtml = groups.map(g=>{
-    const label = g.cat? escapeHtml(g.cat) : tf('ไม่ระบุหมวดหมู่','Uncategorized');
-    const key = g.cat || '__uncategorized__';
-    const expanded = mpExpandedCats.has(key);
-    const header = `<tr class="mp-cat-row${expanded?' open':''}" data-toggle-cat="${escapeHtml(key)}"><td colspan="14" style="width:100%"><span class="mp-cat-chevron">${expanded?'▾':'▸'}</span>📁 ${label} <span class="mp-cat-count">${g.items.length} ${tf('รายการ','item(s)')}</span></td></tr>`;
-    return header + (expanded? g.items.map(itemRowHtml).join('') : '');
-  }).join('');
   return `
   <div class="page-head">
     <div><h2>${tf('แผนงานหลัก & BOQ','Master Plan & BOQ')}</h2><div class="sub">${tf('แยกตามหมวดงานหลักอ้างอิงตาม BOQ จริง ใส่โซน ทีมงาน ปริมาณรวมตามสัญญา และช่วงเวลาทำงาน ระบบคำนวณเป้าหมายรายวันให้อัตโนมัติ','Grouped by main work category from the real BOQ -- enter zone, team, contract quantity and date range, the daily target is calculated automatically.')}</div></div>
     <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-      <div class="mp-view-toggle">
-        <button class="${mpView==='table'?'active':''}" data-mp-view="table">📋 ${tf('ตาราง','Table')}</button>
-        <button class="${mpView==='gantt'?'active':''}" data-mp-view="gantt">📊 Gantt</button>
-      </div>
       <button class="btn primary" id="btn-add-item">+ ${tf('เพิ่มรายการงาน','Add work item')}</button>
     </div>
   </div>
@@ -5141,55 +5185,11 @@ function renderMasterPlan(){
     <span><i style="background:var(--coral-500)"></i>${tf('เกินกำหนด','Overdue')}</span>
     <span><i style="background:var(--mint-500)"></i>${tf('เสร็จแล้ว (100%)','Done (100%)')}</span>
   </div>
-  ${mpView==='table' && groups.length>1? `<div class="mp-expand-controls">
+  ${groups.length>1? `<div class="mp-expand-controls">
     <button class="btn ghost sm" id="btn-expand-all-cat">${tf('ขยายทั้งหมด','Expand all')}</button>
     <button class="btn ghost sm" id="btn-collapse-all-cat">${tf('ย่อทั้งหมด','Collapse all')}</button>
   </div>` : ''}
-  ${P().boq.length===0? `<div class="empty"><span class="ic">📋</span>${tf('ยังไม่มีรายการงานใน BOQ','No BOQ items yet')}<br>${tf('กด “เพิ่มรายการงาน” เพื่อเริ่มต้น','Tap “Add work item” to get started')}</div>` : (mpView==='gantt'? ganttChartHtml(groups) : `
-  <div class="table-wrap mp-wrap"><table class="mp-table">
-    <colgroup>
-      <col style="width:4%"><col style="width:12%"><col style="width:8%"><col style="width:8%"><col style="width:6%">
-      <col style="width:6%"><col style="width:6%">
-      <col style="width:4%"><col style="width:7%"><col style="width:7%"><col style="width:8%">
-      <col style="width:7%"><col style="width:8%"><col style="width:9%">
-    </colgroup>
-    <thead>
-      <!-- Real two-row grouped header, per the mockup. An earlier version of
-           this table appeared to break when this exact structure (colspan
-           on the group cells, rowspan on the tall cells) was combined with
-           a colgroup, so a colspan="14" body row (the category header row)
-           rendered squeezed into ~45px. Root-caused: it was NEVER the
-           header structure at fault -- it was the CSS rule "td:last-child
-           { display:flex }" below (see .mp-table CSS), a rule meant only
-           for the actions column of a normal data row, which also matched
-           the category row's <td colspan="14"> (that row's only, and
-           therefore "last", child),
-           switching it out of table-cell layout entirely. That rule is now
-           scoped to :not(.mp-cat-row), so the real grouped header below is
-           safe to use as originally designed. -->
-      <tr>
-        <th rowspan="2">${tf('ภาพ','Photo')}</th>
-        <th rowspan="2">${tf('รายการงาน','Work item')}</th>
-        <th rowspan="2">${tf('ทีมงาน','Team')}</th>
-        <th rowspan="2">${tf('ลักษณะงาน','Work type')}</th>
-        <th rowspan="2">${tf('ปริมาณรวม','Total qty')}</th>
-        <th colspan="2" class="mp-th-group mp-th-group-a">${tf('แผนงาน','Work plan')}</th>
-        <th colspan="4" class="mp-th-group mp-th-group-b">${tf('แผนการจัดซื้อ','Purchasing plan')}</th>
-        <th rowspan="2">${tf('ความคืบหน้า','Progress')}</th>
-        <th rowspan="2">${tf('หมายเหตุ','Notes')}</th>
-        <th rowspan="2"></th>
-      </tr>
-      <tr>
-        <th class="mp-th-sub mp-th-group-a">${tf('วันเริ่ม','Start date')}</th>
-        <th class="mp-th-sub mp-th-group-a">${tf('วันเสร็จ','End date')}</th>
-        <th class="mp-th-sub mp-th-group-b">${tf('จำนวนวัน','Days')}</th>
-        <th class="mp-th-sub mp-th-group-b">${tf('วันสั่งของ','Order date')}</th>
-        <th class="mp-th-sub mp-th-group-b">${tf('วันส่งของ','Delivery date')}</th>
-        <th class="mp-th-sub mp-th-group-b">${tf('สถานะสั่งซื้อ','Order status')}</th>
-      </tr>
-    </thead>
-    <tbody>${bodyHtml}</tbody>
-  </table></div>`)}
+  ${P().boq.length===0? `<div class="empty"><span class="ic">📋</span>${tf('ยังไม่มีรายการงานใน BOQ','No BOQ items yet')}<br>${tf('กด “เพิ่มรายการงาน” เพื่อเริ่มต้น','Tap “Add work item” to get started')}</div>` : `<div class="mp-full-bleed">${ganttChartHtml(groups)}</div>`}
   <div class="card tint">
     <b style="font-family:var(--font-display)">${tf('นำเข้าแบบเร็ว (วางข้อความ)','Quick import (paste text)')}</b>
     <div class="sub" style="margin:6px 0 10px">${tf('รูปแบบต่อบรรทัด:','One item per line, format:')} <span class="tabular">${tf('ชื่องาน, ปริมาณ, หน่วย, วันเริ่ม(YYYY-MM-DD), วันสิ้นสุด(YYYY-MM-DD), โซน(ไม่บังคับ), หมวดงาน(ไม่บังคับ), ทีมงาน(ไม่บังคับ)','name, quantity, unit, start(YYYY-MM-DD), end(YYYY-MM-DD), zone(optional), category(optional), team(optional)')}</span></div>
@@ -5283,7 +5283,6 @@ function itemModalHtml(){
 }
 function wireMasterPlan(){
   $('#btn-add-item').onclick = ()=>{ openItemDraft('new'); render(); };
-  $$('[data-mp-view]').forEach(b=> b.onclick = ()=>{ if(mpView===b.dataset.mpView) return; mpView=b.dataset.mpView; render(); });
   const ganttScroll = $('#gantt-scroll-container');
   if(ganttScroll){
     const scrollLeftBtn = $('#gantt-scroll-left');
@@ -5337,7 +5336,25 @@ function wireMasterPlan(){
     it.progress = v;
     saveData(); render(); toast(tf('อัปเดตความคืบหน้าแล้ว','Progress updated'));
   });
-  $$('[data-edit-item]').forEach(b=> b.onclick = ()=>{ openItemDraft(b.dataset.editItem); render(); });
+  $$('[data-edit-item]').forEach(b=> b.onclick = (e)=>{ if(e.target.closest('[data-stop-card-open]')) return; openItemDraft(b.dataset.editItem); render(); });
+  $$('[data-mp-order-item]').forEach(inp=> inp.onchange = ()=>{
+    const it = P().boq.find(i=>i.id===inp.dataset.mpOrderItem);
+    if(!it) return;
+    it.procureOrderDateManual = inp.value;
+    saveData(); render(); toast(tf('อัปเดตวันสั่งของแล้ว','Order date updated'));
+  });
+  $$('[data-mp-delivery-item]').forEach(inp=> inp.onchange = ()=>{
+    const it = P().boq.find(i=>i.id===inp.dataset.mpDeliveryItem);
+    if(!it) return;
+    it.procureDeliveryDateManual = inp.value;
+    saveData(); render(); toast(tf('อัปเดตวันส่งของแล้ว','Delivery date updated'));
+  });
+  $$('[data-mp-status-item]').forEach(sel=> sel.onchange = ()=>{
+    const it = P().boq.find(i=>i.id===sel.dataset.mpStatusItem);
+    if(!it) return;
+    it.procureStatusManual = sel.value;
+    saveData(); render(); toast(tf('อัปเดตสถานะสั่งซื้อแล้ว','Order status updated'));
+  });
   $$('[data-open-gallery]').forEach(el=> el.onclick = ()=>{ refGalleryItemId=el.dataset.openGallery; render(); });
   $$('[data-quick-attach]').forEach(el=> el.onclick = ()=>{
     const itemId = el.dataset.quickAttach;
