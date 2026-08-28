@@ -352,18 +352,21 @@ tbody tr:hover{background:var(--surface-2)}
 /* Item row grid: task name+sub, start, end, days, [order date | delivery
    date | status -- the purchasing-plan columns folded in from the old
    separate "table" view], progress%. */
-.gantt-label-col.item-cols{display:grid;grid-template-columns:1fr 44px 44px 30px 92px 92px 98px 36px;column-gap:6px;align-items:center}
+.gantt-label-col.item-cols{display:grid;grid-template-columns:1fr 92px 92px 30px 92px 92px 98px 36px;column-gap:6px;align-items:center}
 .gantt-label-col.item-cols>div{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:10.5px;color:var(--ink-500)}
 .gantt-label-col.item-cols .gl-taskwrap{min-width:0;overflow:hidden}
 .gantt-label-col.item-cols .gl-task{font-size:12px;color:var(--ink-900);display:flex;align-items:center;gap:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .gantt-label-col.item-cols .gl-sub{font-size:9.5px;color:var(--ink-300);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding-left:16px}
 .gantt-label-col.item-cols .gl-num{font-family:var(--font-mono);text-align:center}
-.gl-mini-input,.gl-mini-select{font-size:9.5px;padding:2px 2px;border:1px solid var(--line);border-radius:4px;background:var(--surface);width:100%;box-sizing:border-box;color:var(--ink-700);font-family:var(--font-mono)}
+.gl-mini-input,.gl-mini-select{font-size:10.5px;padding:2px 4px;border:1px solid var(--line);border-radius:4px;background:var(--surface);width:100%;box-sizing:border-box;color:var(--ink-700);font-family:var(--font-mono)}
 .gl-mini-select{font-family:var(--font-body,inherit);padding:2px 1px}
+input.gl-mini-input[type="date"]{min-width:0}
+input.gl-mini-input[type="date"]::-webkit-datetime-edit{padding:0}
+input.gl-mini-input[type="date"]::-webkit-calendar-picker-indicator{padding:2px;margin-left:2px}
 .gl-mini-input:hover,.gl-mini-select:hover{border-color:var(--purple-400,var(--purple-500))}
 .gl-mini-input:focus,.gl-mini-select:focus{outline:2px solid var(--purple-100,var(--purple-50));border-color:var(--purple-500)}
 .gl-mini-badge{font-size:9px!important;padding:1px 5px!important;border-radius:999px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:inline-block;max-width:100%;box-sizing:border-box}
-.gantt-header-row .gantt-label-col{display:grid;grid-template-columns:1fr 44px 44px 30px 92px 92px 98px 36px;column-gap:6px;align-items:center;font-size:10px;font-weight:700;color:var(--ink-500);text-transform:uppercase;letter-spacing:.02em}
+.gantt-header-row .gantt-label-col{display:grid;grid-template-columns:1fr 92px 92px 30px 92px 92px 98px 36px;column-gap:6px;align-items:center;font-size:10px;font-weight:700;color:var(--ink-500);text-transform:uppercase;letter-spacing:.02em}
 .gantt-header-row .gantt-label-col>div{text-align:center;white-space:nowrap;overflow:hidden}
 .gantt-header-row .gantt-label-col>div:first-child{text-align:left}
 .gantt-cat-label{background:var(--surface-2);font-family:var(--font-display);font-weight:600;color:var(--ink-700);font-size:12.5px;padding:0 10px;display:flex;flex-direction:row;align-items:center;justify-content:flex-start;gap:4px}
@@ -5032,7 +5035,7 @@ function ganttChartHtml(groups){
   const totalDays = daysBetween(minDate,maxDate)+1;
   const dayW = ganttDayWidth(totalDays);
   const totalW = totalDays*dayW;
-  const labelW = 800;
+  const labelW = 896;
   const showTodayLine = today>=minDate && today<=maxDate;
   const todayOffset = daysBetween(minDate,today)*dayW;
 
