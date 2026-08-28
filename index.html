@@ -355,7 +355,9 @@ tbody tr:hover{background:var(--surface-2)}
 .gantt-label-col.item-cols{display:grid;grid-template-columns:1fr 92px 92px 30px 92px 92px 98px 58px;column-gap:6px;align-items:center}
 .gantt-label-col.item-cols>div{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:10.5px;color:var(--ink-500)}
 .gantt-label-col.item-cols .gl-taskwrap{min-width:0;overflow:hidden}
-.gantt-label-col.item-cols .gl-task{font-size:12px;color:var(--ink-900);display:flex;align-items:center;gap:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.gantt-label-col.item-cols .gl-task{font-size:12px;color:var(--ink-900);display:flex;align-items:flex-start;gap:4px}
+.gantt-label-col.item-cols .gl-task-name{min-width:0;flex:1;white-space:normal;overflow-wrap:break-word;line-height:1.25;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.gantt-label-col.item-cols .gl-task .mp-status-dot,.gantt-label-col.item-cols .gl-task .mp-procure-dot{margin-top:4px;flex-shrink:0}
 .gantt-label-col.item-cols .gl-sub{font-size:9.5px;color:var(--ink-300);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding-left:16px}
 .gantt-label-col.item-cols .gl-num{font-family:var(--font-mono);text-align:center}
 .gl-mini-input,.gl-mini-select{font-size:10.5px;padding:2px 4px;border:1px solid var(--line);border-radius:4px;background:var(--surface);width:100%;box-sizing:border-box;color:var(--ink-700);font-family:var(--font-mono)}
@@ -375,8 +377,8 @@ input.gl-mini-input[type="date"]::-webkit-calendar-picker-indicator{padding:2px;
 .gantt-header-row .gantt-label-col>div:first-child{text-align:left}
 .gantt-cat-label{background:var(--surface-2);font-family:var(--font-display);font-weight:600;color:var(--ink-700);font-size:12.5px;padding:0 10px;display:flex;flex-direction:row;align-items:center;justify-content:flex-start;gap:4px}
 .gantt-timeline-col{position:relative;flex-shrink:0;box-sizing:border-box}
-.gantt-row:not(.gantt-header-row):not(.gantt-cat-row) .gantt-timeline-col{height:46px;border-bottom:1px solid var(--line-soft)}
-.gantt-row:not(.gantt-header-row):not(.gantt-cat-row) .gantt-label-col{height:46px;border-bottom:1px solid var(--line-soft)}
+.gantt-row:not(.gantt-header-row):not(.gantt-cat-row) .gantt-timeline-col{height:60px;border-bottom:1px solid var(--line-soft)}
+.gantt-row:not(.gantt-header-row):not(.gantt-cat-row) .gantt-label-col{height:60px;border-bottom:1px solid var(--line-soft)}
 .gantt-cat-row .gantt-timeline-col,.gantt-cat-row .gantt-label-col{height:28px;background:var(--surface-2)}
 .gantt-header-row .gantt-timeline-col{height:42px}
 .gantt-header-row .gantt-label-col{height:42px;border-bottom:1px solid var(--line)}
@@ -385,7 +387,7 @@ input.gl-mini-input[type="date"]::-webkit-calendar-picker-indicator{padding:2px;
 .gantt-days{display:flex;height:20px;box-sizing:border-box}
 .gantt-daycell{flex-shrink:0;font-size:9.5px;color:var(--ink-300);text-align:center;display:flex;align-items:center;justify-content:center;border-right:1px solid var(--line-soft);box-sizing:border-box}
 .gantt-daycell.weekend{background:var(--surface-2)}
-.gantt-bar{position:absolute;top:11px;height:24px;border-radius:6px;overflow:visible;cursor:grab;box-shadow:var(--shadow-sm);display:flex;align-items:center;touch-action:none}
+.gantt-bar{position:absolute;top:18px;height:24px;border-radius:6px;overflow:visible;cursor:grab;box-shadow:var(--shadow-sm);display:flex;align-items:center;touch-action:none}
 .gantt-bar.dragging{cursor:grabbing;box-shadow:0 4px 14px rgba(20,18,36,.28);z-index:3;opacity:.92}
 .gantt-bar.on-track{background:var(--blue-500)}
 .gantt-bar.near-due{background:var(--amber-500)}
@@ -398,8 +400,8 @@ input.gl-mini-input[type="date"]::-webkit-calendar-picker-indicator{padding:2px;
 .gantt-bar-resize::after{content:'';position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:3px;height:12px;border-radius:2px;background:rgba(255,255,255,.85);opacity:0;transition:opacity .12s}
 .gantt-bar:hover .gantt-bar-resize::after,.gantt-bar.dragging .gantt-bar-resize::after{opacity:1}
 .gantt-bar-label{position:relative;z-index:1;color:#fff;font-size:11px;font-weight:600;padding:0 8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-shadow:0 1px 2px rgba(0,0,0,.3);pointer-events:none}
-.gantt-bar-label-outside{position:absolute;top:11px;height:24px;display:flex;align-items:center;font-size:11px;color:var(--ink-700);white-space:nowrap}
-.gantt-nodate-placeholder{position:absolute;top:11px;left:10px;height:24px;display:flex;align-items:center;font-size:10.5px;color:var(--ink-300);font-style:italic;white-space:nowrap}
+.gantt-bar-label-outside{position:absolute;top:18px;height:24px;display:flex;align-items:center;font-size:11px;color:var(--ink-700);white-space:nowrap}
+.gantt-nodate-placeholder{position:absolute;top:18px;left:10px;height:24px;display:flex;align-items:center;font-size:10.5px;color:var(--ink-300);font-style:italic;white-space:nowrap}
 .gantt-today-line{position:absolute;top:0;bottom:0;width:2px;background:var(--coral-500);z-index:3;pointer-events:none}
 
 .empty{
@@ -4961,7 +4963,7 @@ function ganttDayWidth(totalDays){
   if(totalDays<=180) return 10;
   return 6;
 }
-const GANTT_HEADER_H = 42, GANTT_CAT_ROW_H = 28, GANTT_ITEM_ROW_H = 46;
+const GANTT_HEADER_H = 42, GANTT_CAT_ROW_H = 28, GANTT_ITEM_ROW_H = 60;
 // Renders the read-only (linked to a real material request) or editable
 // (no linked request -- e.g. purchased outside the full request/approval
 // flow) order-date / delivery-date / status cells shown inline in the
@@ -5110,8 +5112,8 @@ function ganttChartHtml(groups){
         timelineInner = `<span class="gantt-nodate-placeholder" data-edit-item="${item.id}">${tf('ยังไม่ระบุวันที่ — กดแก้ไขเพื่อกำหนดวันเริ่ม/สิ้นสุด','No dates yet -- click edit to set start/end')}</span>`;
       }
       return `<div class="gantt-row">
-        <div class="gantt-label-col item-cols" style="width:${labelW}px" data-edit-item="${item.id}" title="${escapeHtml(title)}">
-          <div class="gl-taskwrap"><div class="gl-task"><span class="mp-status-dot ${status}"></span><span class="mp-procure-dot ${procStatusKey}"></span>${escapeHtml(item.name)}</div>${sub? `<div class="gl-sub">${escapeHtml(sub)}</div>` : ''}</div>
+        <div class="gantt-label-col item-cols" style="width:${labelW}px" data-edit-item="${item.id}">
+          <div class="gl-taskwrap"><div class="gl-task"><span class="mp-status-dot ${status}"></span><span class="mp-procure-dot ${procStatusKey}"></span><span class="gl-task-name">${escapeHtml(item.name)}</span></div>${sub? `<div class="gl-sub">${escapeHtml(sub)}</div>` : ''}</div>
           <div data-stop-card-open><input type="date" class="gl-mini-input" data-date-item="${item.id}" data-date-field="startDate" value="${item.startDate||''}" title="${tf('วันเริ่ม (แก้ไขได้)','Start date (editable)')}"></div>
           <div data-stop-card-open><input type="date" class="gl-mini-input" data-date-item="${item.id}" data-date-field="endDate" value="${item.endDate||''}" title="${tf('วันสิ้นสุด (แก้ไขได้)','End date (editable)')}"></div>
           <div class="gl-num">${hasDates? days+tf('ว','d') : '-'}</div>
