@@ -3672,6 +3672,7 @@ function projectSummary(asOf, boq, logs){
 const TOP_TABS = [
   {id:'hub', label:tf('โปรเจ็คทั้งหมด','All Projects'), ic:'🏠'},
   {id:'overview', label:tf('ภาพรวมทุกโปรเจ็ค','Overview'), ic:'📈'},
+  {id:'purchasing', label:tf('จัดซื้อ','Procurement'), ic:'🧾'},
   {id:'profile', label:tf('ตั้งค่าบริษัท','Company'), ic:'🏢'},
   {id:'contractors', label:tf('ข้อมูลผู้รับเหมา','Contractors'), ic:'👷'},
 ];
@@ -3777,6 +3778,7 @@ function renderScreen(){
   }
   if(state.view==='hub') return renderHub();
   if(state.view==='overview') return renderOverview();
+  if(state.view==='purchasing') return renderPurchasingHub();
   if(state.view==='profile') return renderProfile();
   if(state.view==='contractors') return renderContractors();
   switch(state.tab){
@@ -6239,6 +6241,13 @@ function wireProcure(){
 // only rows with status "ordered" or "delivered" count as committed spend;
 // a "pending" row is still just a request, not money out the door yet.
 let costLogStatusFilter='all';
+// Which project the top-level "จัดซื้อ" (Procurement) hub screen is currently
+// logging costs into. Deliberately kept separate from state.currentProjectId
+// -- that one drives the "inside a project" screens/nav (P(), back button,
+// etc.), while this lets the hub-level page log a purchase for any project
+// without ever entering it. Not persisted to localStorage; resets to the
+// first project on reload, same as costLogStatusFilter above.
+let purchasingProjectId=null;
 function newCostLogEntry(){
   return {
     id: uid(), createdAt: new Date().toISOString(),
@@ -6256,9 +6265,8 @@ function costLogRecalcTotal(c){ c.total = (c.qty||0) * (c.unitCost||0); return c
 // divs (not SVG/canvas) since it's just proportional bar widths, matching
 // the app's existing convention of building charts from scratch rather
 // than pulling in a charting library.
-function costLogCategoryChartHtml(all){
+function costLogCategoryChartHtml(all, proj=P()){
   if(!all.length) return '';
-  const proj = P();
   const catOrder = boqCategoryGroups(proj.boq||[]).map(g=>g.cat).filter(Boolean);
   const totals = {};
   all.forEach(c=>{ const key = c.taskId||''; totals[key] = (totals[key]||0) + (c.total||0); });
@@ -6283,8 +6291,7 @@ function costLogCategoryChartHtml(all){
     <div class="cl-cat-chart" style="margin-top:12px">${rows}</div>
   </div>`;
 }
-function renderCostLog(){
-  const proj = P();
+function renderCostLog(proj=P()){
   const all = proj.costLog||[];
   const filtered = costLogStatusFilter==='all'? all : all.filter(c=>c.status===costLogStatusFilter);
   const grandTotal = all.reduce((s,c)=> s+(c.total||0), 0);
@@ -6326,7 +6333,7 @@ function renderCostLog(){
     <div class="card kpi"><div class="stat"><span class="lbl">💰 ${tf('ยอดซื้อรวมทั้งหมด','Total purchases')}</span><span class="num tabular" style="font-size:19px">${fmtCurrency(grandTotal)}</span></div></div>
     <div class="card kpi"><div class="stat"><span class="lbl">🧾 ${tf('จำนวนรายการ','Entries')}</span><span class="num tabular" style="font-size:19px">${all.length}</span></div></div>
   </div>
-  ${costLogCategoryChartHtml(all)}
+  ${costLogCategoryChartHtml(all, proj)}
   <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">${filterChips}</div>
   ${all.length===0? `<div class="empty"><span class="ic">🧾</span>${tf('ยังไม่มีบันทึกต้นทุนการจัดซื้อ กด "เพิ่มรายการ" เพื่อเริ่มบันทึก','No cost log entries yet -- tap "Add row" to start logging')}</div>` : `
   <div class="table-wrap"><table class="budget-table cl-table"><thead><tr>
@@ -6337,8 +6344,7 @@ function renderCostLog(){
   </tr></thead><tbody>${rows}</tbody></table></div>`}
   `;
 }
-function wireCostLog(){
-  const proj = P();
+function wireCostLog(proj=P()){
   const addBtn = $('#btn-add-costlog');
   if(addBtn) addBtn.onclick = ()=>{
     proj.costLog = proj.costLog||[];
@@ -6408,6 +6414,44 @@ function wireCostLog(){
       saveData(); render();
     };
   });
+}
+
+/* ============================= SCREEN: PURCHASING HUB (top-level) =============================
+   Lets a user log a purchase for ANY project without first opening that
+   project. It's just a project picker sitting on top of the exact same
+   Cost Log table/form as the in-project "บันทึกต้นทุนจัดซื้อ" tab -- both
+   renderCostLog()/wireCostLog() now take an explicit `proj` argument (default
+   P()) so this screen can point them at whichever project is selected here,
+   while the in-project tab keeps working unchanged off the current project.
+   Because it writes straight into that project's own `costLog` array (not a
+   copy), the entry shows up automatically in that project's own Cost Log
+   tab, Budget rollup, and dashboard -- "linking" is just writing to the same
+   place, not a sync step. */
+function renderPurchasingHub(){
+  if(!state.projects.length){
+    return `<div class="page-head"><div><h2>${tf('จัดซื้อและบันทึกต้นทุน','Procurement & Cost Log')}</h2></div></div>
+    <div class="empty"><span class="ic">🧾</span>${tf('ยังไม่มีโปรเจ็ค กลับไปหน้าโปรเจ็คทั้งหมดเพื่อสร้างโปรเจ็คแรก','No projects yet -- go to All Projects to create your first one')}</div>`;
+  }
+  if(!purchasingProjectId || !state.projects.find(p=>p.id===purchasingProjectId)) purchasingProjectId = state.projects[0].id;
+  const proj = state.projects.find(p=>p.id===purchasingProjectId);
+  const projectOptions = state.projects.map(p=>`<option value="${p.id}" ${p.id===purchasingProjectId?'selected':''}>${escapeHtml(p.name||tf('โปรเจ็คไม่มีชื่อ','Untitled project'))}</option>`).join('');
+  return `
+  <div class="page-head">
+    <div><h2>${tf('จัดซื้อและบันทึกต้นทุน','Procurement & Cost Log')}</h2><div class="sub">${tf('บันทึกรายการจัดซื้อของโปรเจ็คไหนก็ได้จากหน้านี้เลย ไม่ต้องเข้าไปในโปรเจ็คก่อน — แค่เลือกโปรเจ็คด้านล่าง ระบบจะบันทึกและเชื่อมรายการเข้ากับโปรเจ็คนั้นให้อัตโนมัติ','Log a purchase for any project right here, no need to open it first -- pick the project below and the entry is saved and linked into that project automatically')}</div></div>
+  </div>
+  <div class="card" style="margin-bottom:16px">
+    <div class="field"><label>${tf('กำลังบันทึกให้โปรเจ็ค','Logging for project')}</label><select id="ph-project-select">${projectOptions}</select></div>
+    <button class="btn ghost sm" style="margin-top:10px" data-open-project="${proj.id}">${tf('เปิดดูโปรเจ็คนี้','Open this project')} →</button>
+  </div>
+  ${renderCostLog(proj)}
+  `;
+}
+function wirePurchasingHub(){
+  if(!state.projects.length) return;
+  const sel = $('#ph-project-select');
+  if(sel) sel.onchange = ()=>{ purchasingProjectId = sel.value; costLogStatusFilter='all'; render(); };
+  const proj = state.projects.find(p=>p.id===purchasingProjectId) || state.projects[0];
+  wireCostLog(proj);
 }
 
 /* ============================= SCREEN: BUDGET (BOQ vs. Actual) ============================= */
@@ -6876,6 +6920,7 @@ function wireScreen(){
     return wireDailyLog();
   }
   if(state.view==='hub') return wireHub();
+  if(state.view==='purchasing') return wirePurchasingHub();
   if(state.view==='profile') return wireProfile();
   if(state.view==='contractors') return wireContractors();
   if(state.view!=='project') return;
