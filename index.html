@@ -267,14 +267,27 @@ tbody tr:hover{background:var(--surface-2)}
 .mp-table tr.mp-cat-row.open td{border-bottom:1px solid var(--purple-100,var(--line))}
 .mp-table{table-layout:fixed;width:100%}
 .mp-table th,.mp-table td{white-space:normal;word-break:break-word;padding:9px 8px;vertical-align:top;font-size:12.5px}
-/* Column widths are set via <colgroup> in the markup (14 physical columns)
-   rather than th/td:nth-child, because the header now spans two rows with
-   grouped (colspan) cells -- nth-child position no longer lines up with the
-   physical column index once a header row has fewer, wider cells. */
-.mp-table th.mp-th-group{text-align:center;border-bottom:1px solid var(--line)}
-.mp-table th.mp-th-sub{font-size:11px;color:var(--ink-500);text-align:center;text-transform:none;letter-spacing:0}
-.mp-table td:last-child{display:flex;gap:5px;flex-wrap:wrap}
-.mp-table td:last-child .btn{padding:6px 8px;min-width:0}
+/* Column widths come from the <colgroup> in the markup (14 physical
+   columns). table-layout:fixed makes each column's width exactly match its
+   <col>, independent of cell content -- including the colspan="14" body
+   row used for category headers, which now correctly sums the 14 columns'
+   widths instead of being sized by content. */
+.mp-table th.mp-th-group{text-align:center;background:var(--purple-50);color:var(--purple-700)}
+.mp-table th.mp-th-group-a{border-bottom:1px solid var(--purple-100,var(--line))}
+.mp-table th.mp-th-group-b{border-bottom:1px solid var(--purple-100,var(--line))}
+.mp-table th.mp-th-sub{font-size:11px;color:var(--ink-500);text-align:center;text-transform:none;letter-spacing:0;background:var(--purple-50)}
+/* ROOT CAUSE of the category-row width bug, finally found: this rule used
+   a blanket :last-child selector meant only for the actions column of a
+   normal data row, but the category header row's <td colspan="14"> is
+   ALSO its <tr>'s last (and only) child, so it matched too. Switching that
+   cell's display from table-cell to flex takes it out of the table layout
+   algorithm entirely, so instead of spanning all 14 columns it shrinks to
+   fit its own content (~45px) - reproducing at every combination of
+   colgroup/nth-child widths and single/double header rows that was tested.
+   Scoped with :not(.mp-cat-row td) so only real data rows get the flex
+   actions cell. */
+.mp-table tbody tr:not(.mp-cat-row) td:last-child{display:flex;gap:5px;flex-wrap:wrap}
+.mp-table tbody tr:not(.mp-cat-row) td:last-child .btn{padding:6px 8px;min-width:0}
 .mp-sub{display:block;font-size:11px;color:var(--ink-500);margin-top:3px;line-height:1.35;font-weight:400}
 .mp-days-badge{display:inline-block;font-size:10px;color:var(--ink-500);background:var(--line-soft,var(--purple-50));padding:1px 6px;border-radius:8px;white-space:nowrap}
 .mp-date-input{width:100%;font-size:11px;padding:4px 3px;border-radius:6px;border:1px solid var(--line);font-family:var(--font-mono);color:var(--ink-700);background:var(--surface)}
@@ -5015,7 +5028,7 @@ function renderMasterPlan(){
     const label = g.cat? escapeHtml(g.cat) : tf('ไม่ระบุหมวดหมู่','Uncategorized');
     const key = g.cat || '__uncategorized__';
     const expanded = mpExpandedCats.has(key);
-    const header = `<tr class="mp-cat-row${expanded?' open':''}" data-toggle-cat="${escapeHtml(key)}"><td colspan="14"><span class="mp-cat-chevron">${expanded?'▾':'▸'}</span>📁 ${label} <span class="mp-cat-count">${g.items.length} ${tf('รายการ','item(s)')}</span></td></tr>`;
+    const header = `<tr class="mp-cat-row${expanded?' open':''}" data-toggle-cat="${escapeHtml(key)}"><td colspan="14" style="width:100%"><span class="mp-cat-chevron">${expanded?'▾':'▸'}</span>📁 ${label} <span class="mp-cat-count">${g.items.length} ${tf('รายการ','item(s)')}</span></td></tr>`;
     return header + (expanded? g.items.map(itemRowHtml).join('') : '');
   }).join('');
   return `
@@ -5048,25 +5061,38 @@ function renderMasterPlan(){
       <col style="width:7%"><col style="width:8%"><col style="width:9%">
     </colgroup>
     <thead>
+      <!-- Real two-row grouped header, per the mockup. An earlier version of
+           this table appeared to break when this exact structure (colspan
+           on the group cells, rowspan on the tall cells) was combined with
+           a colgroup, so a colspan="14" body row (the category header row)
+           rendered squeezed into ~45px. Root-caused: it was NEVER the
+           header structure at fault -- it was the CSS rule "td:last-child
+           { display:flex }" below (see .mp-table CSS), a rule meant only
+           for the actions column of a normal data row, which also matched
+           the category row's <td colspan="14"> (that row's only, and
+           therefore "last", child),
+           switching it out of table-cell layout entirely. That rule is now
+           scoped to :not(.mp-cat-row), so the real grouped header below is
+           safe to use as originally designed. -->
       <tr>
         <th rowspan="2">${tf('ภาพ','Photo')}</th>
         <th rowspan="2">${tf('รายการงาน','Work item')}</th>
         <th rowspan="2">${tf('ทีมงาน','Team')}</th>
         <th rowspan="2">${tf('ลักษณะงาน','Work type')}</th>
         <th rowspan="2">${tf('ปริมาณรวม','Total qty')}</th>
-        <th colspan="2" class="mp-th-group">${tf('แผนงาน','Work plan')}</th>
-        <th colspan="4" class="mp-th-group">${tf('แผนการจัดซื้อ','Purchasing plan')}</th>
+        <th colspan="2" class="mp-th-group mp-th-group-a">${tf('แผนงาน','Work plan')}</th>
+        <th colspan="4" class="mp-th-group mp-th-group-b">${tf('แผนการจัดซื้อ','Purchasing plan')}</th>
         <th rowspan="2">${tf('ความคืบหน้า','Progress')}</th>
         <th rowspan="2">${tf('หมายเหตุ','Notes')}</th>
         <th rowspan="2"></th>
       </tr>
       <tr>
-        <th class="mp-th-sub">${tf('วันเริ่ม','Start date')}</th>
-        <th class="mp-th-sub">${tf('วันเสร็จ','End date')}</th>
-        <th class="mp-th-sub">${tf('จำนวนวัน','Days')}</th>
-        <th class="mp-th-sub">${tf('วันสั่งของ','Order date')}</th>
-        <th class="mp-th-sub">${tf('วันส่งของ','Delivery date')}</th>
-        <th class="mp-th-sub">${tf('สถานะสั่งซื้อ','Order status')}</th>
+        <th class="mp-th-sub mp-th-group-a">${tf('วันเริ่ม','Start date')}</th>
+        <th class="mp-th-sub mp-th-group-a">${tf('วันเสร็จ','End date')}</th>
+        <th class="mp-th-sub mp-th-group-b">${tf('จำนวนวัน','Days')}</th>
+        <th class="mp-th-sub mp-th-group-b">${tf('วันสั่งของ','Order date')}</th>
+        <th class="mp-th-sub mp-th-group-b">${tf('วันส่งของ','Delivery date')}</th>
+        <th class="mp-th-sub mp-th-group-b">${tf('สถานะสั่งซื้อ','Order status')}</th>
       </tr>
     </thead>
     <tbody>${bodyHtml}</tbody>
