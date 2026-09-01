@@ -344,7 +344,18 @@ tbody tr:hover{background:var(--surface-2)}
 .gantt-topscroll>div{height:1px}
 .gantt-scroll-btn{width:30px;height:30px;border-radius:50%;border:1px solid var(--line);background:var(--surface);color:var(--ink-700);font-size:13px;display:flex;align-items:center;justify-content:center;cursor:pointer}
 .gantt-scroll-btn:hover{background:var(--surface-2)}
-.gantt-outer{overflow-x:auto;overflow-y:hidden;border:1px solid var(--line);border-radius:var(--radius-sm);margin-bottom:16px;background:var(--surface)}
+/* overflow-x:auto here (needed for the horizontal date-scroll) forces
+   overflow-y to also become a real scroll container per the CSS spec's
+   "overflow computed value" rule -- you can't have one axis auto and the
+   other visible, the visible one gets promoted to auto too. That's exactly
+   what a sticky header inside this element needs anyway: position:sticky
+   only pins relative to its nearest ancestor that actually scrolls, so a
+   header can't stay "stuck" against the page scroll while living inside a
+   non-scrolling wrapper. Giving this element its own bounded height turns
+   it into a self-contained, independently-scrolling panel (the way a
+   spreadsheet or Excel-style frozen-header grid works) so the sticky header
+   row below has a real scroll context to pin against. */
+.gantt-outer{overflow:auto;max-height:calc(100vh - 220px);border:1px solid var(--line);border-radius:var(--radius-sm);margin-bottom:16px;background:var(--surface)}
 .gantt-inner{position:relative}
 .gantt-deps-svg{position:absolute;top:0;left:0;pointer-events:none;overflow:visible}
 .gantt-row{display:flex}
@@ -375,6 +386,28 @@ input.gl-mini-input[type="date"]::-webkit-calendar-picker-indicator{padding:2px;
 .gantt-header-row .gantt-label-col{display:grid;grid-template-columns:1fr 92px 92px 30px 92px 92px 98px 58px;column-gap:6px;align-items:center;font-size:10px;font-weight:700;color:var(--ink-500);text-transform:uppercase;letter-spacing:.02em}
 .gantt-header-row .gantt-label-col>div{text-align:center;white-space:nowrap;overflow:hidden}
 .gantt-header-row .gantt-label-col>div:first-child{text-align:left}
+/* Pin the header row (task-column titles + month/day timeline strip) to the
+   top of .gantt-outer's own scroll pane (see the comment on .gantt-outer)
+   so it stays in view while scrolling down a long BOQ -- without it, once
+   you scroll past the top there's no way to tell which date column a bar
+   lines up with, or what each left-hand column means. z-index:10 sits above
+   ordinary rows/bars (z-index 0-3) scrolling underneath, but below the
+   page's own topbar/tabbar (39-40) and any modal (90+).
+   IMPORTANT: sticky must go on .gantt-header-row itself, not on its two
+   column children. A sticky box is constrained to stay within its own
+   containing block -- normally its immediate parent's box -- and for
+   .gantt-label-col/.gantt-timeline-col that parent is .gantt-header-row,
+   which is exactly as tall as they are (42px). With zero extra height in
+   the parent there's no room for the "stay behind while the box scrolls
+   away" trick to ever manifest, so top:0 silently does nothing and the
+   header just scrolls off like any other row. Putting it on the row
+   instead makes its containing block .gantt-inner -- hundreds of px tall,
+   holding every other row below it -- which is exactly the room sticky
+   needs. .gantt-label-col keeps its own separate position:sticky;left:0
+   (set on every row, not just this one) for the horizontal freeze; that
+   still composes correctly once the row itself is pinned vertically,
+   giving the usual spreadsheet "frozen corner" behaviour. */
+.gantt-header-row{position:sticky;top:0;z-index:10;background:var(--surface)}
 .gantt-cat-label{background:var(--surface-2);font-family:var(--font-display);font-weight:600;color:var(--ink-700);font-size:12.5px;padding:0 10px;display:flex;flex-direction:row;align-items:center;justify-content:flex-start;gap:4px}
 .gantt-timeline-col{position:relative;flex-shrink:0;box-sizing:border-box}
 .gantt-row:not(.gantt-header-row):not(.gantt-cat-row) .gantt-timeline-col{height:60px;border-bottom:1px solid var(--line-soft)}
@@ -5065,6 +5098,37 @@ function ganttChartHtml(groups){
   const showTodayLine = today>=minDate && today<=maxDate;
   const todayOffset = daysBetween(minDate,today)*dayW;
 
+  // Clear day-divider gridlines behind the bars, so a row far down the list
+  // can still be read against the date scale without scrolling back up to
+  // the header to count columns. Drawn as two background layers on
+  // .gantt-inner (itself otherwise transparent) rather than per-row DOM
+  // nodes: a background always paints beneath every child regardless of
+  // z-index, so this can't accidentally cover a bar or the dependency-arrow
+  // overlay, and category rows' own opaque background already hides it
+  // where it isn't wanted. A thin repeating line every dayW px marks each
+  // day boundary; a second repeating gradient (one 7-day tile, offset to
+  // match minDate's weekday) tints weekend day-columns, matching the same
+  // weekend shading already used in the header's own day-cell row.
+  const dayLineLayer = `repeating-linear-gradient(to right, var(--line-soft) 0, var(--line-soft) 1px, transparent 1px, transparent ${dayW}px)`;
+  const dow0 = parseYMD(minDate).getDay(); // 0=Sun..6=Sat -- weekday of the day at x=0 in the pattern
+  let weekendLayer = 'none';
+  {
+    const stops = []; let cursor = 0;
+    for(let i=0;i<7;i++){
+      const dow = (dow0+i)%7;
+      if(dow!==0 && dow!==6) continue;
+      const s = i*dayW, e = (i+1)*dayW;
+      if(s>cursor) stops.push(`transparent ${cursor}px`, `transparent ${s}px`);
+      stops.push(`rgba(20,18,36,.035) ${s}px`, `rgba(20,18,36,.035) ${e}px`);
+      cursor = e;
+    }
+    if(stops.length){
+      if(cursor<7*dayW) stops.push(`transparent ${cursor}px`, `transparent ${7*dayW}px`);
+      weekendLayer = `repeating-linear-gradient(to right, ${stops.join(', ')})`;
+    }
+  }
+  const dayGridStyle = `background-image:${dayLineLayer},${weekendLayer};background-position:${labelW}px 0,${labelW}px 0`;
+
   const months=[];
   let cursor=minDate;
   while(cursor<=maxDate){
@@ -5165,14 +5229,20 @@ function ganttChartHtml(groups){
       edges.push({x1:labelW+predOffset+predWidth, y1:itemCenterY[predId], x2:labelW+succOffset, y2:itemCenterY[item.id]});
     });
   });
+  // Dependency lines were previously a 1.5px var(--ink-300) (a pale grey
+  // that reads almost as background noise on a chart already full of
+  // colored bars) -- bumped to a bolder purple with a bigger arrowhead and a
+  // halo/outline under the stroke so the "finish here -> start there" link
+  // reads clearly at a glance, per the request for a clearer done->next flow.
   const depsSvg = edges.length? `
   <svg class="gantt-deps-svg" width="${labelW+totalW}" height="${contentH}">
     <defs>
-      <marker id="gantt-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
-        <path d="M0,0 L10,5 L0,10 z" style="fill:var(--ink-300)"></path>
+      <marker id="gantt-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+        <path d="M0,0 L10,5 L0,10 z" style="fill:var(--purple-600)"></path>
       </marker>
     </defs>
-    ${edges.map(e=>`<path d="${ganttElbowPath(e.x1,e.y1,e.x2,e.y2)}" style="fill:none;stroke:var(--ink-300);stroke-width:1.5" marker-end="url(#gantt-arrow)"></path>`).join('')}
+    ${edges.map(e=>`<path d="${ganttElbowPath(e.x1,e.y1,e.x2,e.y2)}" style="fill:none;stroke:#fff;stroke-width:4;stroke-linejoin:round"></path>`).join('')}
+    ${edges.map(e=>`<path d="${ganttElbowPath(e.x1,e.y1,e.x2,e.y2)}" style="fill:none;stroke:var(--purple-600);stroke-width:2;stroke-linejoin:round" marker-end="url(#gantt-arrow)"></path>`).join('')}
   </svg>` : '';
 
   return `
@@ -5184,7 +5254,7 @@ function ganttChartHtml(groups){
   </div>
   <div class="gantt-topscroll" id="gantt-topscroll"><div style="width:${labelW+totalW}px"></div></div>
   <div class="gantt-outer" id="gantt-scroll-container">
-    <div class="gantt-inner" style="width:${labelW+totalW}px" data-day-w="${dayW}" data-min-date="${minDate}">
+    <div class="gantt-inner" style="width:${labelW+totalW}px;${dayGridStyle}" data-day-w="${dayW}" data-min-date="${minDate}">
       ${depsSvg}
       ${showTodayLine? `<div class="gantt-today-line" style="left:${labelW+todayOffset}px" title="${tf('วันนี้','Today')}"></div>` : ''}
       <div class="gantt-row gantt-header-row">
