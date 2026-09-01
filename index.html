@@ -4045,6 +4045,7 @@ const TOP_TABS = [
   {id:'hub', label:tf('โปรเจ็คทั้งหมด','All Projects'), ic:'🏠'},
   {id:'overview', label:tf('ภาพรวมทุกโปรเจ็ค','Overview'), ic:'📈'},
   {id:'purchasing', label:tf('จัดซื้อ','Procurement'), ic:'🧾'},
+  {id:'inspection', label:tf('ใบตรวจงาน','Inspection'), ic:'🔍'},
   {id:'profile', label:tf('ตั้งค่าบริษัท','Company'), ic:'🏢'},
   {id:'contractors', label:tf('ข้อมูลผู้รับเหมา','Contractors'), ic:'👷'},
 ];
@@ -4083,6 +4084,10 @@ function renderModalRoot(){
   if(contractorDraft) return contractorModalHtml();
   if(contractorHistoryId) return contractorHistoryModalHtml();
   if(historyModalOpen) return historyModalHtml();
+  if(editingInspectionId){
+    const proj = state.projects.find(p=>p.id===inspectionProjectId);
+    if(proj) return inspectionEditorHtml(proj);
+  }
   return '';
 }
 
@@ -4151,6 +4156,7 @@ function renderScreen(){
   if(state.view==='hub') return renderHub();
   if(state.view==='overview') return renderOverview();
   if(state.view==='purchasing') return renderPurchasingHub();
+  if(state.view==='inspection') return renderInspectionHub();
   if(state.view==='profile') return renderProfile();
   if(state.view==='contractors') return renderContractors();
   switch(state.tab){
@@ -4175,6 +4181,7 @@ function resetTransient(){
   historyModalOpen=false; historyViewing=false;
   procureTrashOpen=false;
   costLogStatusFilter='all';
+  editingInspectionId=null; inspectionDraft=null;
 }
 function goToHub(){
   resetTransient();
@@ -4212,6 +4219,7 @@ function wireGlobal(){
   wireContractorModal();
   wireContractorHistoryModal();
   wireHistoryModal();
+  wireInspectionEditorModal();
 }
 
 /* ============================= SCREEN: HUB (ALL PROJECTS) ============================= */
@@ -4544,7 +4552,7 @@ function wireProjectModal(){
     if(!name){ toast(tf('กรุณาระบุชื่อโครงการ','Please enter a project name')); return; }
     if(editingProjectId==='new'){
       const importedBoq = buildBoqFromImport();
-      state.projects.push({id:uid(), name, zone, boq:importedBoq, logs:[], materialRequests:[], costLog:[], createdAt:new Date().toISOString()});
+      state.projects.push({id:uid(), name, zone, boq:importedBoq, logs:[], materialRequests:[], costLog:[], inspectionReports:[], createdAt:new Date().toISOString()});
       saveData(); closeProjectModal();
       toast(importedBoq.length? tf('สร้างโปรเจ็คใหม่แล้ว พร้อม BOQ ','Project created with a BOQ of ')+importedBoq.length+tf(' รายการ',' items') : tf('สร้างโปรเจ็คใหม่แล้ว','Project created'));
     } else {
@@ -7141,6 +7149,345 @@ function wirePurchasingHub(){
   wireCostLog(proj);
 }
 
+/* ============================= SCREEN: INSPECTION REPORTS ============================= */
+// Per-project inspection ("ใบตรวจงาน") reports, modeled after the printed
+// TC INSPECTION REPORT form: a header (project/work/quotation/PO/team/date),
+// an unlimited list of inspection line items (each with photos, description,
+// work-type code, %, pass/fail and a note), and a 4-role approval workflow
+// (Inspector -> PM -> Management -> Accounting). Stored as proj.inspectionReports
+// (guarded with `||[]` everywhere since older saved projects won't have the
+// field yet) so it rides along with the rest of the project on every
+// saveData()/cloud push -- no separate sync path needed.
+const INSPECT_WORK_TYPES = [
+  {v:'ST', th:'โครงสร้าง (ST)', en:'Structure (ST)'},
+  {v:'AR', th:'สถาปัตยกรรม (AR)', en:'Architecture (AR)'},
+  {v:'SN', th:'ระบบสุขาภิบาล (SN)', en:'Sanitary (SN)'},
+  {v:'EE', th:'ระบบไฟฟ้า (EE)', en:'Electrical (EE)'},
+  {v:'ME', th:'เครื่องกล (ME)', en:'Mechanical (ME)'},
+  {v:'other', th:'งานอื่นๆ ระบุ', en:'Other (specify)'},
+];
+const INSPECT_APPROVAL_ROLES = [
+  {role:'inspector', th:'ผู้ตรวจสอบ', en:'Inspector'},
+  {role:'pm', th:'หัวหน้าโครงการ', en:'Project Manager'},
+  {role:'management', th:'ผู้บริหาร', en:'Management'},
+  {role:'accounting', th:'ฝ่ายบัญชี', en:'Accounting'},
+];
+let inspectionProjectId = null; // hub-level project selector, mirrors purchasingProjectId
+let editingInspectionId = null; // null | 'new' | report id -- controls the editor modal
+let inspectionDraft = null; // in-progress copy being edited; items[].pendingPhotos/existingPhotoIds/removedPhotoIds mirror the itemDraft photo pattern
+// Document numbering: Inspec-<ProjectName>-<YYYYMMDD><seq>, where <seq> is a
+// simple per-project running count (proj.inspectionReports.length + 1) --
+// "separate per project" per the request, so each project's own report list
+// starts counting from 1 regardless of date.
+function genInspecNo(proj, dateStr){
+  const ymd = (dateStr||todayStr()).replace(/-/g,'');
+  const seq = (proj.inspectionReports||[]).length + 1;
+  const slug = (proj.name||'Project').trim().replace(/\s+/g,'').slice(0,24) || 'Project';
+  return 'Inspec-'+slug+'-'+ymd+String(seq).padStart(3,'0');
+}
+function blankInspectionItem(){
+  return {id:uid(), description:'', workType:'', workTypeOther:'', percent:'', passStatus:'', note:'', existingPhotoIds:[], pendingPhotos:[], removedPhotoIds:[]};
+}
+function openInspectionDraft(proj, id){
+  if(id==='new'){
+    inspectionDraft = {
+      reportNo: genInspecNo(proj, todayStr()),
+      inspectionDate: todayStr(),
+      projectName: proj.name||'',
+      workName:'', quotationNo:'', poNo:'', teamName:'',
+      items:[blankInspectionItem()],
+      approvalSteps: INSPECT_APPROVAL_ROLES.map(r=>({role:r.role, name:'', approved:false, approvedAt:''})),
+    };
+  } else {
+    const r = (proj.inspectionReports||[]).find(x=>x.id===id);
+    if(!r) return;
+    inspectionDraft = {
+      reportNo: r.reportNo, inspectionDate: r.inspectionDate||todayStr(), projectName: r.projectName||'',
+      workName: r.workName||'', quotationNo: r.quotationNo||'', poNo: r.poNo||'', teamName: r.teamName||'',
+      items: (r.items&&r.items.length? r.items : [{}]).map(it=>({
+        id: it.id||uid(), description: it.description||'', workType: it.workType||'', workTypeOther: it.workTypeOther||'',
+        percent: it.percent==null?'':it.percent, passStatus: it.passStatus||'', note: it.note||'',
+        existingPhotoIds: (it.photoIds||[]).slice(), pendingPhotos: [], removedPhotoIds: [],
+      })),
+      approvalSteps: (r.approvalSteps&&r.approvalSteps.length? r.approvalSteps : INSPECT_APPROVAL_ROLES.map(x=>({role:x.role,name:'',approved:false,approvedAt:''}))).map(s=>({...s})),
+    };
+  }
+  editingInspectionId = id;
+}
+function closeInspectionDraft(){ editingInspectionId=null; inspectionDraft=null; render(); }
+function renderInspectionHub(){
+  if(!state.projects.length){
+    return `<div class="page-head"><div><h2>${tf('ใบตรวจงาน','Inspection Reports')}</h2></div></div>
+    <div class="empty"><span class="ic">🔍</span>${tf('ยังไม่มีโปรเจ็ค กลับไปหน้าโปรเจ็คทั้งหมดเพื่อสร้างโปรเจ็คแรก','No projects yet -- go to All Projects to create your first one')}</div>`;
+  }
+  if(!inspectionProjectId || !state.projects.find(p=>p.id===inspectionProjectId)) inspectionProjectId = state.projects[0].id;
+  const proj = state.projects.find(p=>p.id===inspectionProjectId);
+  const projectOptions = state.projects.map(p=>`<option value="${p.id}" ${p.id===inspectionProjectId?'selected':''}>${escapeHtml(p.name||tf('โปรเจ็คไม่มีชื่อ','Untitled project'))}</option>`).join('');
+  const reports = (proj.inspectionReports||[]).slice().sort((a,b)=> (b.createdAt||'').localeCompare(a.createdAt||''));
+  const rows = reports.map(r=>{
+    const items = r.items||[];
+    const passCount = items.filter(it=>it.passStatus==='pass').length;
+    const failCount = items.filter(it=>it.passStatus==='fail').length;
+    const steps = r.approvalSteps||[];
+    const allApproved = steps.length && steps.every(s=>s.approved);
+    const statusBadge = allApproved? `<span class="badge ok">✓ ${tf('อนุมัติครบแล้ว','Fully approved')}</span>` : `<span class="badge idle">⏳ ${tf('รออนุมัติ','Pending approval')}</span>`;
+    return `<tr data-open-inspection="${r.id}" style="cursor:pointer">
+      <td>${escapeHtml(r.reportNo)}</td>
+      <td class="tabular">${fmtDate(r.inspectionDate)}</td>
+      <td>${escapeHtml(r.workName||'-')}</td>
+      <td>${escapeHtml(r.poNo||'-')}</td>
+      <td class="tabular">${passCount}/${items.length} ${tf('ผ่าน','pass')}${failCount? ` · ${failCount} ${tf('ไม่ผ่าน','fail')}`:''}</td>
+      <td>${statusBadge}</td>
+      <td><button class="iconbtn" data-del-inspection="${r.id}" title="${tf('ลบ','Delete')}">🗑️</button></td>
+    </tr>`;
+  }).join('');
+  return `
+  <div class="page-head">
+    <div><h2>${tf('ใบตรวจงาน','Inspection Reports')}</h2><div class="sub">${tf('สร้างและติดตามใบตรวจงานของแต่ละโปรเจ็ค พร้อมรูปถ่ายและขั้นตอนอนุมัติ','Create and track inspection reports per project, with photos and an approval workflow')}</div></div>
+    <button class="btn primary" id="btn-new-inspection">+ ${tf('สร้างใบตรวจงานใหม่','New inspection report')}</button>
+  </div>
+  <div class="card" style="margin-bottom:16px">
+    <div class="field"><label>${tf('กำลังดูโปรเจ็ค','Viewing project')}</label><select id="insp-project-select">${projectOptions}</select></div>
+    <button class="btn ghost sm" style="margin-top:10px" data-open-project="${proj.id}">${tf('เปิดดูโปรเจ็คนี้','Open this project')} →</button>
+  </div>
+  ${reports.length? `<div class="card"><div class="table-wrap"><table>
+    <thead><tr><th>${tf('เลขที่ใบตรวจงาน','Report No.')}</th><th>${tf('วันที่ตรวจ','Inspection date')}</th><th>${tf('ชื่องาน','Work name')}</th><th>${tf('เลขใบสั่งซื้อ','PO no.')}</th><th>${tf('ผลตรวจ','Result')}</th><th>${tf('สถานะอนุมัติ','Approval')}</th><th></th></tr></thead>
+    <tbody>${rows}</tbody>
+  </table></div></div>` : `<div class="empty"><span class="ic">🔍</span>${tf('ยังไม่มีใบตรวจงานสำหรับโปรเจ็คนี้','No inspection reports for this project yet')}</div>`}
+  `;
+}
+function wireInspectionHub(){
+  if(!state.projects.length) return;
+  const sel = $('#insp-project-select');
+  if(sel) sel.onchange = ()=>{ inspectionProjectId = sel.value; render(); };
+  const proj = state.projects.find(p=>p.id===inspectionProjectId) || state.projects[0];
+  const newBtn = $('#btn-new-inspection');
+  if(newBtn) newBtn.onclick = ()=>{ openInspectionDraft(proj, 'new'); render(); };
+  $$('[data-open-inspection]').forEach(tr=> tr.onclick = ()=>{ openInspectionDraft(proj, tr.dataset.openInspection); render(); });
+  $$('[data-del-inspection]').forEach(b=> b.onclick = (e)=>{
+    e.stopPropagation();
+    if(!confirm(tf('ลบใบตรวจงานนี้หรือไม่?','Delete this inspection report?'))) return;
+    proj.inspectionReports = (proj.inspectionReports||[]).filter(r=>r.id!==b.dataset.delInspection);
+    saveData(); render(); toast(tf('ลบใบตรวจงานแล้ว','Inspection report deleted'));
+  });
+}
+function inspectionItemCardHtml(it, idx){
+  const existingIds = it.existingPhotoIds.filter(id=>!it.removedPhotoIds.includes(id));
+  const existingThumbs = existingIds.map(id=>`<div class="photo-item"><img data-insp-thumb-id="${id}" alt=""><button class="rm" data-rm-insp-existing-photo="${idx}:${id}">✕</button></div>`).join('');
+  const pendingThumbs = it.pendingPhotos.map((p,pIdx)=>`<div class="photo-item"><img src="${p.dataUrl}" alt=""><button class="rm" data-rm-insp-pending-photo="${idx}:${pIdx}">✕</button></div>`).join('');
+  const hasPhotos = existingIds.length || it.pendingPhotos.length;
+  return `
+  <div class="rq-line-card" data-insp-item-idx="${idx}">
+    <div style="display:flex;justify-content:space-between;align-items:center">
+      <b style="font-family:var(--font-display);font-size:12.5px">${tf('ลำดับ','No.')} ${idx+1}</b>
+      <button class="iconbtn" data-rm-insp-item="${idx}">✕</button>
+    </div>
+    <div class="field" style="margin-top:8px"><label>${tf('คำอธิบาย','Description')}</label><input type="text" data-insp-field="description" data-idx="${idx}" value="${escapeHtml(it.description)}" placeholder="${tf('เช่น งานติดหินผนังและ Top เคาน์เตอร์','e.g. wall stone & countertop install')}"></div>
+    <div class="grid cols-2" style="margin-top:8px">
+      <div class="field"><label>${tf('ประเภทงาน','Work type')}</label>
+        <select data-insp-field="workType" data-idx="${idx}">
+          <option value="">${tf('-- เลือกประเภทงาน --','-- choose work type --')}</option>
+          ${INSPECT_WORK_TYPES.map(w=>`<option value="${w.v}" ${it.workType===w.v?'selected':''}>${escapeHtml(tf(w.th,w.en))}</option>`).join('')}
+        </select>
+        ${it.workType==='other'? `<input type="text" style="margin-top:6px" data-insp-field="workTypeOther" data-idx="${idx}" value="${escapeHtml(it.workTypeOther)}" placeholder="${tf('ระบุประเภทงาน','specify work type')}">` : ''}
+      </div>
+      <div class="field"><label>%</label><input type="number" min="0" max="100" step="1" data-insp-field="percent" data-idx="${idx}" value="${it.percent}"></div>
+    </div>
+    <div class="field" style="margin-top:8px"><label>${tf('ผล','Result')}</label>
+      <select data-insp-field="passStatus" data-idx="${idx}">
+        <option value="">${tf('-- ยังไม่ระบุ --','-- not set --')}</option>
+        <option value="pass" ${it.passStatus==='pass'?'selected':''}>✅ ${tf('ผ่าน','Pass')}</option>
+        <option value="fail" ${it.passStatus==='fail'?'selected':''}>❌ ${tf('ไม่ผ่าน','Fail')}</option>
+      </select>
+    </div>
+    <div class="field" style="margin-top:8px"><label>${tf('หมายเหตุ','Note')}</label><input type="text" data-insp-field="note" data-idx="${idx}" value="${escapeHtml(it.note)}" placeholder="${tf('เช่น รอแก้ไขหินผนังที่มีรอยแตกร้าว','e.g. awaiting fix for cracked wall stone')}"></div>
+    <div class="field" style="margin-top:8px"><label>${tf('รูปภาพประกอบ','Photos')}</label>
+      <label class="photo-drop" for="insp-photo-input-${idx}" id="insp-drop-zone-${idx}">📷 ${tf('ถ่ายรูป / ลากรูปมาวาง / เลือกไฟล์','Take a photo / drag & drop / browse files')}</label>
+      <input type="file" id="insp-photo-input-${idx}" data-insp-photo-idx="${idx}" accept="image/*" multiple style="display:none">
+      ${hasPhotos? `<div class="photo-grid" style="margin-top:10px">${existingThumbs}${pendingThumbs}</div>`:''}
+    </div>
+  </div>`;
+}
+function inspectionApprovalHtml(){
+  const d = inspectionDraft;
+  const steps = d.approvalSteps.map((s,idx)=>{
+    const roleDef = INSPECT_APPROVAL_ROLES.find(r=>r.role===s.role) || {th:s.role,en:s.role};
+    const dotClass = s.approved? 'done':'wait';
+    const dotIcon = s.approved? '✓':'…';
+    return `<div class="tl-step">
+      <div class="tl-dot ${dotClass}">${dotIcon}</div>
+      <div class="tl-body" style="flex:1">
+        <b>${escapeHtml(tf(roleDef.th,roleDef.en))}</b>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:4px">
+          <input type="text" data-insp-approver-name="${idx}" value="${escapeHtml(s.name)}" placeholder="${tf('ชื่อผู้ลงนาม','signer name')}" style="max-width:220px" ${s.approved?'disabled':''}>
+          ${s.approved
+            ? `<span class="badge ok">✓ ${tf('อนุมัติแล้ว','Approved')} · ${fmtDate(s.approvedAt)}</span><button class="btn ghost sm" data-insp-unapprove="${idx}">${tf('ยกเลิก','Undo')}</button>`
+            : `<button class="btn ghost sm" data-insp-approve="${idx}">${tf('อนุมัติ / ลงนาม','Approve / sign')}</button>`}
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+  return `<div class="timeline">${steps}</div>`;
+}
+function inspectionEditorHtml(proj){
+  const d = inspectionDraft;
+  if(!d) return '';
+  const itemCards = d.items.map((it,idx)=>inspectionItemCardHtml(it,idx)).join('');
+  const teamList = Array.from(new Set(STANDARD_TEAMS.concat((proj.boq||[]).map(i=>i.team||'').filter(Boolean))));
+  return `
+  <div class="modal-bg" id="insp-modal-bg">
+    <div class="modal" style="max-width:920px">
+      <div class="modal-head"><h3>${editingInspectionId==='new'? tf('สร้างใบตรวจงานใหม่','New Inspection Report') : tf('แก้ไขใบตรวจงาน','Edit Inspection Report')}</h3><button class="iconbtn" id="insp-modal-close">✕</button></div>
+      <div class="role-note" style="margin-bottom:12px">📄 ${tf('เลขที่ใบตรวจงาน (ออกอัตโนมัติ)','Report No. (auto-generated)')}: <b>${escapeHtml(d.reportNo)}</b></div>
+      <div class="grid cols-2">
+        <div class="field"><label>${tf('ชื่อ Project','Project name')}</label><input type="text" id="insp-project-name" value="${escapeHtml(d.projectName)}"></div>
+        <div class="field"><label>${tf('ชื่องาน / Sub-project','Work name / Sub-project')}</label><input type="text" id="insp-work-name" value="${escapeHtml(d.workName)}"></div>
+        <div class="field"><label>${tf('เลขใบเสนอราคา (BOQ/Quotation no.)','Quotation no.')}</label><input type="text" id="insp-quotation-no" value="${escapeHtml(d.quotationNo)}"></div>
+        <div class="field"><label>${tf('เลขใบสั่งซื้อ (PO no.)','PO no.')}</label><input type="text" id="insp-po-no" value="${escapeHtml(d.poNo)}"></div>
+        <div class="field"><label>${tf('ชื่อทีมงาน / ผู้รับเหมา','Team / Supplier name')}</label><input type="text" id="insp-team-name" list="insp-team-list" value="${escapeHtml(d.teamName)}"><datalist id="insp-team-list">${teamList.map(t=>`<option value="${escapeHtml(t)}">`).join('')}</datalist></div>
+        <div class="field"><label>${tf('วันที่ตรวจงาน','Inspection date')}</label><input type="date" id="insp-date" value="${d.inspectionDate}"></div>
+      </div>
+      <div class="field" style="margin-top:14px">
+        <label>${tf('รายการตรวจงาน','Inspection items')}</label>
+        <div id="insp-items">${itemCards}</div>
+        <button class="btn ghost sm" style="margin-top:8px" id="insp-add-item">+ ${tf('เพิ่มรายการตรวจงาน','Add inspection item')}</button>
+      </div>
+      <div style="margin-top:16px"><b style="font-family:var(--font-display);font-size:13px">${tf('ขั้นตอนอนุมัติ','Approval steps')}</b>${inspectionApprovalHtml()}</div>
+      <button class="btn primary block" style="margin-top:16px" id="insp-save">${tf('บันทึกใบตรวจงาน','Save inspection report')}</button>
+    </div>
+  </div>`;
+}
+function wireInspectionEditorModal(){
+  if(!editingInspectionId) return;
+  const proj = state.projects.find(p=>p.id===inspectionProjectId);
+  if(!proj) return;
+  wireInspectionEditor(proj);
+}
+function wireInspectionEditor(proj){
+  const bg = $('#insp-modal-bg');
+  if(!bg) return;
+  const d = inspectionDraft;
+  $('#insp-modal-close').onclick = closeInspectionDraft;
+  bg.addEventListener('click', e=>{ if(e.target===bg) closeInspectionDraft(); });
+  const nameInp=$('#insp-project-name'); if(nameInp) nameInp.oninput=()=>{ d.projectName=nameInp.value; };
+  const workInp=$('#insp-work-name'); if(workInp) workInp.oninput=()=>{ d.workName=workInp.value; };
+  const quotInp=$('#insp-quotation-no'); if(quotInp) quotInp.oninput=()=>{ d.quotationNo=quotInp.value; };
+  const poInp=$('#insp-po-no'); if(poInp) poInp.oninput=()=>{ d.poNo=poInp.value; };
+  const teamInp=$('#insp-team-name'); if(teamInp) teamInp.oninput=()=>{ d.teamName=teamInp.value; };
+  const dateInp=$('#insp-date'); if(dateInp) dateInp.onchange=()=>{ d.inspectionDate=dateInp.value; };
+
+  const syncItemFieldsFromDom = ()=>{
+    $$('[data-insp-field]').forEach(el=>{
+      const idx = Number(el.dataset.idx);
+      const item = d.items[idx]; if(!item) return;
+      item[el.dataset.inspField] = el.value;
+    });
+  };
+  $$('[data-insp-field]').forEach(el=>{
+    const evt = (el.tagName==='SELECT')? 'onchange':'oninput';
+    el[evt] = ()=>{
+      syncItemFieldsFromDom();
+      if(el.dataset.inspField==='workType') render(); // reveal/hide the "other" free-text field
+    };
+  });
+  $('#insp-add-item').onclick = ()=>{ syncItemFieldsFromDom(); d.items.push(blankInspectionItem()); render(); };
+  $$('[data-rm-insp-item]').forEach(b=> b.onclick = ()=>{
+    syncItemFieldsFromDom();
+    if(d.items.length<=1){ toast(tf('ต้องมีอย่างน้อย 1 รายการ','At least one item is required')); return; }
+    d.items.splice(Number(b.dataset.rmInspItem),1); render();
+  });
+
+  const processInspFiles = async (fileList, item)=>{
+    const files = Array.from(fileList||[]);
+    for(const f of files){
+      if(f.type.indexOf('image/')!==0) continue;
+      try{ const dataUrl = await compressImage(f); item.pendingPhotos.push({dataUrl}); }catch(err){}
+      await new Promise(r=>setTimeout(r,0));
+    }
+  };
+  d.items.forEach((item,idx)=>{
+    const dz = $('#insp-drop-zone-'+idx);
+    if(dz){
+      dz.ondragover = (e)=>{ e.preventDefault(); dz.classList.add('drag-over'); };
+      dz.ondragleave = ()=>{ dz.classList.remove('drag-over'); };
+      dz.ondrop = async (e)=>{ e.preventDefault(); dz.classList.remove('drag-over'); syncItemFieldsFromDom(); await processInspFiles(e.dataTransfer.files, item); render(); };
+    }
+  });
+  $$('[data-insp-photo-idx]').forEach(inp=> inp.onchange = async ()=>{
+    syncItemFieldsFromDom();
+    const item = d.items[Number(inp.dataset.inspPhotoIdx)]; if(!item) return;
+    await processInspFiles(inp.files, item);
+    inp.value=''; render();
+  });
+  $$('[data-rm-insp-existing-photo]').forEach(b=> b.onclick = ()=>{
+    syncItemFieldsFromDom();
+    const [idx,id] = b.dataset.rmInspExistingPhoto.split(':');
+    const item = d.items[Number(idx)]; if(!item) return;
+    item.removedPhotoIds.push(id); render();
+  });
+  $$('[data-rm-insp-pending-photo]').forEach(b=> b.onclick = ()=>{
+    syncItemFieldsFromDom();
+    const [idx,pIdx] = b.dataset.rmInspPendingPhoto.split(':').map(Number);
+    const item = d.items[idx]; if(!item) return;
+    item.pendingPhotos.splice(pIdx,1); render();
+  });
+
+  $$('[data-insp-approver-name]').forEach(inp=> inp.oninput = ()=>{
+    d.approvalSteps[Number(inp.dataset.inspApproverName)].name = inp.value;
+  });
+  $$('[data-insp-approve]').forEach(b=> b.onclick = ()=>{
+    syncItemFieldsFromDom();
+    const idx = Number(b.dataset.inspApprove);
+    const step = d.approvalSteps[idx];
+    if(!step.name || !step.name.trim()){ toast(tf('กรุณาระบุชื่อผู้ลงนามก่อนอนุมัติ','Please enter the signer name before approving')); return; }
+    step.approved = true; step.approvedAt = todayStr();
+    render();
+  });
+  $$('[data-insp-unapprove]').forEach(b=> b.onclick = ()=>{
+    syncItemFieldsFromDom();
+    const idx = Number(b.dataset.inspUnapprove);
+    d.approvalSteps[idx].approved = false; d.approvalSteps[idx].approvedAt = '';
+    render();
+  });
+
+  $('#insp-save').onclick = async ()=>{
+    syncItemFieldsFromDom();
+    const projectName = d.projectName.trim();
+    if(!projectName || !d.inspectionDate){ toast(tf('กรุณากรอกชื่อ Project และวันที่ตรวจงาน','Please fill in the project name and inspection date')); return; }
+    const savedItems = [];
+    for(const it of d.items){
+      const keptExisting = it.existingPhotoIds.filter(id=>!it.removedPhotoIds.includes(id));
+      const newIds=[];
+      for(const p of it.pendingPhotos){ const id=uid(); await idbPut(id,p.dataUrl); newIds.push(id); }
+      savedItems.push({
+        id: it.id, description:(it.description||'').trim(), workType: it.workType||'', workTypeOther:(it.workTypeOther||'').trim(),
+        percent: it.percent===''? null : parseFloat(it.percent), passStatus: it.passStatus||'', note:(it.note||'').trim(),
+        photoIds: keptExisting.concat(newIds),
+      });
+    }
+    const workName=d.workName.trim(), quotationNo=d.quotationNo.trim(), poNo=d.poNo.trim(), teamName=d.teamName.trim();
+    const approvalSteps = d.approvalSteps.map(s=>({...s}));
+    if(editingInspectionId==='new'){
+      proj.inspectionReports = proj.inspectionReports || [];
+      proj.inspectionReports.push({
+        id: uid(), reportNo: d.reportNo, createdAt: new Date().toISOString(),
+        inspectionDate: d.inspectionDate, projectName, workName, quotationNo, poNo, teamName,
+        items: savedItems, approvalSteps,
+      });
+    } else {
+      const r = (proj.inspectionReports||[]).find(x=>x.id===editingInspectionId);
+      if(r) Object.assign(r, {inspectionDate:d.inspectionDate, projectName, workName, quotationNo, poNo, teamName, items:savedItems, approvalSteps});
+    }
+    saveData(); editingInspectionId=null; inspectionDraft=null; render(); toast(tf('บันทึกใบตรวจงานแล้ว','Inspection report saved'));
+  };
+
+  refreshInspectionPhotos();
+}
+async function refreshInspectionPhotos(){
+  const imgs = $$('[data-insp-thumb-id]');
+  for(const img of imgs){ const data = await loadRefPhoto(img.dataset.inspThumbId); if(data) img.src = data; }
+}
+
 /* ============================= SCREEN: BUDGET (BOQ vs. Actual) ============================= */
 // Rolls up actual purchase cost from material-request lines against each BOQ
 // item's planned budget (qtyTotal x unitPrice). A request line only counts
@@ -7651,6 +7998,7 @@ function wireScreen(){
   }
   if(state.view==='hub') return wireHub();
   if(state.view==='purchasing') return wirePurchasingHub();
+  if(state.view==='inspection') return wireInspectionHub();
   if(state.view==='profile') return wireProfile();
   if(state.view==='contractors') return wireContractors();
   if(state.view!=='project') return;
