@@ -643,8 +643,8 @@ input.gl-mini-input[type="date"]::-webkit-calendar-picker-indicator{padding:2px;
   #reportPrintable .rp-section p{font-size:10.5px!important;line-height:1.4!important}
   #reportPrintable table{font-size:10.5px!important}
   #reportPrintable th,#reportPrintable td{padding:4px 7px!important}
-  #reportPrintable .rp-photogrid{grid-template-columns:repeat(auto-fill,minmax(85px,1fr))!important;gap:6px!important}
-  #reportPrintable .rp-photogrid img{height:65px!important}
+  #reportPrintable .rp-photogrid{grid-template-columns:repeat(4,1fr)!important;gap:6px!important}
+  #reportPrintable .rp-photogrid img{height:130px!important}
   #reportPrintable .rp-photogrid figcaption{font-size:8.5px!important;padding:3px 5px!important}
   #reportPrintable .rp-foot{padding:6px 16px!important;font-size:9px!important}
 }
@@ -921,6 +921,17 @@ function removeCloudProject(id){
   delete lastPushedProjectJSON[id];
   saveDataLocalOnly();
   safeRerender();
+}
+// Deleting a project locally only ever removed it from state.projects --
+// pushStateToCloud() only .set()s docs still present in that array, it never
+// .delete()s ones that dropped out, so the Firestore doc for a "deleted"
+// project was left behind and would silently reappear (via applyCloudProject)
+// on the next fresh load / another device's initCloudSync(). Call this
+// alongside the local removal so the doc actually goes away for good.
+function deleteCloudProject(id){
+  delete lastPushedProjectJSON[id];
+  if(!cloudDb) return;
+  cloudDb.collection('projects').doc(id).delete().catch(()=>{ /* offline -- best effort, nothing else to retry from here */ });
 }
 // Runs once after the very first (local/offline) render so the UI paints
 // instantly on every load, then "catches up" to the shared cloud copy a
@@ -4568,8 +4579,9 @@ function wireHub(){
   $$('[data-del-project]').forEach(b=> b.onclick = ()=>{
     const pr = state.projects.find(p=>p.id===b.dataset.delProject);
     if(!confirm(tf('ลบโปรเจ็ค "'+(pr?pr.name:'')+'" และข้อมูลทั้งหมด (แผนงาน บันทึก รูปภาพ) หรือไม่?','Delete project "'+(pr?pr.name:'')+'" and all its data (plan, logs, photos)?'))) return;
-    state.projects = state.projects.filter(p=>p.id!==b.dataset.delProject);
-    saveData(); render(); toast(tf('ลบโปรเจ็คแล้ว','Project deleted'));
+    const delId = b.dataset.delProject;
+    state.projects = state.projects.filter(p=>p.id!==delId);
+    saveData(); deleteCloudProject(delId); render(); toast(tf('ลบโปรเจ็คแล้ว','Project deleted'));
   });
   $$('[data-copy-field]').forEach(b=> b.onclick = async ()=>{
     const link = fieldLink(b.dataset.copyField);
