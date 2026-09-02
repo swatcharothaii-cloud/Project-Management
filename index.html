@@ -594,6 +594,30 @@ input.gl-mini-input[type="date"]::-webkit-calendar-picker-indicator{padding:2px;
 .badge.mps-payment{background:var(--purple-50);color:var(--purple-700)}
 .badge.mps-delivery{background:var(--blue-50);color:var(--blue-600)}
 .badge.mps-cancelled{background:var(--coral-50);color:var(--coral-600)}
+/* Purchasing Plan (แผนสั่งของ) order/payment status vocabulary -- its own
+   5-state order status (incl. "no need to order" for labor/service lines)
+   and separate payment-status axis, kept visually distinct from the Master
+   Plan chart's mps-* set above even though a couple of colors repeat. */
+.badge.pp-not-ordered{background:var(--amber-50);color:var(--amber-600)}
+.badge.pp-shipping{background:var(--blue-50);color:var(--blue-600)}
+.badge.pp-ordered{background:var(--mint-50);color:var(--mint-600)}
+.badge.pp-cancelled{background:var(--coral-50);color:var(--coral-600)}
+.badge.pp-noneed{background:var(--surface-2);color:var(--ink-500)}
+.badge.pp-pay-pending{background:var(--amber-50);color:var(--amber-600)}
+.badge.pp-pay-paid{background:var(--mint-50);color:var(--mint-600)}
+.badge.pp-pay-cancelled{background:var(--coral-50);color:var(--coral-600)}
+/* Color the order/payment <select> itself (not just a badge) so a row's
+   status reads at a glance while still being a plain, immediately-editable
+   dropdown -- no extra click into a separate "edit" mode needed. */
+select.pp-status-select{border-radius:6px;font-weight:600;font-size:12.5px}
+select.pp-status-select.pp-not-ordered,select.pp-status-select.pp-pay-pending{background:var(--amber-50);color:var(--amber-600);border-color:var(--amber-500)}
+select.pp-status-select.pp-shipping{background:var(--blue-50);color:var(--blue-600);border-color:var(--blue-500)}
+select.pp-status-select.pp-ordered,select.pp-status-select.pp-pay-paid{background:var(--mint-50);color:var(--mint-600);border-color:var(--mint-500)}
+select.pp-status-select.pp-cancelled,select.pp-status-select.pp-pay-cancelled{background:var(--coral-50);color:var(--coral-600);border-color:var(--coral-500)}
+select.pp-status-select.pp-noneed{background:var(--surface-2);color:var(--ink-500)}
+.pp-table tr.pp-row-overdue td{background:var(--coral-50)}
+.pp-table tr.pp-row-duesoon td{background:var(--amber-50)}
+.pp-table input,.pp-table select{font-size:12.5px;padding:4px 6px;border:1px solid var(--line);border-radius:6px;background:var(--surface);color:var(--ink-700);box-sizing:border-box}
 
 /* ---------- Kanban ----------
    The 4 status columns are a fixed set (not a variable-length list), so they
@@ -3889,6 +3913,34 @@ const NECESSITY_TYPES = [
   {v:'additional', label:tf('งานเพิ่มเติม','Additional work')},
   {v:'wrongorder', label:tf('เนื่องจากสั่งของผิด','Due to a wrong order')},
 ];
+// Vocabulary for the "แผนสั่งของ" (Purchasing Plan) screen -- a per-project,
+// per-BOQ-item material ordering roadmap modelled on a real purchasing-plan
+// spreadsheet the user shared (columns: quotation qty vs. drawing qty,
+// supplier, lead time -> order-by date, order status, delivery source,
+// payment status). Deliberately its own vocabulary rather than reusing
+// MP_PROCURE_STATUS_DEFS above, since that one models "no linked material
+// request yet" for the Master Plan chart's inline cells, while this models
+// a richer advance-ordering workflow with its own 5-state order status
+// (including "no need to order" for labor/service line items) and a
+// separate payment-status axis. th/en resolved live via tf() at render time,
+// same convention as MP_PROCURE_STATUS_DEFS, so no rebuildLangConstants()
+// entry is needed.
+const PP_ORDER_STATUS = [
+  {v:'not_ordered', th:'ยังไม่สั่ง', en:'Not ordered', cls:'pp-not-ordered'},
+  {v:'shipping', th:'กำลังจัดส่ง', en:'Shipping', cls:'pp-shipping'},
+  {v:'ordered', th:'สั่งแล้ว', en:'Ordered', cls:'pp-ordered'},
+  {v:'cancelled', th:'ยกเลิก', en:'Cancelled', cls:'pp-cancelled'},
+  {v:'no_need', th:'ไม่ต้องสั่ง (งานบริการ/แรงงาน)', en:'N/A (service / labor)', cls:'pp-noneed'},
+];
+const PP_PAYMENT_STATUS = [
+  {v:'pending', th:'รอจ่าย', en:'Pending payment', cls:'pp-pay-pending'},
+  {v:'paid', th:'จ่ายแล้ว', en:'Paid', cls:'pp-pay-paid'},
+  {v:'cancelled', th:'ยกเลิก', en:'Cancelled', cls:'pp-pay-cancelled'},
+];
+const PP_DELIVERY_SOURCE = [
+  {v:'domestic', th:'ในประเทศ', en:'Domestic'},
+  {v:'import', th:'นำเข้า/ต่างประเทศ', en:'Import'},
+];
 // NOTE: ROLE_LABEL/STATUS_LABEL/PSTATUS above are captured once at parse time
 // using tf(), which reads state.lang at that instant. rebuildLangConstants()
 // re-evaluates them after a language switch so labels update immediately.
@@ -4121,6 +4173,7 @@ const TABS = [
   {id:'dashboard',label:tf('แดชบอร์ด','Dashboard'),ic:'📊'},
   {id:'masterplan',label:tf('แผนงานหลัก','Master Plan'),ic:'📋'},
   {id:'procure',label:tf('จัดซื้อวัสดุ','Procurement'),ic:'🛒'},
+  {id:'purchaseplan',label:tf('แผนสั่งของ','Purchasing Plan'),ic:'📦'},
   {id:'costlog',label:tf('บันทึกต้นทุนจัดซื้อ','Cost Log'),ic:'🧾'},
   {id:'budget',label:tf('งบประมาณ','Budget'),ic:'💰'},
   {id:'dailylog',label:tf('บันทึกประจำวัน','Daily Log'),ic:'📝'},
@@ -4231,6 +4284,7 @@ function renderScreen(){
     case 'masterplan': return renderMasterPlan();
     case 'dailylog': return renderDailyLog();
     case 'procure': return renderProcure();
+    case 'purchaseplan': return renderPurchasePlan();
     case 'costlog': return renderCostLog();
     case 'budget': return renderBudget();
     case 'dashboard': return renderDashboard();
@@ -5062,6 +5116,35 @@ function itemProcureInfo(item){
 // Target order date: 5 days before the item's planned start date, so there is
 // a lead-time reminder even before any material request has been created yet.
 function itemOrderDate(item){ return item.startDate? addDays(item.startDate,-5) : ''; }
+// ---- Purchasing Plan (แผนสั่งของ) helpers ----
+// Need-on-site date is simply the item's own Master Plan start date -- the
+// purchasing plan doesn't keep a separate copy of it, so the two screens can
+// never drift out of sync with each other.
+function ppNeedOnSiteDate(item){ return item.startDate || ''; }
+// Order-by date = need-on-site date minus this item's own lead time (days).
+// Left blank when either piece is missing (no start date yet, or lead time
+// not filled in) rather than guessing a default, since an invented lead time
+// would produce a silently-wrong "order by" date that looks authoritative.
+function ppOrderByDate(item){
+  const need = ppNeedOnSiteDate(item);
+  const lt = Number(item.ppLeadTimeDays)||0;
+  if(!need || !lt) return '';
+  return addDays(need,-lt);
+}
+// Alert only fires for items still sitting at "not ordered" -- once an item
+// is ordered/shipping/cancelled/marked no-need, there is nothing left to
+// chase, so the alert column goes quiet for it. 'overdue' = order-by date
+// already passed; 'duesoon' = within 3 days of it.
+function ppAlertStatus(item){
+  const status = item.ppOrderStatus || 'not_ordered';
+  if(status!=='not_ordered') return '';
+  const orderBy = ppOrderByDate(item);
+  if(!orderBy) return '';
+  const today = todayStr();
+  if(orderBy<today) return 'overdue';
+  if(daysBetween(today,orderBy)<=3) return 'duesoon';
+  return '';
+}
 function fmtMonthYear(dateStr){
   const d = parseYMD(dateStr);
   return state.lang==='en' ? (ENMONTHS[d.getMonth()]+' '+d.getFullYear()) : (THMONTHS[d.getMonth()]+' '+(d.getFullYear()+543));
@@ -7322,6 +7405,120 @@ function wireCostLog(proj=P()){
   });
 }
 
+/* ============================= SCREEN: PURCHASING PLAN (แผนสั่งของ) =============================
+   Per-project material ordering roadmap modelled on a real purchasing-plan
+   spreadsheet the user shared. One row per BOQ item (never a separate,
+   hand-maintained list -- so it can never drift out of sync with the BOQ),
+   grouped by the same BOQ category headings and the same itemCode sort order
+   as the Budget and Master Plan & BOQ screens (boqCategoryGroups()), which is
+   what keeps "No." identical to the item's own BOQ code everywhere in the
+   app. Need-on-site date is read straight from the item's Master Plan start
+   date; order-by date is computed from that minus the item's own lead time.
+   All the purchasing-specific fields (quotation/drawing qty, variance note,
+   supplier, lead time, actual order qty, PO no., order status, delivery
+   source, payment status, notes) live directly on the BOQ item itself
+   (pp-prefixed fields), the same "extra fields bolted onto the BOQ item"
+   pattern already used for procureOrderDateManual/etc. on the Master Plan
+   chart -- so there's exactly one BOQ item record per line, never a second
+   shadow copy that could disagree with it. */
+function renderPurchasePlan(proj=P()){
+  if(!proj.boq.length){
+    return `<div class="page-head"><div><h2>${tf('แผนสั่งของ (Purchasing Plan)','Purchasing Plan')}</h2></div></div><div class="empty"><span class="ic">📦</span>${tf('เพิ่มรายการงานในแผนงานหลักก่อน เพื่อเริ่มวางแผนสั่งของ','Add work items in the Master Plan first to start planning material orders')}</div>`;
+  }
+  const groups = boqCategoryGroups(proj.boq);
+  let overdueCount=0, dueSoonCount=0, notOrderedCount=0;
+  const rows = groups.map(g=>{
+    const label = g.cat? escapeHtml(g.cat) : tf('ไม่ระบุหมวดหมู่','Uncategorized');
+    const catHeader = `<tr class="budget-cat-row"><td colspan="17">📁 ${label}</td></tr>`;
+    const itemRows = g.items.map(item=>{
+      const orderStatus = item.ppOrderStatus || 'not_ordered';
+      const orderStatusDef = PP_ORDER_STATUS.find(s=>s.v===orderStatus) || PP_ORDER_STATUS[0];
+      const paymentStatus = item.ppPaymentStatus || 'pending';
+      const needDate = ppNeedOnSiteDate(item);
+      const orderByDate = ppOrderByDate(item);
+      const alert = ppAlertStatus(item);
+      if(alert==='overdue') overdueCount++; else if(alert==='duesoon') dueSoonCount++;
+      if(orderStatus==='not_ordered') notOrderedCount++;
+      const alertHtml = alert==='overdue'? `<span class="badge pp-cancelled">🔴 ${tf('เกินกำหนด','Overdue')}</span>`
+        : alert==='duesoon'? `<span class="badge pp-not-ordered">🟡 ${tf('ใกล้ถึงกำหนด','Due soon')}</span>` : '';
+      const quotationQty = (item.ppQuotationQty!=null && item.ppQuotationQty!=='') ? item.ppQuotationQty : item.qtyTotal;
+      const drawingQty = item.ppDrawingQty!=null? item.ppDrawingQty : '';
+      // Highlight the drawing-qty/variance-note cells whenever a drawing qty
+      // has been entered and disagrees with the quotation qty -- these are
+      // exactly the "numbers worth double-checking before ordering for real"
+      // cells the source spreadsheet calls out with a soft-yellow fill.
+      const qtyMismatch = drawingQty!==''&&Number(drawingQty)!==Number(quotationQty);
+      return `<tr data-pp-row="${item.id}" class="${alert==='overdue'?'pp-row-overdue':alert==='duesoon'?'pp-row-duesoon':''}">
+        <td class="tabular hint">${escapeHtml(item.itemCode||'-')}</td>
+        <td>${escapeHtml(item.name)}</td>
+        <td>${escapeHtml(item.unit)}</td>
+        <td><input type="number" step="0.01" data-pp-field="ppQuotationQty" value="${quotationQty==null?'':quotationQty}" style="width:80px"></td>
+        <td${qtyMismatch?' style="background:var(--amber-50)"':''}><input type="number" step="0.01" data-pp-field="ppDrawingQty" value="${drawingQty}" style="width:80px"></td>
+        <td${qtyMismatch?' style="background:var(--amber-50)"':''}><input type="text" data-pp-field="ppVarianceNote" value="${escapeHtml(item.ppVarianceNote||'')}" placeholder="${tf('หมายเหตุเปรียบเทียบ','comparison note')}" style="width:160px"></td>
+        <td class="tabular hint" title="${tf('อัตโนมัติจากวันเริ่มงานในแผนงานหลัก','Automatic from the Master Plan start date')}">${needDate? fmtDateShort(needDate) : '-'}</td>
+        <td><input type="text" data-pp-field="ppSupplier" value="${escapeHtml(item.ppSupplier||'')}" placeholder="${tf('ซัพพลายเออร์','supplier')}" style="width:130px"></td>
+        <td><input type="number" min="0" step="1" data-pp-field="ppLeadTimeDays" value="${item.ppLeadTimeDays==null?'':item.ppLeadTimeDays}" style="width:60px"></td>
+        <td class="tabular hint" title="${tf('คำนวณอัตโนมัติ = วันที่ต้องถึงหน้างาน − Lead Time','Computed automatically = need-on-site date − lead time')}">${orderByDate? fmtDateShort(orderByDate) : '-'}</td>
+        <td>${alertHtml}</td>
+        <td><input type="number" step="0.01" data-pp-field="ppActualOrderQty" value="${item.ppActualOrderQty==null?'':item.ppActualOrderQty}" style="width:80px"></td>
+        <td><input type="text" data-pp-field="ppPoNo" value="${escapeHtml(item.ppPoNo||'')}" placeholder="${tf('เลขที่ PO','PO no.')}" style="width:110px"></td>
+        <td><select data-pp-field="ppOrderStatus" class="pp-status-select ${orderStatusDef.cls}">${PP_ORDER_STATUS.map(s=>`<option value="${s.v}" ${orderStatus===s.v?'selected':''}>${escapeHtml(tf(s.th,s.en))}</option>`).join('')}</select></td>
+        <td><select data-pp-field="ppDeliverySource"><option value="">-</option>${PP_DELIVERY_SOURCE.map(s=>`<option value="${s.v}" ${item.ppDeliverySource===s.v?'selected':''}>${escapeHtml(tf(s.th,s.en))}</option>`).join('')}</select></td>
+        <td><select data-pp-field="ppPaymentStatus" class="pp-status-select ${(PP_PAYMENT_STATUS.find(s=>s.v===paymentStatus)||PP_PAYMENT_STATUS[0]).cls}">${PP_PAYMENT_STATUS.map(s=>`<option value="${s.v}" ${paymentStatus===s.v?'selected':''}>${escapeHtml(tf(s.th,s.en))}</option>`).join('')}</select></td>
+        <td><input type="text" data-pp-field="ppNotes" value="${escapeHtml(item.ppNotes||'')}" placeholder="${tf('หมายเหตุ','note')}" style="width:140px"></td>
+      </tr>`;
+    }).join('');
+    return catHeader + itemRows;
+  }).join('');
+  const alertNote = overdueCount? `<div class="role-note" style="margin-bottom:16px;background:var(--coral-50);border-color:var(--coral-500);color:var(--coral-600)">🔴 ${overdueCount} ${tf('รายการเกินกำหนดสั่งซื้อแล้วแต่ยังไม่ได้สั่ง','item(s) are past their order-by date and still not ordered')}${dueSoonCount? ` · 🟡 ${dueSoonCount} ${tf('รายการใกล้ถึงกำหนด (ภายใน 3 วัน)','due within 3 days')}` : ''}</div>`
+    : dueSoonCount? `<div class="role-note" style="margin-bottom:16px;background:var(--amber-50);border-color:var(--amber-500)">🟡 ${dueSoonCount} ${tf('รายการใกล้ถึงกำหนดสั่งซื้อ (ภายใน 3 วัน)','item(s) are due to be ordered within 3 days')}</div>` : '';
+  return `
+  <div class="page-head">
+    <div><h2>${tf('แผนสั่งของ (Purchasing Plan)','Purchasing Plan')}</h2><div class="sub">${tf('แผนสั่งของเข้าหน้างานของทุกรายการใน BOQ — วันที่ต้องถึงหน้างานดึงจากแผนงานหลักอัตโนมัติ ส่วนวันที่ต้องสั่งซื้อคำนวณจาก Lead Time ที่กรอกต่อรายการ','Material ordering plan for every BOQ item — the need-on-site date is pulled automatically from the Master Plan, and the order-by date is computed from the lead time entered per item')}</div></div>
+  </div>
+  ${alertNote}
+  <div class="grid cols-auto" style="margin-bottom:16px">
+    <div class="card kpi"><div class="stat"><span class="lbl">📦 ${tf('รายการทั้งหมด','Total items')}</span><span class="num tabular" style="font-size:19px">${proj.boq.length}</span></div></div>
+    <div class="card kpi"><div class="stat"><span class="lbl">🟡 ${tf('ยังไม่ได้สั่ง','Not yet ordered')}</span><span class="num tabular" style="font-size:19px">${notOrderedCount}</span></div></div>
+    <div class="card kpi"><div class="stat"><span class="lbl">🔴 ${tf('เกินกำหนดสั่งซื้อ','Overdue to order')}</span><span class="num tabular" style="font-size:19px;color:${overdueCount?'var(--coral-600)':'inherit'}">${overdueCount}</span></div></div>
+  </div>
+  <div class="table-wrap"><table class="budget-table pp-table"><thead><tr>
+    <th>${tf('No.','No.')}</th><th>${tf('รายการวัสดุ/อุปกรณ์','Item')}</th><th>${tf('หน่วย','Unit')}</th>
+    <th>${tf('จำนวนตามใบเสนอราคา','Quotation Qty')}</th><th>${tf('จำนวนตามแบบขออนุญาต','Drawing Qty')}</th><th>${tf('ส่วนต่าง/หมายเหตุ','Variance / Note')}</th>
+    <th>${tf('วันที่ต้องถึงหน้างาน','Need-on-Site Date')}</th><th>${tf('ซัพพลายเออร์','Supplier')}</th><th>${tf('Lead Time (วัน)','Lead Time (days)')}</th>
+    <th>${tf('วันที่ต้องสั่งซื้อ','Order-by Date')}</th><th>${tf('สถานะแจ้งเตือน','Alert')}</th>
+    <th>${tf('จำนวนที่สั่งจริง','Actual Order Qty')}</th><th>${tf('เลขที่ใบสั่งซื้อ','PO No.')}</th><th>${tf('สถานะการสั่งของ','Order Status')}</th>
+    <th>${tf('แหล่งจัดส่ง','Delivery Source')}</th><th>${tf('สถานะการจ่ายเงิน','Payment Status')}</th><th>${tf('หมายเหตุ','Notes')}</th>
+  </tr></thead><tbody>${rows}</tbody></table></div>
+  `;
+}
+function wirePurchasePlan(proj=P()){
+  $$('[data-pp-row]').forEach(row=>{
+    const item = proj.boq.find(i=>i.id===row.dataset.ppRow);
+    if(!item) return;
+    row.querySelectorAll('input[data-pp-field]').forEach(inp=>{
+      const field = inp.dataset.ppField;
+      inp.oninput = ()=>{
+        item[field] = inp.value===''? null : (inp.type==='number'? parseNumLoose(inp.value) : inp.value);
+      };
+      // Fields that feed a computed column (need-on-site/order-by date,
+      // overdue alert, the quotation-vs-drawing mismatch highlight) need a
+      // full re-render on blur to refresh those read-only cells; free-text
+      // fields (supplier, PO no., notes) just save quietly so a keystroke
+      // never steals focus by rebuilding the row underneath the cursor.
+      const affectsComputed = field==='ppLeadTimeDays' || field==='ppQuotationQty' || field==='ppDrawingQty';
+      inp.onblur = ()=>{ saveData(); if(affectsComputed) render(); };
+    });
+    row.querySelectorAll('select[data-pp-field]').forEach(sel=>{
+      sel.onchange = ()=>{
+        item[sel.dataset.ppField] = sel.value;
+        saveData();
+        render(); // order status affects the alert column/KPI counts/row highlight
+      };
+    });
+  });
+}
+
 /* ============================= SCREEN: PURCHASING HUB (top-level) =============================
    Lets a user log a purchase for ANY project without first opening that
    project. It's just a project picker sitting on top of the exact same
@@ -8226,6 +8423,7 @@ function wireScreen(){
   if(state.tab==='masterplan') wireMasterPlan();
   else if(state.tab==='dailylog') wireDailyLog();
   else if(state.tab==='procure') wireProcure();
+  else if(state.tab==='purchaseplan') wirePurchasePlan();
   else if(state.tab==='costlog') wireCostLog();
   else if(state.tab==='budget') wireBudget();
   else if(state.tab==='report') wireReport();
