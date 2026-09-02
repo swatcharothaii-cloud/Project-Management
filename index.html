@@ -368,6 +368,7 @@ tbody tr:hover{background:var(--surface-2)}
    separate "table" view], progress%. */
 .gantt-label-col.item-cols{display:grid;grid-template-columns:1fr 92px 92px 30px 92px 92px 98px 58px;column-gap:6px;align-items:center}
 .gantt-label-col.item-cols>div{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:10.5px;color:var(--ink-500)}
+.gantt-label-col.item-cols .gl-name-cell{display:flex;align-items:center;gap:8px;min-width:0}
 .gantt-label-col.item-cols .gl-taskwrap{min-width:0;overflow:hidden}
 .gantt-label-col.item-cols .gl-task{font-size:12px;color:var(--ink-900);display:flex;align-items:flex-start;gap:4px}
 .gantt-label-col.item-cols .gl-task-name{min-width:0;flex:1;white-space:normal;overflow-wrap:break-word;line-height:1.25;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
@@ -4954,13 +4955,50 @@ const COSTLOG_WORK_NATURE = [
 ];
 function costLogWorkNatureInfo(v){ return COSTLOG_WORK_NATURE.find(w=>w.v===v) || COSTLOG_WORK_NATURE[0]; }
 function costLogWorkNatureLabel(v){ const w=costLogWorkNatureInfo(v); return tf(w.th,w.en); }
+// Natural/numeric compare for BOQ item codes like "5.2" vs "5.10" -- a plain
+// string compare would put "5.10" before "5.2" (lexicographic '1' < '2'),
+// which doesn't match the real BOQ document's own numbering. Splits each
+// code on '.' and compares part-by-part as numbers; a shorter code (e.g.
+// "5", a category header line) sorts before its own sub-items ("5.1"). Items
+// with no code at all are handled by the caller, not here.
+function compareBoqCode(a,b){
+  const pa = String(a).split('.').filter(s=>s!=='');
+  const pb = String(b).split('.').filter(s=>s!=='');
+  const len = Math.max(pa.length, pb.length);
+  for(let i=0;i<len;i++){
+    if(pa[i]===undefined) return -1;
+    if(pb[i]===undefined) return 1;
+    const na = parseFloat(pa[i]), nb = parseFloat(pb[i]);
+    if(isNaN(na) || isNaN(nb)){ const c = pa[i].localeCompare(pb[i]); if(c) return c; continue; }
+    if(na!==nb) return na-nb;
+  }
+  return 0;
+}
+// Groups BOQ items by category (app's own fixed category order first, then
+// any custom categories in first-seen order), and -- within each category --
+// sorts by the item's own itemCode (the real BOQ document's line number, e.g.
+// "5.1", "5.2", "5.10") rather than leaving them in whatever order they were
+// added/imported in. This is the single shared function behind both the
+// Master Plan & BOQ screen and the Budget screen, so sorting here is what
+// keeps their item order (and the "No." each independently counts off)
+// identical to each other and to the source BOQ -- items without any code
+// keep their original relative order and sort after every coded item in the
+// same category (Array#sort is stable, so a plain "has code?" comparison is
+// enough to push them to the end without disturbing their own order).
 function boqCategoryGroups(boq){
   const used = Array.from(new Set(boq.map(i=>i.category||'').filter(Boolean)));
   const extra = used.filter(c=>!BOQ_CATEGORIES.includes(c));
   const order = BOQ_CATEGORIES.concat(extra);
-  const groups = order.map(cat=>({cat, items:boq.filter(i=>(i.category||'')===cat)})).filter(g=>g.items.length);
+  const sortByCode = (items)=> items.slice().sort((a,b)=>{
+    const ca = a.itemCode||'', cb = b.itemCode||'';
+    if(!ca && !cb) return 0;
+    if(!ca) return 1;
+    if(!cb) return -1;
+    return compareBoqCode(ca,cb);
+  });
+  const groups = order.map(cat=>({cat, items:sortByCode(boq.filter(i=>(i.category||'')===cat))})).filter(g=>g.items.length);
   const uncategorized = boq.filter(i=>!i.category);
-  if(uncategorized.length) groups.push({cat:'', items:uncategorized});
+  if(uncategorized.length) groups.push({cat:'', items:sortByCode(uncategorized)});
   return groups;
 }
 const SCHEDULE_STATUS_LABEL = {
@@ -5198,9 +5236,26 @@ function ganttChartHtml(groups){
       } else {
         timelineInner = `<span class="gantt-nodate-placeholder" data-edit-item="${item.id}">${tf('ยังไม่ระบุวันที่ — กดแก้ไขเพื่อกำหนดวันเริ่ม/สิ้นสุด','No dates yet -- click edit to set start/end')}</span>`;
       }
+      // Reference-photo thumbnail box for this row -- data-mp-thumb is an <img>
+      // that refreshMasterPlanThumbs() (called from wireMasterPlan) fills in
+      // asynchronously from IndexedDB/cloud storage once the row is in the DOM,
+      // same pattern as the item-edit modal's own photo previews. Clicking it
+      // opens the full gallery when photos already exist (data-open-gallery),
+      // or jumps straight to a file picker to attach the first one when it
+      // doesn't (data-quick-attach) -- both handlers already live in
+      // wireMasterPlan, this box is what was missing to reach them.
+      const thumbPhotoIds = item.refPhotoIds||[];
+      const hasThumb = thumbPhotoIds.length>0;
+      const thumbBox = `<div class="mp-thumb" data-stop-card-open ${hasThumb? `data-open-gallery="${item.id}"` : `data-quick-attach="${item.id}"`} title="${tf('ภาพชุดงาน','Reference photos')}">
+        ${hasThumb? `<img data-mp-thumb="${item.id}" alt="">` : `<span class="mp-thumb-empty">📷</span>`}
+        ${thumbPhotoIds.length>1? `<span class="mp-thumb-count">+${thumbPhotoIds.length-1}</span>` : ''}
+      </div>`;
       return `<div class="gantt-row">
         <div class="gantt-label-col item-cols" style="width:${labelW}px" data-edit-item="${item.id}">
-          <div class="gl-taskwrap"><div class="gl-task"><span class="mp-status-dot ${status}"></span><span class="mp-procure-dot ${procStatusKey}"></span><span class="gl-task-name">${escapeHtml(item.name)}</span></div>${sub? `<div class="gl-sub">${escapeHtml(sub)}</div>` : ''}</div>
+          <div class="gl-name-cell">
+            ${thumbBox}
+            <div class="gl-taskwrap"><div class="gl-task"><span class="mp-status-dot ${status}"></span><span class="mp-procure-dot ${procStatusKey}"></span><span class="gl-task-name">${escapeHtml(item.name)}</span></div>${sub? `<div class="gl-sub">${escapeHtml(sub)}</div>` : ''}</div>
+          </div>
           <div data-stop-card-open><input type="date" class="gl-mini-input" data-date-item="${item.id}" data-date-field="startDate" value="${item.startDate||''}" title="${tf('วันเริ่ม (แก้ไขได้)','Start date (editable)')}"></div>
           <div data-stop-card-open><input type="date" class="gl-mini-input" data-date-item="${item.id}" data-date-field="endDate" value="${item.endDate||''}" title="${tf('วันสิ้นสุด (แก้ไขได้)','End date (editable)')}"></div>
           <div class="gl-num">${hasDates? days+tf('ว','d') : '-'}</div>
@@ -7713,6 +7768,13 @@ function renderBudget(){
   }).join('');
   const totalActualAll = projectActualCostTotal();
   const remaining = totalBoqBudget - totalActualAll;
+  // Whole-project total of confirmed cost-log entries (not just the ones
+  // linked to a category, unlike costLogCategoryTotals() above) -- shown as
+  // its own KPI card next to the purchasing cap so the cap's headline number
+  // has its actual driver sitting right beside it, instead of only being
+  // visible as small per-category notes scattered down the table.
+  let costLogTotalAll=0, costLogCountAll=0;
+  (proj.costLog||[]).forEach(c=>{ if(c.status==='pending') return; costLogTotalAll += (c.total||0); costLogCountAll++; });
   const purchaseCap = totalBoqBudget*0.7;
   const purchaseWarnAt = totalBoqBudget*0.49;
   const capPct = purchaseCap>0? (totalActualAll/purchaseCap*100) : 0;
@@ -7734,6 +7796,9 @@ function renderBudget(){
     <div class="card kpi"><div class="stat"><span class="lbl">🛒 ${tf('งบจัดซื้อ (เพดาน 70% ของ BOQ)','Purchasing cap (70% of BOQ)')}</span><span class="num tabular" style="font-size:19px">${fmtCurrency(purchaseCap)}</span></div>
       <div class="progress ${capLevel==='over'?'bad':capLevel==='warn'?'warn':'ok'}" style="margin-top:8px"><i style="width:${clamp(capPct,0,100)}%"></i></div>
       <div class="sub" style="margin-top:4px">${tf('ใช้ไปแล้ว','Used')} ${fmtNum(clamp(capPct,0,999),0)}% ${tf('ของเพดาน','of cap')} · ${tf('แจ้งเตือนที่','warns at')} ${fmtCurrency(purchaseWarnAt)}</div>
+    </div>
+    <div class="card kpi"><div class="stat"><span class="lbl">🧾 ${tf('ต้นทุนจากบันทึกจัดซื้อ','Cost log spend')}</span><span class="num tabular" style="font-size:19px">${fmtCurrency(costLogTotalAll)}</span></div>
+      <div class="sub" style="margin-top:4px">${costLogCountAll} ${tf('รายการที่บันทึกไว้','logged entries')}</div>
     </div>
   </div>
   <div class="table-wrap"><table class="budget-table"><thead><tr>
