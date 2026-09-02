@@ -40,6 +40,7 @@
   --blue-600:#2563D9;
   --blue-500:#3B82F6;
   --blue-50:#EAF1FE;
+  --weekend-tint:rgba(30,27,49,.09);
   --shadow-sm:0 1px 2px rgba(30,27,49,.06),0 1px 1px rgba(30,27,49,.04);
   --shadow-md:0 8px 24px -8px rgba(79,70,229,.22);
   --shadow-lg:0 20px 48px -12px rgba(30,27,49,.28);
@@ -77,6 +78,7 @@
     --blue-600:#9DBBFF;
     --blue-500:#5B8DF5;
     --blue-50:#16233F;
+    --weekend-tint:rgba(0,0,0,.28);
     --shadow-sm:0 1px 2px rgba(0,0,0,.4);
     --shadow-md:0 8px 24px -8px rgba(0,0,0,.5);
     --shadow-lg:0 20px 48px -12px rgba(0,0,0,.6);
@@ -105,6 +107,7 @@
   --amber-600:#FFD27D;
   --amber-500:#FBBF3F;
   --amber-50:#3A2C0F;
+  --weekend-tint:rgba(0,0,0,.28);
   --shadow-sm:0 1px 2px rgba(0,0,0,.4);
   --shadow-md:0 8px 24px -8px rgba(0,0,0,.5);
   --shadow-lg:0 20px 48px -12px rgba(0,0,0,.6);
@@ -419,7 +422,7 @@ input.gl-mini-input[type="date"]::-webkit-calendar-picker-indicator{padding:2px;
 .gantt-month-band{flex-shrink:0;font-size:11px;font-weight:600;color:var(--ink-500);text-align:center;display:flex;align-items:center;justify-content:center;border-right:1px solid var(--line);border-bottom:1px solid var(--line);white-space:nowrap;overflow:hidden;box-sizing:border-box}
 .gantt-days{display:flex;height:20px;box-sizing:border-box}
 .gantt-daycell{flex-shrink:0;font-size:9.5px;color:var(--ink-300);text-align:center;display:flex;align-items:center;justify-content:center;border-right:1px solid var(--line-soft);box-sizing:border-box}
-.gantt-daycell.weekend{background:var(--surface-2)}
+.gantt-daycell.weekend{background:var(--weekend-tint)}
 .gantt-bar{position:absolute;top:18px;height:24px;border-radius:6px;overflow:visible;cursor:grab;box-shadow:var(--shadow-sm);display:flex;align-items:center;touch-action:none}
 .gantt-bar.dragging{cursor:grabbing;box-shadow:0 4px 14px rgba(20,18,36,.28);z-index:3;opacity:.92}
 .gantt-bar.on-track{background:var(--blue-500)}
@@ -5119,7 +5122,7 @@ function ganttChartHtml(groups){
       if(dow!==0 && dow!==6) continue;
       const s = i*dayW, e = (i+1)*dayW;
       if(s>cursor) stops.push(`transparent ${cursor}px`, `transparent ${s}px`);
-      stops.push(`rgba(20,18,36,.035) ${s}px`, `rgba(20,18,36,.035) ${e}px`);
+      stops.push(`var(--weekend-tint) ${s}px`, `var(--weekend-tint) ${e}px`);
       cursor = e;
     }
     if(stops.length){
