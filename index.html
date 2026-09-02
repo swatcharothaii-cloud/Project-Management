@@ -417,10 +417,17 @@ input.gl-mini-input[type="date"]::-webkit-calendar-picker-indicator{padding:2px;
 .gantt-row:not(.gantt-header-row):not(.gantt-cat-row) .gantt-timeline-col{height:60px;border-bottom:1px solid var(--line-soft)}
 .gantt-row:not(.gantt-header-row):not(.gantt-cat-row) .gantt-label-col{height:60px;border-bottom:1px solid var(--line-soft)}
 .gantt-cat-row .gantt-timeline-col,.gantt-cat-row .gantt-label-col{height:28px;background:var(--surface-2)}
-.gantt-header-row .gantt-timeline-col{height:42px}
-.gantt-header-row .gantt-label-col{height:42px;border-bottom:1px solid var(--line)}
+.gantt-header-row .gantt-timeline-col{height:58px}
+.gantt-header-row .gantt-label-col{height:58px;border-bottom:1px solid var(--line)}
 .gantt-months{display:flex;height:22px;box-sizing:border-box}
 .gantt-month-band{flex-shrink:0;font-size:11px;font-weight:600;color:var(--ink-500);text-align:center;display:flex;align-items:center;justify-content:center;border-right:1px solid var(--line);border-bottom:1px solid var(--line);white-space:nowrap;overflow:hidden;box-sizing:border-box}
+/* Day-of-week letters (จ/อ/พ/พฤ/ศ/ส/อา), one strip below the month band and
+   above the day-of-month numbers -- weekend cells get the same tint as the
+   day-number row below them plus red text, so Saturday/Sunday reads clearly
+   before the reader even gets to the numbers or the bars underneath. */
+.gantt-weekdays{display:flex;height:16px;box-sizing:border-box}
+.gantt-weekday-cell{flex-shrink:0;font-size:9px;font-weight:600;color:var(--ink-500);text-align:center;display:flex;align-items:center;justify-content:center;border-right:1px solid var(--line-soft);border-bottom:1px solid var(--line-soft);box-sizing:border-box}
+.gantt-weekday-cell.weekend{background:var(--weekend-tint);color:var(--coral-600)}
 .gantt-days{display:flex;height:20px;box-sizing:border-box}
 .gantt-daycell{flex-shrink:0;font-size:9.5px;color:var(--ink-300);text-align:center;display:flex;align-items:center;justify-content:center;border-right:1px solid var(--line-soft);box-sizing:border-box}
 .gantt-daycell.weekend{background:var(--weekend-tint)}
@@ -476,6 +483,19 @@ input.gl-mini-input[type="date"]::-webkit-calendar-picker-indicator{padding:2px;
 .photo-item input,.photo-item select{border:none;border-top:1px solid var(--line);border-radius:0;font-size:10.5px;padding:5px 7px;background:var(--surface);width:100%;display:block}
 .photo-item .rm{position:absolute;top:5px;right:5px;width:22px;height:22px;border-radius:50%;background:rgba(20,18,36,.62);color:#fff;border:none;font-size:12px;line-height:1}
 .photo-pdf-icon{height:98px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;font-size:28px;background:var(--surface-2);color:var(--ink-500)}
+/* Full-screen single-photo viewer opened by tapping a thumbnail in the
+   reference-photo gallery modal. Sits above .modal-bg (z-index:90) since it
+   opens from inside that modal and must cover it; closing the lightbox drops
+   back to the gallery grid rather than closing the whole modal. */
+.lightbox-overlay{position:fixed;inset:0;background:rgba(10,9,20,.92);z-index:95;display:flex;align-items:center;justify-content:center;flex-direction:column;padding:24px;box-sizing:border-box}
+.lightbox-overlay img{max-width:100%;max-height:calc(100% - 50px);object-fit:contain;border-radius:var(--radius-sm);box-shadow:var(--shadow-lg)}
+.lightbox-close{position:absolute;top:16px;right:16px;width:38px;height:38px;border-radius:50%;background:rgba(255,255,255,.12);color:#fff;border:none;font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center}
+.lightbox-close:hover{background:rgba(255,255,255,.22)}
+.lightbox-nav{position:absolute;top:50%;transform:translateY(-50%);width:46px;height:46px;border-radius:50%;background:rgba(255,255,255,.12);color:#fff;border:none;font-size:20px;cursor:pointer;display:flex;align-items:center;justify-content:center}
+.lightbox-nav:hover{background:rgba(255,255,255,.22)}
+.lightbox-nav.prev{left:16px}
+.lightbox-nav.next{right:16px}
+.lightbox-count{color:rgba(255,255,255,.75);font-size:12.5px;margin-top:12px;font-family:var(--font-mono)}
 .photo-pdf-name{font-size:9.5px;padding:0 6px;text-align:center;word-break:break-word;line-height:1.2;max-height:2.4em;overflow:hidden}
 .photo-drop.drag-over{background:var(--purple-100,var(--purple-50));border-color:var(--purple-500)}
 .progressline{height:6px;background:var(--line-soft);border-radius:999px;overflow:hidden}
@@ -4223,6 +4243,8 @@ function resetTransient(){
   pendingPhotos=[];
   editingItemId=null; itemDraft=null;
   creatingRequest=false; requestForm=null; procureDetailId=null; refGalleryItemId=null;
+  galleryLightboxIndex=null; galleryPhotoDataCache=[];
+  if(galleryLightboxKeyHandler){ document.removeEventListener('keydown', galleryLightboxKeyHandler); galleryLightboxKeyHandler=null; }
   projectDraft=null; editingProjectId=null; boqImport=null;
   dailyDraft=null; dailyEntryDraft={itemSearch:'',itemId:'',qty:'',note:''};
   contractorDraft=null; editingContractorId=null; contractorHistoryId=null;
@@ -5057,7 +5079,14 @@ function ganttDayWidth(totalDays){
   if(totalDays<=180) return 10;
   return 6;
 }
-const GANTT_HEADER_H = 42, GANTT_CAT_ROW_H = 28, GANTT_ITEM_ROW_H = 60;
+// Header grew from 2 stacked strips (month band + day-of-month numbers, 22+20)
+// to 3 (month band + day-of-week letters + day-of-month numbers, 22+16+20)
+// when the day-of-week row was added below -- keep this in sync with the
+// .gantt-months/.gantt-weekdays/.gantt-days heights in CSS and with the
+// header's own .gantt-timeline-col/.gantt-label-col height rule.
+const GANTT_HEADER_H = 58, GANTT_CAT_ROW_H = 28, GANTT_ITEM_ROW_H = 60;
+const THAI_DOW = ['อา','จ','อ','พ','พฤ','ศ','ส']; // indexed by Date#getDay() (0=Sun..6=Sat)
+const EN_DOW = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 // Renders the read-only (linked to a real material request) or editable
 // (no linked request -- e.g. purchased outside the full request/approval
 // flow) order-date / delivery-date / status cells shown inline in the
@@ -5183,12 +5212,14 @@ function ganttChartHtml(groups){
   }
   const showDayLabel = dayW>=14;
   const dayLabelEvery = dayW>=14? 1 : (dayW>=8? 7 : 14);
-  let dayTicks='';
+  let dayTicks='', weekdayTicks='';
   for(let i=0;i<totalDays;i++){
     const d = parseYMD(addDays(minDate,i));
-    const isWeekend = (d.getDay()===0||d.getDay()===6);
+    const dow = d.getDay();
+    const isWeekend = (dow===0||dow===6);
     const showLabel = showDayLabel || (i%dayLabelEvery===0);
     dayTicks += `<div class="gantt-daycell${isWeekend?' weekend':''}" style="width:${dayW}px">${showLabel? `<span>${d.getDate()}</span>` : ''}</div>`;
+    weekdayTicks += `<div class="gantt-weekday-cell${isWeekend?' weekend':''}" style="width:${dayW}px">${showLabel? tf(THAI_DOW[dow],EN_DOW[dow]) : ''}</div>`;
   }
 
   // Build rows top-to-bottom while tracking each item's vertical center in
@@ -5328,6 +5359,7 @@ function ganttChartHtml(groups){
         </div>
         <div class="gantt-timeline-col" style="width:${totalW}px">
           <div class="gantt-months">${months.map(m=>`<div class="gantt-month-band" style="width:${m.width}px">${m.label}</div>`).join('')}</div>
+          <div class="gantt-weekdays">${weekdayTicks}</div>
           <div class="gantt-days">${dayTicks}</div>
         </div>
       </div>
@@ -5723,21 +5755,35 @@ async function refreshMasterPlanThumbs(){
   }
 }
 let refGalleryItemId=null;
+let galleryLightboxIndex=null; // index into the currently-loaded gallery's photo list, or null when the lightbox is closed
+let galleryPhotoDataCache=[]; // dataURLs already resolved by refreshGalleryPhotos(), same order as item.refPhotoIds -- the lightbox reuses these instead of re-loading from IndexedDB/cloud
 function refGalleryModalHtml(){
   const item = P().boq.find(i=>i.id===refGalleryItemId);
   if(!item) return '';
+  // The lightbox is appended after the gallery modal's own markup (both
+  // returned together from renderModalRoot, since that function only ever
+  // returns one modal's HTML at a time) so opening it doesn't need its own
+  // slot in that precedence chain -- it just layers on top via z-index.
+  const lightbox = (galleryLightboxIndex!=null && galleryPhotoDataCache[galleryLightboxIndex])? `
+    <div class="lightbox-overlay" id="gallery-lightbox">
+      <button class="lightbox-close" id="lightbox-close" title="${tf('ปิด','Close')}">✕</button>
+      ${galleryPhotoDataCache.length>1? `<button class="lightbox-nav prev" id="lightbox-prev" title="${tf('รูปก่อนหน้า','Previous')}">‹</button>` : ''}
+      <img src="${galleryPhotoDataCache[galleryLightboxIndex]}" alt="">
+      ${galleryPhotoDataCache.length>1? `<button class="lightbox-nav next" id="lightbox-next" title="${tf('รูปถัดไป','Next')}">›</button>` : ''}
+      ${galleryPhotoDataCache.length>1? `<div class="lightbox-count">${galleryLightboxIndex+1} / ${galleryPhotoDataCache.length}</div>` : ''}
+    </div>` : '';
   return `<div class="modal-bg" id="gallery-modal-bg"><div class="modal">
     <div class="modal-head"><h3>${tf('ภาพชุดงาน:','Reference photos:')} ${escapeHtml(item.name)}</h3><button class="iconbtn" id="gallery-modal-close">✕</button></div>
     <label class="photo-drop" for="gallery-photo-input">📷 ${tf('แตะเพื่อเพิ่มรูปภาพ (เลือกได้หลายรูปพร้อมกัน)','Tap to add photos (you can pick more than one at once)')}</label>
     <input type="file" id="gallery-photo-input" accept="image/*" multiple style="display:none">
-    <div class="photo-grid" id="gallery-photo-grid" style="grid-template-columns:repeat(auto-fill,minmax(140px,1fr));margin-top:10px"><span class="sub">${tf('กำลังโหลดรูปภาพ...','Loading photos...')}</span></div>
-  </div></div>`;
+    <div class="photo-grid" id="gallery-photo-grid" style="grid-template-columns:repeat(auto-fill,minmax(220px,1fr));margin-top:10px"><span class="sub">${tf('กำลังโหลดรูปภาพ...','Loading photos...')}</span></div>
+  </div></div>${lightbox}`;
 }
 function wireGalleryModal(){
   const bg = $('#gallery-modal-bg');
   if(!bg) return;
-  $('#gallery-modal-close').onclick = ()=>{ refGalleryItemId=null; render(); };
-  bg.addEventListener('click', e=>{ if(e.target===bg){ refGalleryItemId=null; render(); } });
+  $('#gallery-modal-close').onclick = ()=>{ refGalleryItemId=null; galleryLightboxIndex=null; render(); };
+  bg.addEventListener('click', e=>{ if(e.target===bg){ refGalleryItemId=null; galleryLightboxIndex=null; render(); } });
   const fileInput = $('#gallery-photo-input');
   if(fileInput) fileInput.onchange = async ()=>{
     const item = P().boq.find(i=>i.id===refGalleryItemId);
@@ -5754,17 +5800,42 @@ function wireGalleryModal(){
     saveData();
     await refreshGalleryPhotos();
   };
+  wireGalleryLightbox();
   refreshGalleryPhotos();
+}
+let galleryLightboxKeyHandler=null; // tracks the current document keydown listener so wireGalleryLightbox() can swap it out instead of stacking a new one on every render (it's called from wireGalleryModal() on every re-render, including every prev/next click)
+function wireGalleryLightbox(){
+  if(galleryLightboxKeyHandler){ document.removeEventListener('keydown', galleryLightboxKeyHandler); galleryLightboxKeyHandler=null; }
+  const overlay = $('#gallery-lightbox');
+  if(!overlay) return;
+  const close = ()=>{ galleryLightboxIndex=null; render(); };
+  $('#lightbox-close').onclick = close;
+  overlay.addEventListener('click', e=>{ if(e.target===overlay) close(); });
+  const prev = $('#lightbox-prev');
+  if(prev) prev.onclick = ()=>{ galleryLightboxIndex = (galleryLightboxIndex-1+galleryPhotoDataCache.length)%galleryPhotoDataCache.length; render(); };
+  const next = $('#lightbox-next');
+  if(next) next.onclick = ()=>{ galleryLightboxIndex = (galleryLightboxIndex+1)%galleryPhotoDataCache.length; render(); };
+  galleryLightboxKeyHandler = (e)=>{
+    if(e.key==='Escape') close();
+    else if(e.key==='ArrowLeft' && prev) prev.onclick();
+    else if(e.key==='ArrowRight' && next) next.onclick();
+  };
+  document.addEventListener('keydown', galleryLightboxKeyHandler);
 }
 async function refreshGalleryPhotos(){
   const item = P().boq.find(i=>i.id===refGalleryItemId);
   const grid = $('#gallery-photo-grid');
   if(!item || !grid) return;
   const ids = item.refPhotoIds||[];
-  if(!ids.length){ grid.innerHTML = `<span class="sub">${tf('ยังไม่มีรูปภาพ กด "แตะเพื่อเพิ่มรูปภาพ" ด้านบนเพื่อเริ่มเพิ่ม','No photos yet -- tap "Add photos" above to start')}</span>`; return; }
-  const cards=[];
-  for(const id of ids){ const data = await loadRefPhoto(id); if(data) cards.push(`<div class="photo-item" style="height:auto"><img src="${data}" style="height:130px" alt=""><button class="rm" data-rm-gallery-photo="${id}">✕</button></div>`); }
+  if(!ids.length){ grid.innerHTML = `<span class="sub">${tf('ยังไม่มีรูปภาพ กด "แตะเพื่อเพิ่มรูปภาพ" ด้านบนเพื่อเริ่มเพิ่ม','No photos yet -- tap "Add photos" above to start')}</span>`; galleryPhotoDataCache=[]; return; }
+  const cards=[]; const dataList=[];
+  for(const id of ids){
+    const data = await loadRefPhoto(id);
+    if(data){ dataList.push(data); cards.push(`<div class="photo-item" style="height:auto"><img src="${data}" style="height:200px;cursor:zoom-in" alt="" data-open-lightbox="${dataList.length-1}"><button class="rm" data-rm-gallery-photo="${id}">✕</button></div>`); }
+  }
+  galleryPhotoDataCache = dataList;
   grid.innerHTML = cards.join('') || `<span class="sub">${tf('โหลดรูปภาพไม่สำเร็จ','Failed to load photos')}</span>`;
+  $$('[data-open-lightbox]').forEach(img=> img.onclick = ()=>{ galleryLightboxIndex = Number(img.dataset.openLightbox); render(); });
   $$('[data-rm-gallery-photo]').forEach(btn=> btn.onclick = async ()=>{
     if(!confirm(tf('ลบรูปนี้หรือไม่?','Delete this photo?'))) return;
     const id = btn.dataset.rmGalleryPhoto;
