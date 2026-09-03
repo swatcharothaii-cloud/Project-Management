@@ -5187,13 +5187,17 @@ function itemOrderDate(item){ return item.startDate? addDays(item.startDate,-5) 
 // never drift out of sync with each other.
 function ppNeedOnSiteDate(item){ return item.startDate || ''; }
 // Order-by date = need-on-site date minus this item's own lead time (days).
-// Left blank when either piece is missing (no start date yet, or lead time
-// not filled in) rather than guessing a default, since an invented lead time
-// would produce a silently-wrong "order by" date that looks authoritative.
+// Most items never get a supplier-specific lead time filled in, so rather
+// than silently going blank (and the alert column along with it -- see
+// ppAlertStatus below), items with no lead time entered fall back to a
+// standard 5-day default. Entering an actual lead time for an item always
+// overrides the default.
+const PP_DEFAULT_LEAD_DAYS = 5;
 function ppOrderByDate(item){
   const need = ppNeedOnSiteDate(item);
-  const lt = Number(item.ppLeadTimeDays)||0;
-  if(!need || !lt) return '';
+  if(!need) return '';
+  const hasLt = item.ppLeadTimeDays!=null && item.ppLeadTimeDays!=='';
+  const lt = hasLt ? Number(item.ppLeadTimeDays) : PP_DEFAULT_LEAD_DAYS;
   return addDays(need,-lt);
 }
 // Alert only fires for items still sitting at "not ordered" -- once an item
@@ -7527,8 +7531,8 @@ function renderPurchasePlan(proj=P()){
         <td${qtyMismatch?' style="background:var(--amber-50)"':''}><input type="text" data-pp-field="ppVarianceNote" value="${escapeHtml(item.ppVarianceNote||'')}" placeholder="${tf('หมายเหตุ','note')}" title="${tf('หมายเหตุเปรียบเทียบ','comparison note')}"></td>
         <td class="tabular hint" title="${tf('อัตโนมัติจากวันเริ่มงานในแผนงานหลัก','Automatic from the Master Plan start date')}">${needDate? fmtDateShort(needDate) : '-'}</td>
         <td><input type="text" data-pp-field="ppSupplier" value="${escapeHtml(item.ppSupplier||'')}" placeholder="${tf('ซัพพลายเออร์','supplier')}" title="${escapeHtml(item.ppSupplier||'')}"></td>
-        <td><input type="number" min="0" step="1" data-pp-field="ppLeadTimeDays" value="${item.ppLeadTimeDays==null?'':item.ppLeadTimeDays}"></td>
-        <td class="tabular hint" title="${tf('คำนวณอัตโนมัติ = วันที่ต้องถึงหน้างาน − Lead Time','Computed automatically = need-on-site date − lead time')}">${orderByDate? fmtDateShort(orderByDate) : '-'}</td>
+        <td><input type="number" min="0" step="1" data-pp-field="ppLeadTimeDays" value="${item.ppLeadTimeDays==null?'':item.ppLeadTimeDays}" placeholder="${PP_DEFAULT_LEAD_DAYS}" title="${tf(`ค่าเริ่มต้น ${PP_DEFAULT_LEAD_DAYS} วัน ถ้าไม่ได้กรอก`,`Defaults to ${PP_DEFAULT_LEAD_DAYS} days if left blank`)}"></td>
+        <td class="tabular hint" title="${tf(`คำนวณอัตโนมัติ = วันที่ต้องถึงหน้างาน − Lead Time (ค่าเริ่มต้น ${PP_DEFAULT_LEAD_DAYS} วัน ถ้าไม่ได้กรอก)`,`Computed automatically = need-on-site date − lead time (defaults to ${PP_DEFAULT_LEAD_DAYS} days if left blank)`)}">${orderByDate? fmtDateShort(orderByDate) : '-'}</td>
         <td>${alertHtml}</td>
         <td><input type="number" step="0.01" data-pp-field="ppActualOrderQty" value="${item.ppActualOrderQty==null?'':item.ppActualOrderQty}"></td>
         <td><input type="text" data-pp-field="ppPoNo" value="${escapeHtml(item.ppPoNo||'')}" placeholder="${tf('เลขที่ PO','PO no.')}" title="${escapeHtml(item.ppPoNo||'')}"></td>
@@ -7544,7 +7548,7 @@ function renderPurchasePlan(proj=P()){
     : dueSoonCount? `<div class="role-note" style="margin-bottom:16px;background:var(--amber-50);border-color:var(--amber-500)">🟡 ${dueSoonCount} ${tf('รายการใกล้ถึงกำหนดสั่งซื้อ (ภายใน 3 วัน)','item(s) are due to be ordered within 3 days')}</div>` : '';
   return `
   <div class="page-head">
-    <div><h2>${tf('แผนสั่งของ (Purchasing Plan)','Purchasing Plan')}</h2><div class="sub">${tf('แผนสั่งของเข้าหน้างานของทุกรายการใน BOQ — วันที่ต้องถึงหน้างานดึงจากแผนงานหลักอัตโนมัติ ส่วนวันที่ต้องสั่งซื้อคำนวณจาก Lead Time ที่กรอกต่อรายการ','Material ordering plan for every BOQ item — the need-on-site date is pulled automatically from the Master Plan, and the order-by date is computed from the lead time entered per item')}</div></div>
+    <div><h2>${tf('แผนสั่งของ (Purchasing Plan)','Purchasing Plan')}</h2><div class="sub">${tf(`แผนสั่งของเข้าหน้างานของทุกรายการใน BOQ — วันที่ต้องถึงหน้างานดึงจากแผนงานหลักอัตโนมัติ ส่วนวันที่ต้องสั่งซื้อคำนวณจาก Lead Time ที่กรอกต่อรายการ (ค่าเริ่มต้น ${PP_DEFAULT_LEAD_DAYS} วันก่อนถึงหน้างาน ถ้าไม่ได้กรอก)`,`Material ordering plan for every BOQ item — the need-on-site date is pulled automatically from the Master Plan, and the order-by date is computed from the lead time entered per item (defaults to ${PP_DEFAULT_LEAD_DAYS} days before the need-on-site date if left blank)`)}</div></div>
   </div>
   ${alertNote}
   <div class="grid cols-auto" style="margin-bottom:16px">
