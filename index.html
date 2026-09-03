@@ -7321,15 +7321,17 @@ function wireProcure(){
 // a "pending" row is still just a request, not money out the door yet.
 let costLogStatusFilter='all';
 // Cost Log is a small hub of its own rather than one flat table: 'menu'
-// lists every BOQ work category as a button (with its own running total)
-// so logging a cost starts with "which category" the same way the source
-// spreadsheet is organised; 'category' is that category's own scoped table
-// (history + keep adding, per the requested "click the category button
-// first, see its history, keep typing" flow); 'all' is the old flat
-// every-category table for a full listing; 'summary' is just the KPI cards
-// + costLogCategoryChartHtml() breakdown, no table. costLogCategory holds
-// the category string for the 'category' view ('' means the "not linked to
-// a category" bucket, which is a valid selection, not "unset").
+// lists every BOQ work category as a button (with its own running total),
+// plus the whole-project total-vs-70%-cap KPI and the
+// costLogCategoryChartHtml() breakdown folded right in underneath -- so
+// logging a cost starts with "which category" the same way the source
+// spreadsheet is organised, and the category-mix summary lives on the same
+// landing page instead of a separate tab; 'category' is that category's own
+// scoped table (history + keep adding, per the requested "click the category
+// button first, see its history, keep typing" flow); 'all' is the old flat
+// every-category table for a full listing. costLogCategory holds the
+// category string for the 'category' view ('' means the "not linked to a
+// category" bucket, which is a valid selection, not "unset").
 let costLogView='menu';
 let costLogCategory='';
 // Which project the top-level "จัดซื้อ" (Procurement) hub screen is currently
@@ -7348,6 +7350,31 @@ function newCostLogEntry(){
   };
 }
 function costLogRecalcTotal(c){ c.total = (c.qty||0) * (c.unitCost||0); return c.total; }
+// Whole-project "total purchases" KPI card, shown as current spend against
+// the 70%-of-BOQ purchasing cap (same guardrail as purchaseBudgetStatus()/
+// the Budget tab's "งบจัดซื้อ" card) instead of a bare total with no
+// reference point -- ${fmtCurrency(total)} / ${fmtCurrency(cap)} plus a
+// progress bar and % of cap, colored ok/warn/over using the same thresholds.
+// Only meant for a page's whole-project total (the Cost Log menu, and the
+// "หน้ารวม" all-entries view) -- a single category's scoped subtotal stays a
+// plain figure, since comparing one category's slice against the
+// whole-project cap would be misleading.
+function costLogTotalCardHtml(total, proj){
+  const bs = purchaseBudgetStatus(proj);
+  const cap = bs.cap;
+  if(!(cap>0)){
+    return `<div class="card kpi"><div class="stat"><span class="lbl">💰 ${tf('ยอดซื้อรวมทั้งหมด','Total purchases')}</span><span class="num tabular" style="font-size:19px">${fmtCurrency(total)}</span></div></div>`;
+  }
+  const pct = total/cap*100;
+  const level = total>=cap? 'over' : total>=bs.warnAt? 'warn' : 'ok';
+  return `<div class="card kpi">
+    <div class="stat"><span class="lbl">💰 ${tf('ยอดปัจจุบัน / งบจัดซื้อ (เพดาน 70% ของ BOQ)','Current spend / purchasing cap (70% of BOQ)')}</span>
+      <span class="num tabular" style="font-size:19px">${fmtCurrency(total)} <span class="hint" style="font-size:13px;font-weight:400">/ ${fmtCurrency(cap)}</span></span>
+    </div>
+    <div class="progress ${level==='over'?'bad':level==='warn'?'warn':'ok'}" style="margin-top:8px"><i style="width:${clamp(pct,0,100)}%"></i></div>
+    <div class="sub" style="margin-top:4px">${fmtNum(clamp(pct,0,999),0)}% ${tf('ของงบจัดซื้อ','of purchasing cap')}</div>
+  </div>`;
+}
 // Horizontal bar breakdown of every logged entry's total (regardless of
 // status -- matches the page's own "ยอดซื้อรวมทั้งหมด" KPI, unlike the
 // stricter "committed spend only" rule used for the Budget tab's rollup),
@@ -7413,7 +7440,8 @@ function costLogRowHtml(c, idx, boqCategories){
 // every entry) and each category's own page (scoped = just that category's
 // entries) -- same filter chips, same KPI cards, same table, just fed a
 // different slice of the data.
-function costLogTableSectionHtml(scoped, boqCategories){
+function costLogTableSectionHtml(scoped, boqCategories, opts={}){
+  const { wholeProject=false, proj=P() } = opts;
   const filtered = costLogStatusFilter==='all'? scoped : scoped.filter(c=>c.status===costLogStatusFilter);
   const scopedTotal = scoped.reduce((s,c)=> s+(c.total||0), 0);
   const filterChips = [{v:'all',label:tf('ทั้งหมด','All')}].concat(COSTLOG_STATUS.map(s=>({v:s.v,label:tf(s.th,s.en)}))).map(f=>{
@@ -7421,9 +7449,12 @@ function costLogTableSectionHtml(scoped, boqCategories){
     return `<button class="btn ${costLogStatusFilter===f.v?'primary':'ghost'} sm" data-cl-filter="${f.v}">${f.label} (${count})</button>`;
   }).join('');
   const rows = filtered.map((c,idx)=>costLogRowHtml(c,idx,boqCategories)).join('');
+  const totalCardHtml = wholeProject
+    ? costLogTotalCardHtml(scopedTotal, proj)
+    : `<div class="card kpi"><div class="stat"><span class="lbl">💰 ${tf('ยอดซื้อในมุมมองนี้','Total in this view')}</span><span class="num tabular" style="font-size:19px">${fmtCurrency(scopedTotal)}</span></div></div>`;
   return `
   <div class="grid cols-auto" style="margin-bottom:16px">
-    <div class="card kpi"><div class="stat"><span class="lbl">💰 ${tf('ยอดซื้อในมุมมองนี้','Total in this view')}</span><span class="num tabular" style="font-size:19px">${fmtCurrency(scopedTotal)}</span></div></div>
+    ${totalCardHtml}
     <div class="card kpi"><div class="stat"><span class="lbl">🧾 ${tf('จำนวนรายการ','Entries')}</span><span class="num tabular" style="font-size:19px">${scoped.length}</span></div></div>
   </div>
   <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">${filterChips}</div>
@@ -7441,7 +7472,7 @@ function costLogTableSectionHtml(scoped, boqCategories){
 // actually landed there) so logging a cost starts the same way the source
 // spreadsheet is organised -- pick the work category first, then see its
 // history and keep typing, instead of hunting through one giant flat table.
-function renderCostLogMenu(all, boqCategories){
+function renderCostLogMenu(all, boqCategories, proj=P()){
   const grandTotal = all.reduce((s,c)=> s+(c.total||0), 0);
   const catStats = {};
   all.forEach(c=>{
@@ -7463,22 +7494,25 @@ function renderCostLogMenu(all, boqCategories){
   </button>` : '';
   return `
   <div class="grid cols-auto" style="margin-bottom:16px">
-    <div class="card kpi"><div class="stat"><span class="lbl">💰 ${tf('ยอดซื้อรวมทั้งหมด','Total purchases')}</span><span class="num tabular" style="font-size:19px">${fmtCurrency(grandTotal)}</span></div></div>
+    ${costLogTotalCardHtml(grandTotal, proj)}
     <div class="card kpi"><div class="stat"><span class="lbl">🧾 ${tf('จำนวนรายการ','Entries')}</span><span class="num tabular" style="font-size:19px">${all.length}</span></div></div>
   </div>
   ${boqCategories.length? `<div class="cl-cat-grid">${cards}${unlinkedCard}</div>` : `<div class="empty"><span class="ic">📁</span>${tf('เพิ่มรายการงานในแผนงานหลักก่อน เพื่อให้มีหมวดงานให้เลือก','Add work items in the Master Plan first so there are categories to pick from')}</div>`}
+  ${costLogCategoryChartHtml(all, proj)}
   `;
 }
-// The 3-way sub-nav shown on every Cost Log page (เมนูหมวดงาน / หน้ารวม /
-// สรุป) -- a category's own page isn't one of these three buttons (it's
-// reached by clicking a category card, or navigated back out of via the
-// breadcrumb costLogBreadcrumbHtml() renders), so none of them highlight
-// while state.tab shows a category.
+// The sub-nav shown on every Cost Log page (เมนูหมวดงาน / หน้ารวม) -- a
+// category's own page isn't one of these buttons (it's reached by clicking
+// a category card, or navigated back out of via the breadcrumb below), so
+// neither highlights while state.tab shows a category. The old separate
+// "สรุป" (summary) tab was folded into the เมนูหมวดงาน page itself -- its
+// KPI cards and costLogCategoryChartHtml() breakdown now render right under
+// the category cards there, so the category mix is visible without a
+// separate tab.
 function costLogSubnavHtml(view){
   const items = [
     {v:'menu', label: '🗂️ ' + tf('เมนูหมวดงาน','Category menu')},
     {v:'all', label: '📋 ' + tf('หน้ารวม','All entries')},
-    {v:'summary', label: '📊 ' + tf('สรุป','Summary')},
   ];
   return `<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px">${items.map(it=>`<button class="btn ${view===it.v?'primary':'ghost'} sm" data-cl-view="${it.v}">${it.label}</button>`).join('')}</div>`;
 }
@@ -7487,36 +7521,28 @@ function renderCostLog(proj=P()){
   const boqCategories = boqCategoryGroups(proj.boq||[]).map(g=>g.cat).filter(Boolean);
   // Guard against stale state from a different project -- e.g. switching
   // projects on the top-level Purchasing Hub while parked on a category
-  // page whose name doesn't exist in the newly-selected project's BOQ.
+  // page whose name doesn't exist in the newly-selected project's BOQ --
+  // and against the now-removed 'summary' view lingering from an older
+  // in-memory state.
   if(costLogView==='category' && costLogCategory && !boqCategories.includes(costLogCategory)){
     costLogView = 'menu';
   }
+  if(costLogView==='summary') costLogView = 'menu';
   const showAddBtn = costLogView==='all' || costLogView==='category';
   const subHint = showAddBtn
     ? tf('กรอกรายการซื้อของแต่ละครั้งลงตารางได้เลย ยอดเงินรวมคำนวณอัตโนมัติจากจำนวน × ราคาต่อหน่วย · ใบสั่งซื้อเดียวกันมีได้หลายรายการ กด ➕🧾 ที่แถวเพื่อเพิ่มรายการถัดไปในใบสั่งซื้อเดิม','Type each purchase straight into the table -- the total is calculated automatically from quantity × unit price. One PO can have several items -- tap ➕🧾 on a row to add the next item under the same PO')
-    : costLogView==='summary'
-      ? tf('ภาพรวมต้นทุนจัดซื้อทั้งหมด แยกตามหมวดหมู่งาน','An overview of total purchase cost, broken down by work category')
-      : tf('เลือกหมวดงานเพื่อดูประวัติและกรอกต้นทุนต่อในหมวดนั้น','Pick a work category to see its history and keep logging costs into it');
+    : tf('เลือกหมวดงานเพื่อดูประวัติและกรอกต้นทุนต่อในหมวดนั้น หรือดูสรุปแยกตามหมวดงานด้านล่าง','Pick a work category to see its history and keep logging costs into it, or see the breakdown by category below');
   const breadcrumb = costLogView==='category'
     ? `<div class="hint" style="margin:-8px 0 14px">🗂️ <button class="linklike" data-cl-view="menu">${tf('เมนูหมวดงาน','Category menu')}</button> ▸ 📁 ${escapeHtml(costLogCategory||tf('ไม่ได้เชื่อมกับหมวดหมู่งาน','Not linked to a category'))}</div>`
     : '';
   let body;
-  if(costLogView==='summary'){
-    const grandTotal = all.reduce((s,c)=> s+(c.total||0), 0);
-    body = `
-    <div class="grid cols-auto" style="margin-bottom:16px">
-      <div class="card kpi"><div class="stat"><span class="lbl">💰 ${tf('ยอดซื้อรวมทั้งหมด','Total purchases')}</span><span class="num tabular" style="font-size:19px">${fmtCurrency(grandTotal)}</span></div></div>
-      <div class="card kpi"><div class="stat"><span class="lbl">🧾 ${tf('จำนวนรายการ','Entries')}</span><span class="num tabular" style="font-size:19px">${all.length}</span></div></div>
-    </div>
-    ${costLogCategoryChartHtml(all, proj) || `<div class="empty"><span class="ic">📊</span>${tf('ยังไม่มีข้อมูลให้สรุป','Nothing to summarize yet')}</div>`}
-    `;
-  } else if(costLogView==='category'){
+  if(costLogView==='category'){
     const scoped = all.filter(c=>(c.taskId||'')===costLogCategory);
     body = costLogTableSectionHtml(scoped, boqCategories);
   } else if(costLogView==='all'){
-    body = costLogTableSectionHtml(all, boqCategories);
+    body = costLogTableSectionHtml(all, boqCategories, {wholeProject:true, proj});
   } else {
-    body = renderCostLogMenu(all, boqCategories);
+    body = renderCostLogMenu(all, boqCategories, proj);
   }
   return `
   <div class="page-head">
@@ -8179,14 +8205,14 @@ function costLogCategoryTotals(){
 // Total actual spend across every priced line, linked or not -- this is the
 // "real money spent" KPI, independent of whether it can be matched to a BOQ
 // line item.
-function projectActualCostTotal(){
+function projectActualCostTotal(proj=P()){
   let total=0;
-  P().materialRequests.filter(r=>!r.trashed).forEach(r=> (r.lines||[]).forEach(l=>{
+  proj.materialRequests.filter(r=>!r.trashed).forEach(r=> (r.lines||[]).forEach(l=>{
     if(l.actualUnitCost==null) return;
     const qty = (l.actualQty!=null? l.actualQty : l.qty) || 0;
     total += qty*l.actualUnitCost;
   }));
-  (P().costLog||[]).forEach(c=>{ if(c.status!=='pending') total += (c.total||0); });
+  (proj.costLog||[]).forEach(c=>{ if(c.status!=='pending') total += (c.total||0); });
   return total;
 }
 // Purchasing budget guardrail: material/procurement spend is capped at 70% of
@@ -8194,10 +8220,10 @@ function projectActualCostTotal(){
 // reaches 49% of that BOQ total (i.e. 70% of the 70% cap has already been
 // used, leaving 30% of the cap still available). This is a soft guardrail --
 // it warns loudly but never blocks creating or approving a request.
-function purchaseBudgetStatus(){
+function purchaseBudgetStatus(proj=P()){
   let totalBoqBudget=0;
-  P().boq.forEach(item=>{ if(item.unitPrice!=null) totalBoqBudget += item.qtyTotal*item.unitPrice; });
-  const totalActualAll = projectActualCostTotal();
+  proj.boq.forEach(item=>{ if(item.unitPrice!=null) totalBoqBudget += item.qtyTotal*item.unitPrice; });
+  const totalActualAll = projectActualCostTotal(proj);
   const cap = totalBoqBudget*0.7;
   const warnAt = totalBoqBudget*0.49;
   const pctOfCap = cap>0? (totalActualAll/cap*100) : 0;
