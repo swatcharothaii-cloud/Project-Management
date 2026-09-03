@@ -4563,7 +4563,7 @@ function loadScriptOnce(src){
     const s=document.createElement('script');
     s.src=src; s.dataset.dynSrc=src;
     s.onload=()=>{ s.dataset.loaded='1'; resolve(); };
-    s.onerror=()=>reject(new Error('โหลดไลบรารีไม่สำเร็จ (ต้องใช้อินเทอร์เน็ต)'));
+    s.onerror=()=>reject(new Error(tf('โหลดไลบรารีไม่สำเร็จ (ต้องใช้อินเทอร์เน็ต)','Failed to load library (an internet connection is required)')));
     document.head.appendChild(s);
   });
 }
@@ -5192,7 +5192,15 @@ function compareBoqCode(a,b){
 // keep their original relative order and sort after every coded item in the
 // same category (Array#sort is stable, so a plain "has code?" comparison is
 // enough to push them to the end without disturbing their own order).
-function boqCategoryGroups(boq){
+// includeEmpty:true keeps every standard BOQ_CATEGORIES heading as its own
+// group even when it has zero items -- for a screen like the Master Plan &
+// BOQ Gantt where the category list doubles as a checklist of all 18
+// standard headings (an empty one is still a place work items can be added
+// under, via the "+ เพิ่มรายการงาน" modal's category field). The default
+// (false) drops empty categories, which is right for a pure BOQ-cost or
+// item listing (Budget, Purchasing Plan) where an empty category has no
+// rows to show.
+function boqCategoryGroups(boq, {includeEmpty=false}={}){
   const used = Array.from(new Set(boq.map(i=>i.category||'').filter(Boolean)));
   const extra = used.filter(c=>!BOQ_CATEGORIES.includes(c));
   const order = BOQ_CATEGORIES.concat(extra);
@@ -5203,7 +5211,8 @@ function boqCategoryGroups(boq){
     if(!cb) return -1;
     return compareBoqCode(ca,cb);
   });
-  const groups = order.map(cat=>({cat, items:sortByCode(boq.filter(i=>(i.category||'')===cat))})).filter(g=>g.items.length);
+  let groups = order.map(cat=>({cat, items:sortByCode(boq.filter(i=>(i.category||'')===cat))}));
+  if(!includeEmpty) groups = groups.filter(g=>g.items.length);
   const uncategorized = boq.filter(i=>!i.category);
   if(uncategorized.length) groups.push({cat:'', items:sortByCode(uncategorized)});
   return groups;
@@ -5586,7 +5595,7 @@ function ganttChartHtml(groups){
   </div>`;
 }
 function renderMasterPlan(){
-  const groups = boqCategoryGroups(P().boq);
+  const groups = boqCategoryGroups(P().boq, {includeEmpty:true});
   return `
   <div class="page-head">
     <div><h2>${tf('แผนงานหลัก & BOQ','Master Plan & BOQ')}</h2><div class="sub">${tf('แยกตามหมวดงานหลักอ้างอิงตาม BOQ จริง ใส่โซน ทีมงาน ปริมาณรวมตามสัญญา และช่วงเวลาทำงาน ระบบคำนวณเป้าหมายรายวันให้อัตโนมัติ','Grouped by main work category from the real BOQ -- enter zone, team, contract quantity and date range, the daily target is calculated automatically.')}</div></div>
@@ -5810,7 +5819,7 @@ function wireMasterPlan(){
   });
   const expandAllBtn = $('#btn-expand-all-cat');
   if(expandAllBtn) expandAllBtn.onclick = ()=>{
-    boqCategoryGroups(P().boq).forEach(g=> mpExpandedCats.add(g.cat || '__uncategorized__'));
+    boqCategoryGroups(P().boq, {includeEmpty:true}).forEach(g=> mpExpandedCats.add(g.cat || '__uncategorized__'));
     render();
   };
   const collapseAllBtn = $('#btn-collapse-all-cat');
