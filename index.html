@@ -270,6 +270,27 @@ tbody tr:hover{background:var(--surface-2)}
 .cl-cat-label{font-size:12.5px;font-weight:600;color:var(--ink-700);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .cl-cat-bar-track{height:10px;border-radius:999px;background:var(--line-soft);overflow:hidden}
 .cl-cat-bar-fill{height:100%;border-radius:999px;background:linear-gradient(90deg,var(--purple-600),var(--purple-700));min-width:3px}
+/* Cost Log hub landing page: one clickable "card" per BOQ category. Built
+   from a <button> (not a div) so it's keyboard/click-accessible without
+   extra JS, with the button chrome stripped back to look like the rest of
+   the app's .card tiles. */
+.cl-cat-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px}
+.cl-cat-card{
+  text-align:left;background:var(--surface);border:1px solid var(--line);border-radius:var(--radius-md);
+  padding:16px;box-shadow:var(--shadow-sm);cursor:pointer;transition:transform .12s ease,border-color .12s ease;
+  font-family:inherit;
+}
+.cl-cat-card:hover{border-color:var(--purple-500);transform:translateY(-1px)}
+.cl-cat-card:active{transform:scale(.98)}
+.cl-cat-card-name{font-weight:600;font-size:13.5px;color:var(--ink-900);margin-bottom:10px}
+.cl-cat-card-stats{display:flex;align-items:baseline;justify-content:space-between;gap:8px;font-size:12.5px;color:var(--ink-500)}
+.cl-cat-card-stats .tabular{font-weight:700;color:var(--purple-700);font-size:14px}
+.cl-cat-card-unlinked{background:var(--surface-2)}
+/* Plain-text-looking button used inline in the category breadcrumb (e.g.
+   "🗂️ เมนูหมวดงาน ▸ 📁 งานไฟฟ้า") -- a real <button> for click/keyboard
+   wiring, styled to read as a link rather than a chip. */
+.linklike{background:none;border:none;padding:0;font:inherit;color:var(--purple-600);text-decoration:underline;cursor:pointer}
+.linklike:hover{color:var(--purple-700)}
 .cl-cat-amt{font-size:12.5px;font-weight:600;white-space:nowrap}
 .budget-cat-row td{background:var(--purple-50);color:var(--purple-700);font-family:var(--font-display);font-weight:600;font-size:12.5px;white-space:normal}
 .mp-table tr.mp-cat-row{cursor:pointer;user-select:none}
@@ -4369,7 +4390,7 @@ function resetTransient(){
   contractorDraft=null; editingContractorId=null; contractorHistoryId=null;
   historyModalOpen=false; historyViewing=false;
   procureTrashOpen=false;
-  costLogStatusFilter='all';
+  costLogStatusFilter='all'; costLogView='menu'; costLogCategory='';
   editingInspectionId=null; inspectionDraft=null;
 }
 function goToHub(){
@@ -7299,6 +7320,18 @@ function wireProcure(){
 // only rows with status "ordered" or "delivered" count as committed spend;
 // a "pending" row is still just a request, not money out the door yet.
 let costLogStatusFilter='all';
+// Cost Log is a small hub of its own rather than one flat table: 'menu'
+// lists every BOQ work category as a button (with its own running total)
+// so logging a cost starts with "which category" the same way the source
+// spreadsheet is organised; 'category' is that category's own scoped table
+// (history + keep adding, per the requested "click the category button
+// first, see its history, keep typing" flow); 'all' is the old flat
+// every-category table for a full listing; 'summary' is just the KPI cards
+// + costLogCategoryChartHtml() breakdown, no table. costLogCategory holds
+// the category string for the 'category' view ('' means the "not linked to
+// a category" bucket, which is a valid selection, not "unset").
+let costLogView='menu';
+let costLogCategory='';
 // Which project the top-level "จัดซื้อ" (Procurement) hub screen is currently
 // logging costs into. Deliberately kept separate from state.currentProjectId
 // -- that one drives the "inside a project" screens/nav (P(), back button,
@@ -7349,51 +7382,52 @@ function costLogCategoryChartHtml(all, proj=P()){
     <div class="cl-cat-chart" style="margin-top:12px">${rows}</div>
   </div>`;
 }
-function renderCostLog(proj=P()){
-  const all = proj.costLog||[];
-  const filtered = costLogStatusFilter==='all'? all : all.filter(c=>c.status===costLogStatusFilter);
-  const grandTotal = all.reduce((s,c)=> s+(c.total||0), 0);
+// "เชื่อมงาน" links to a BOQ *category* (the main work heading, e.g. "4.
+// งานไฟฟ้า-เดินสายไฟ") rather than one specific line item -- item-level
+// granularity isn't needed here, and picking from a short category list is
+// faster than hunting through every BOQ line while typing a purchase in.
+// See costLogCategoryTotals()/renderBudget() for how this rolls up.
+// One row's worth of the Cost Log table -- factored out so the 'all' view
+// and each category's own scoped view render identical rows from the same
+// template instead of two copies that could drift apart.
+function costLogRowHtml(c, idx, boqCategories){
+  return `<tr data-cl-row="${c.id}">
+    <td class="tabular hint">${idx+1}</td>
+    <td><input type="date" data-cl-field="date" value="${c.date||''}"></td>
+    <td><input type="text" data-cl-field="po" value="${escapeHtml(c.po||'')}" placeholder="${tf('เลขที่','No.')}" style="width:110px"></td>
+    <td><input type="text" data-cl-field="workType" value="${escapeHtml(c.workType||'')}" placeholder="${tf('เช่น งานไฟฟ้า','e.g. Electrical')}" style="width:120px"></td>
+    <td><select data-cl-field="workNature">${COSTLOG_WORK_NATURE.map(w=>`<option value="${w.v}" ${c.workNature===w.v?'selected':''}>${escapeHtml(tf(w.th,w.en))}</option>`).join('')}</select></td>
+    <td><input type="text" data-cl-field="itemName" value="${escapeHtml(c.itemName||'')}" placeholder="${tf('รายการสินค้า','Item')}" style="width:180px"></td>
+    <td><select data-cl-field="taskId"><option value="">${tf('— ไม่เชื่อม —','— none —')}</option>${boqCategories.map(cat=>`<option value="${escapeHtml(cat)}" ${c.taskId===cat?'selected':''}>${escapeHtml(cat)}</option>`).join('')}</select></td>
+    <td><input type="text" data-cl-field="unit" value="${escapeHtml(c.unit||'')}" placeholder="${tf('หน่วย','Unit')}" style="width:70px"></td>
+    <td><input type="number" step="0.01" min="0" data-cl-field="qty" value="${c.qty==null?'':c.qty}" style="width:80px"></td>
+    <td><input type="number" step="0.01" min="0" data-cl-field="unitCost" value="${c.unitCost==null?'':c.unitCost}" style="width:100px"></td>
+    <td class="tabular" data-cl-total>${fmtCurrency(c.total||0)}</td>
+    <td><input type="text" data-cl-field="orderedBy" value="${escapeHtml(c.orderedBy||'')}" placeholder="${tf('ผู้สั่ง','Ordered by')}" style="width:100px"></td>
+    <td><select data-cl-field="status">${COSTLOG_STATUS.map(s=>`<option value="${s.v}" ${c.status===s.v?'selected':''}>${s.ic} ${escapeHtml(tf(s.th,s.en))}</option>`).join('')}</select></td>
+    <td><input type="text" data-cl-field="note" value="${escapeHtml(c.note||'')}" placeholder="${tf('หมายเหตุ','Note')}" style="width:140px"></td>
+    <td style="white-space:nowrap"><button class="iconbtn" data-cl-duplicate="${c.id}" title="${tf('เพิ่มอีกรายการในใบสั่งซื้อเดียวกัน (คัดลอกวันที่/เลขที่/ประเภทงาน/ผู้สั่ง)','Add another item to this same PO (copies date/PO no./work type/ordered by)')}">➕🧾</button><button class="iconbtn" data-cl-delete="${c.id}" title="${tf('ลบ','Delete')}">🗑️</button></td>
+  </tr>`;
+}
+// The status-filterable table section, shared by the 'all' view (scoped =
+// every entry) and each category's own page (scoped = just that category's
+// entries) -- same filter chips, same KPI cards, same table, just fed a
+// different slice of the data.
+function costLogTableSectionHtml(scoped, boqCategories){
+  const filtered = costLogStatusFilter==='all'? scoped : scoped.filter(c=>c.status===costLogStatusFilter);
+  const scopedTotal = scoped.reduce((s,c)=> s+(c.total||0), 0);
   const filterChips = [{v:'all',label:tf('ทั้งหมด','All')}].concat(COSTLOG_STATUS.map(s=>({v:s.v,label:tf(s.th,s.en)}))).map(f=>{
-    const count = f.v==='all'? all.length : all.filter(c=>c.status===f.v).length;
+    const count = f.v==='all'? scoped.length : scoped.filter(c=>c.status===f.v).length;
     return `<button class="btn ${costLogStatusFilter===f.v?'primary':'ghost'} sm" data-cl-filter="${f.v}">${f.label} (${count})</button>`;
   }).join('');
-  // "เชื่อมงาน" links to a BOQ *category* (the main work heading, e.g. "4.
-  // งานไฟฟ้า-เดินสายไฟ") rather than one specific line item -- item-level
-  // granularity isn't needed here, and picking from a short category list
-  // is faster than hunting through every BOQ line while typing a purchase
-  // in. See costLogCategoryTotals()/renderBudget() for how this rolls up.
-  const boqCategories = boqCategoryGroups(proj.boq||[]).map(g=>g.cat).filter(Boolean);
-  const rows = filtered.map((c,idx)=>{
-    return `<tr data-cl-row="${c.id}">
-      <td class="tabular hint">${idx+1}</td>
-      <td><input type="date" data-cl-field="date" value="${c.date||''}"></td>
-      <td><input type="text" data-cl-field="po" value="${escapeHtml(c.po||'')}" placeholder="${tf('เลขที่','No.')}" style="width:110px"></td>
-      <td><input type="text" data-cl-field="workType" value="${escapeHtml(c.workType||'')}" placeholder="${tf('เช่น งานไฟฟ้า','e.g. Electrical')}" style="width:120px"></td>
-      <td><select data-cl-field="workNature">${COSTLOG_WORK_NATURE.map(w=>`<option value="${w.v}" ${c.workNature===w.v?'selected':''}>${escapeHtml(tf(w.th,w.en))}</option>`).join('')}</select></td>
-      <td><input type="text" data-cl-field="itemName" value="${escapeHtml(c.itemName||'')}" placeholder="${tf('รายการสินค้า','Item')}" style="width:180px"></td>
-      <td><select data-cl-field="taskId"><option value="">${tf('— ไม่เชื่อม —','— none —')}</option>${boqCategories.map(cat=>`<option value="${escapeHtml(cat)}" ${c.taskId===cat?'selected':''}>${escapeHtml(cat)}</option>`).join('')}</select></td>
-      <td><input type="text" data-cl-field="unit" value="${escapeHtml(c.unit||'')}" placeholder="${tf('หน่วย','Unit')}" style="width:70px"></td>
-      <td><input type="number" step="0.01" min="0" data-cl-field="qty" value="${c.qty==null?'':c.qty}" style="width:80px"></td>
-      <td><input type="number" step="0.01" min="0" data-cl-field="unitCost" value="${c.unitCost==null?'':c.unitCost}" style="width:100px"></td>
-      <td class="tabular" data-cl-total>${fmtCurrency(c.total||0)}</td>
-      <td><input type="text" data-cl-field="orderedBy" value="${escapeHtml(c.orderedBy||'')}" placeholder="${tf('ผู้สั่ง','Ordered by')}" style="width:100px"></td>
-      <td><select data-cl-field="status">${COSTLOG_STATUS.map(s=>`<option value="${s.v}" ${c.status===s.v?'selected':''}>${s.ic} ${escapeHtml(tf(s.th,s.en))}</option>`).join('')}</select></td>
-      <td><input type="text" data-cl-field="note" value="${escapeHtml(c.note||'')}" placeholder="${tf('หมายเหตุ','Note')}" style="width:140px"></td>
-      <td style="white-space:nowrap"><button class="iconbtn" data-cl-duplicate="${c.id}" title="${tf('เพิ่มอีกรายการในใบสั่งซื้อเดียวกัน (คัดลอกวันที่/เลขที่/ประเภทงาน/ผู้สั่ง)','Add another item to this same PO (copies date/PO no./work type/ordered by)')}">➕🧾</button><button class="iconbtn" data-cl-delete="${c.id}" title="${tf('ลบ','Delete')}">🗑️</button></td>
-    </tr>`;
-  }).join('');
+  const rows = filtered.map((c,idx)=>costLogRowHtml(c,idx,boqCategories)).join('');
   return `
-  <div class="page-head">
-    <div><h2>${tf('บันทึกต้นทุนการจัดซื้อ','Procurement Cost Log')}</h2><div class="sub">${tf('กรอกรายการซื้อของแต่ละครั้งลงตารางได้เลย ยอดเงินรวมคำนวณอัตโนมัติจากจำนวน × ราคาต่อหน่วย · ใบสั่งซื้อเดียวกันมีได้หลายรายการ กด ➕🧾 ที่แถวเพื่อเพิ่มรายการถัดไปในใบสั่งซื้อเดิม','Type each purchase straight into the table -- the total is calculated automatically from quantity × unit price. One PO can have several items -- tap ➕🧾 on a row to add the next item under the same PO')}</div></div>
-    <button class="btn primary" id="btn-add-costlog">+ ${tf('เพิ่มรายการ','Add row')}</button>
-  </div>
   <div class="grid cols-auto" style="margin-bottom:16px">
-    <div class="card kpi"><div class="stat"><span class="lbl">💰 ${tf('ยอดซื้อรวมทั้งหมด','Total purchases')}</span><span class="num tabular" style="font-size:19px">${fmtCurrency(grandTotal)}</span></div></div>
-    <div class="card kpi"><div class="stat"><span class="lbl">🧾 ${tf('จำนวนรายการ','Entries')}</span><span class="num tabular" style="font-size:19px">${all.length}</span></div></div>
+    <div class="card kpi"><div class="stat"><span class="lbl">💰 ${tf('ยอดซื้อในมุมมองนี้','Total in this view')}</span><span class="num tabular" style="font-size:19px">${fmtCurrency(scopedTotal)}</span></div></div>
+    <div class="card kpi"><div class="stat"><span class="lbl">🧾 ${tf('จำนวนรายการ','Entries')}</span><span class="num tabular" style="font-size:19px">${scoped.length}</span></div></div>
   </div>
-  ${costLogCategoryChartHtml(all, proj)}
   <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">${filterChips}</div>
-  ${all.length===0? `<div class="empty"><span class="ic">🧾</span>${tf('ยังไม่มีบันทึกต้นทุนการจัดซื้อ กด "เพิ่มรายการ" เพื่อเริ่มบันทึก','No cost log entries yet -- tap "Add row" to start logging')}</div>` : `
+  ${scoped.length===0? `<div class="empty"><span class="ic">🧾</span>${tf('ยังไม่มีบันทึกต้นทุนการจัดซื้อในมุมมองนี้ กด "เพิ่มรายการ" เพื่อเริ่มบันทึก','No cost log entries in this view yet -- tap "Add row" to start logging')}</div>` : `
   <div class="table-wrap"><table class="budget-table cl-table"><thead><tr>
     <th>${tf('ลำดับ','No.')}</th><th>${tf('วันที่','Date')}</th><th>${tf('เลขใบสั่งซื้อ','PO No.')}</th>
     <th>${tf('ประเภทงาน','Work type')}</th><th>${tf('ลักษณะงาน','Work nature')}</th><th>${tf('รายการสินค้า','Item')}</th>
@@ -7402,13 +7436,120 @@ function renderCostLog(proj=P()){
   </tr></thead><tbody>${rows}</tbody></table></div>`}
   `;
 }
+// Landing page for the Cost Log hub: one button per BOQ category (plus one
+// for the "not linked to a category" bucket, only shown once something has
+// actually landed there) so logging a cost starts the same way the source
+// spreadsheet is organised -- pick the work category first, then see its
+// history and keep typing, instead of hunting through one giant flat table.
+function renderCostLogMenu(all, boqCategories){
+  const grandTotal = all.reduce((s,c)=> s+(c.total||0), 0);
+  const catStats = {};
+  all.forEach(c=>{
+    const key = c.taskId || '';
+    if(!catStats[key]) catStats[key] = {count:0, total:0};
+    catStats[key].count++; catStats[key].total += (c.total||0);
+  });
+  const cards = boqCategories.map(cat=>{
+    const stat = catStats[cat] || {count:0, total:0};
+    return `<button class="cl-cat-card" data-cl-view="category" data-cl-category="${escapeHtml(cat)}">
+      <div class="cl-cat-card-name">📁 ${escapeHtml(cat)}</div>
+      <div class="cl-cat-card-stats"><span>${stat.count} ${tf('รายการ','entries')}</span><span class="tabular">${fmtCurrency(stat.total)}</span></div>
+    </button>`;
+  }).join('');
+  const unlinkedStat = catStats[''];
+  const unlinkedCard = unlinkedStat? `<button class="cl-cat-card cl-cat-card-unlinked" data-cl-view="category" data-cl-category="">
+    <div class="cl-cat-card-name">🗂️ ${tf('ไม่ได้เชื่อมกับหมวดหมู่งาน','Not linked to a category')}</div>
+    <div class="cl-cat-card-stats"><span>${unlinkedStat.count} ${tf('รายการ','entries')}</span><span class="tabular">${fmtCurrency(unlinkedStat.total)}</span></div>
+  </button>` : '';
+  return `
+  <div class="grid cols-auto" style="margin-bottom:16px">
+    <div class="card kpi"><div class="stat"><span class="lbl">💰 ${tf('ยอดซื้อรวมทั้งหมด','Total purchases')}</span><span class="num tabular" style="font-size:19px">${fmtCurrency(grandTotal)}</span></div></div>
+    <div class="card kpi"><div class="stat"><span class="lbl">🧾 ${tf('จำนวนรายการ','Entries')}</span><span class="num tabular" style="font-size:19px">${all.length}</span></div></div>
+  </div>
+  ${boqCategories.length? `<div class="cl-cat-grid">${cards}${unlinkedCard}</div>` : `<div class="empty"><span class="ic">📁</span>${tf('เพิ่มรายการงานในแผนงานหลักก่อน เพื่อให้มีหมวดงานให้เลือก','Add work items in the Master Plan first so there are categories to pick from')}</div>`}
+  `;
+}
+// The 3-way sub-nav shown on every Cost Log page (เมนูหมวดงาน / หน้ารวม /
+// สรุป) -- a category's own page isn't one of these three buttons (it's
+// reached by clicking a category card, or navigated back out of via the
+// breadcrumb costLogBreadcrumbHtml() renders), so none of them highlight
+// while state.tab shows a category.
+function costLogSubnavHtml(view){
+  const items = [
+    {v:'menu', label: '🗂️ ' + tf('เมนูหมวดงาน','Category menu')},
+    {v:'all', label: '📋 ' + tf('หน้ารวม','All entries')},
+    {v:'summary', label: '📊 ' + tf('สรุป','Summary')},
+  ];
+  return `<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px">${items.map(it=>`<button class="btn ${view===it.v?'primary':'ghost'} sm" data-cl-view="${it.v}">${it.label}</button>`).join('')}</div>`;
+}
+function renderCostLog(proj=P()){
+  const all = proj.costLog||[];
+  const boqCategories = boqCategoryGroups(proj.boq||[]).map(g=>g.cat).filter(Boolean);
+  // Guard against stale state from a different project -- e.g. switching
+  // projects on the top-level Purchasing Hub while parked on a category
+  // page whose name doesn't exist in the newly-selected project's BOQ.
+  if(costLogView==='category' && costLogCategory && !boqCategories.includes(costLogCategory)){
+    costLogView = 'menu';
+  }
+  const showAddBtn = costLogView==='all' || costLogView==='category';
+  const subHint = showAddBtn
+    ? tf('กรอกรายการซื้อของแต่ละครั้งลงตารางได้เลย ยอดเงินรวมคำนวณอัตโนมัติจากจำนวน × ราคาต่อหน่วย · ใบสั่งซื้อเดียวกันมีได้หลายรายการ กด ➕🧾 ที่แถวเพื่อเพิ่มรายการถัดไปในใบสั่งซื้อเดิม','Type each purchase straight into the table -- the total is calculated automatically from quantity × unit price. One PO can have several items -- tap ➕🧾 on a row to add the next item under the same PO')
+    : costLogView==='summary'
+      ? tf('ภาพรวมต้นทุนจัดซื้อทั้งหมด แยกตามหมวดหมู่งาน','An overview of total purchase cost, broken down by work category')
+      : tf('เลือกหมวดงานเพื่อดูประวัติและกรอกต้นทุนต่อในหมวดนั้น','Pick a work category to see its history and keep logging costs into it');
+  const breadcrumb = costLogView==='category'
+    ? `<div class="hint" style="margin:-8px 0 14px">🗂️ <button class="linklike" data-cl-view="menu">${tf('เมนูหมวดงาน','Category menu')}</button> ▸ 📁 ${escapeHtml(costLogCategory||tf('ไม่ได้เชื่อมกับหมวดหมู่งาน','Not linked to a category'))}</div>`
+    : '';
+  let body;
+  if(costLogView==='summary'){
+    const grandTotal = all.reduce((s,c)=> s+(c.total||0), 0);
+    body = `
+    <div class="grid cols-auto" style="margin-bottom:16px">
+      <div class="card kpi"><div class="stat"><span class="lbl">💰 ${tf('ยอดซื้อรวมทั้งหมด','Total purchases')}</span><span class="num tabular" style="font-size:19px">${fmtCurrency(grandTotal)}</span></div></div>
+      <div class="card kpi"><div class="stat"><span class="lbl">🧾 ${tf('จำนวนรายการ','Entries')}</span><span class="num tabular" style="font-size:19px">${all.length}</span></div></div>
+    </div>
+    ${costLogCategoryChartHtml(all, proj) || `<div class="empty"><span class="ic">📊</span>${tf('ยังไม่มีข้อมูลให้สรุป','Nothing to summarize yet')}</div>`}
+    `;
+  } else if(costLogView==='category'){
+    const scoped = all.filter(c=>(c.taskId||'')===costLogCategory);
+    body = costLogTableSectionHtml(scoped, boqCategories);
+  } else if(costLogView==='all'){
+    body = costLogTableSectionHtml(all, boqCategories);
+  } else {
+    body = renderCostLogMenu(all, boqCategories);
+  }
+  return `
+  <div class="page-head">
+    <div><h2>${tf('บันทึกต้นทุนการจัดซื้อ','Procurement Cost Log')}</h2><div class="sub">${subHint}</div></div>
+    ${showAddBtn? `<button class="btn primary" id="btn-add-costlog">+ ${tf('เพิ่มรายการ','Add row')}</button>` : ''}
+  </div>
+  ${costLogSubnavHtml(costLogView)}
+  ${breadcrumb}
+  ${body}
+  `;
+}
 function wireCostLog(proj=P()){
   const addBtn = $('#btn-add-costlog');
   if(addBtn) addBtn.onclick = ()=>{
     proj.costLog = proj.costLog||[];
-    proj.costLog.push(newCostLogEntry());
+    const entry = newCostLogEntry();
+    // Adding from inside a category's own page: pre-link the new row to
+    // that category so "click category, see history, keep typing" doesn't
+    // also require re-picking the same category from the dropdown every
+    // single row.
+    if(costLogView==='category') entry.taskId = costLogCategory;
+    proj.costLog.push(entry);
     saveData(); render();
   };
+  // Hub sub-nav: เมนูหมวดงาน / หน้ารวม / สรุป, plus each category card on
+  // the menu itself (those also carry data-cl-category, including "" for
+  // the not-linked bucket -- checked via `in` since '' is falsy but still a
+  // real, intentional selection).
+  $$('[data-cl-view]').forEach(b=> b.onclick = ()=>{
+    costLogView = b.dataset.clView;
+    if('clCategory' in b.dataset) costLogCategory = b.dataset.clCategory;
+    render(); window.scrollTo({top:0});
+  });
   $$('[data-cl-filter]').forEach(b=> b.onclick = ()=>{ costLogStatusFilter=b.dataset.clFilter; render(); });
   // Inline "spreadsheet" editing: typing into a cell mutates the underlying
   // entry directly and, for qty/unit price, recomputes just that row's total
@@ -7647,7 +7788,7 @@ function renderPurchasingHub(){
 function wirePurchasingHub(){
   if(!state.projects.length) return;
   const sel = $('#ph-project-select');
-  if(sel) sel.onchange = ()=>{ purchasingProjectId = sel.value; costLogStatusFilter='all'; render(); };
+  if(sel) sel.onchange = ()=>{ purchasingProjectId = sel.value; costLogStatusFilter='all'; costLogView='menu'; costLogCategory=''; render(); };
   const proj = state.projects.find(p=>p.id===purchasingProjectId) || state.projects[0];
   wireCostLog(proj);
 }
