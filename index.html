@@ -639,7 +639,50 @@ select.pp-status-select.pp-cancelled,select.pp-status-select.pp-pay-cancelled{ba
 select.pp-status-select.pp-noneed{background:var(--surface-2);color:var(--ink-500)}
 .pp-table tr.pp-row-overdue td{background:var(--coral-50)}
 .pp-table tr.pp-row-duesoon td{background:var(--amber-50)}
-.pp-table input,.pp-table select{font-size:12.5px;padding:4px 6px;border:1px solid var(--line);border-radius:6px;background:var(--surface);color:var(--ink-700);box-sizing:border-box}
+.pp-table input,.pp-table select{font-size:12.5px;padding:4px 6px;border:1px solid var(--line);border-radius:6px;background:var(--surface);color:var(--ink-700);box-sizing:border-box;width:100%}
+/* table-layout:auto (inherited from .budget-table) sizes every column to its
+   unwrapped content width and only wraps when the table itself is squeezed
+   -- but .pp-wrap scrolls horizontally, so it never squeezes and nothing
+   ever wraps, which is exactly why the table needed a scrollbar at all.
+   table-layout:fixed instead takes the widths declared below on the header
+   cells as the real column widths (proportionally stretched or shrunk to
+   fill the table's own width, so the whole 17-column table always fits
+   whatever the viewport is) and wraps/truncates cell content to match --
+   the actual fix for "every item fits within one page width". Each
+   input/select is width:100% of its <td> above so it always matches its
+   column exactly, with a single source of truth (the widths below) instead
+   of two numbers that can drift apart. */
+.pp-table{table-layout:fixed;width:100%}
+.pp-table th,.pp-table td{padding:6px 8px}
+/* Header labels are long Thai phrases with no spaces to break on, so plain
+   white-space:normal doesn't wrap them -- overflow-wrap:anywhere forces a
+   break inside the column instead of stretching it. The item-name column
+   (2nd) gets the same treatment on its body cells so long names wrap onto
+   multiple lines instead of forcing the column (and the whole table) wider
+   -- this replaces the inherited .budget-table td:nth-child(3) rule, which
+   was written for the Budget screen's own 3rd column and was landing on
+   this table's Unit column instead. */
+.pp-table th{white-space:normal;overflow-wrap:anywhere;line-height:1.3;vertical-align:bottom;font-size:11.5px}
+.pp-table td:nth-child(1),.pp-table th:nth-child(1){white-space:nowrap;width:3.4%}
+.pp-table td:nth-child(2),.pp-table th:nth-child(2){white-space:normal;overflow-wrap:anywhere;width:15.4%}
+.pp-table td:nth-child(3),.pp-table th:nth-child(3){white-space:nowrap;width:3.6%}
+.pp-table td:nth-child(4),.pp-table th:nth-child(4){width:5.8%}
+.pp-table td:nth-child(5),.pp-table th:nth-child(5){width:5.8%}
+.pp-table td:nth-child(6),.pp-table th:nth-child(6){width:9.6%}
+.pp-table td:nth-child(7),.pp-table th:nth-child(7){white-space:nowrap;width:5.4%}
+.pp-table td:nth-child(8),.pp-table th:nth-child(8){width:8.8%}
+.pp-table td:nth-child(9),.pp-table th:nth-child(9){width:5%}
+.pp-table td:nth-child(10),.pp-table th:nth-child(10){white-space:nowrap;width:5.4%}
+.pp-table td:nth-child(11),.pp-table th:nth-child(11){white-space:nowrap;width:6.8%}
+.pp-table td:nth-child(12),.pp-table th:nth-child(12){width:5.8%}
+.pp-table td:nth-child(13),.pp-table th:nth-child(13){width:7.2%}
+.pp-table td:nth-child(14),.pp-table th:nth-child(14){width:10.4%}
+.pp-table td:nth-child(15),.pp-table th:nth-child(15){width:5.6%}
+.pp-table td:nth-child(16),.pp-table th:nth-child(16){width:7.6%}
+.pp-table td:nth-child(17),.pp-table th:nth-child(17){width:8.4%}
+.pp-table select{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pp-table .badge{white-space:nowrap;padding:3px 8px;font-size:11px}
+.pp-table .budget-cat-row td{white-space:nowrap}
 
 /* ---------- Kanban ----------
    The 4 status columns are a fixed set (not a variable-length list), so they
@@ -7470,24 +7513,29 @@ function renderPurchasePlan(proj=P()){
       // exactly the "numbers worth double-checking before ordering for real"
       // cells the source spreadsheet calls out with a soft-yellow fill.
       const qtyMismatch = drawingQty!==''&&Number(drawingQty)!==Number(quotationQty);
+      const orderStatusLabel = escapeHtml(tf(orderStatusDef.th,orderStatusDef.en));
+      const paymentStatusDef = PP_PAYMENT_STATUS.find(s=>s.v===paymentStatus)||PP_PAYMENT_STATUS[0];
+      const paymentStatusLabel = escapeHtml(tf(paymentStatusDef.th,paymentStatusDef.en));
+      const deliverySourceDef = PP_DELIVERY_SOURCE.find(s=>s.v===item.ppDeliverySource);
+      const deliverySourceLabel = deliverySourceDef? escapeHtml(tf(deliverySourceDef.th,deliverySourceDef.en)) : '-';
       return `<tr data-pp-row="${item.id}" class="${alert==='overdue'?'pp-row-overdue':alert==='duesoon'?'pp-row-duesoon':''}">
         <td class="tabular hint">${escapeHtml(item.itemCode||'-')}</td>
-        <td>${escapeHtml(item.name)}</td>
+        <td title="${escapeHtml(item.name)}">${escapeHtml(item.name)}</td>
         <td>${escapeHtml(item.unit)}</td>
-        <td><input type="number" step="0.01" data-pp-field="ppQuotationQty" value="${quotationQty==null?'':quotationQty}" style="width:80px"></td>
-        <td${qtyMismatch?' style="background:var(--amber-50)"':''}><input type="number" step="0.01" data-pp-field="ppDrawingQty" value="${drawingQty}" style="width:80px"></td>
-        <td${qtyMismatch?' style="background:var(--amber-50)"':''}><input type="text" data-pp-field="ppVarianceNote" value="${escapeHtml(item.ppVarianceNote||'')}" placeholder="${tf('หมายเหตุเปรียบเทียบ','comparison note')}" style="width:160px"></td>
+        <td><input type="number" step="0.01" data-pp-field="ppQuotationQty" value="${quotationQty==null?'':quotationQty}"></td>
+        <td${qtyMismatch?' style="background:var(--amber-50)"':''}><input type="number" step="0.01" data-pp-field="ppDrawingQty" value="${drawingQty}"></td>
+        <td${qtyMismatch?' style="background:var(--amber-50)"':''}><input type="text" data-pp-field="ppVarianceNote" value="${escapeHtml(item.ppVarianceNote||'')}" placeholder="${tf('หมายเหตุ','note')}" title="${tf('หมายเหตุเปรียบเทียบ','comparison note')}"></td>
         <td class="tabular hint" title="${tf('อัตโนมัติจากวันเริ่มงานในแผนงานหลัก','Automatic from the Master Plan start date')}">${needDate? fmtDateShort(needDate) : '-'}</td>
-        <td><input type="text" data-pp-field="ppSupplier" value="${escapeHtml(item.ppSupplier||'')}" placeholder="${tf('ซัพพลายเออร์','supplier')}" style="width:130px"></td>
-        <td><input type="number" min="0" step="1" data-pp-field="ppLeadTimeDays" value="${item.ppLeadTimeDays==null?'':item.ppLeadTimeDays}" style="width:60px"></td>
+        <td><input type="text" data-pp-field="ppSupplier" value="${escapeHtml(item.ppSupplier||'')}" placeholder="${tf('ซัพพลายเออร์','supplier')}" title="${escapeHtml(item.ppSupplier||'')}"></td>
+        <td><input type="number" min="0" step="1" data-pp-field="ppLeadTimeDays" value="${item.ppLeadTimeDays==null?'':item.ppLeadTimeDays}"></td>
         <td class="tabular hint" title="${tf('คำนวณอัตโนมัติ = วันที่ต้องถึงหน้างาน − Lead Time','Computed automatically = need-on-site date − lead time')}">${orderByDate? fmtDateShort(orderByDate) : '-'}</td>
         <td>${alertHtml}</td>
-        <td><input type="number" step="0.01" data-pp-field="ppActualOrderQty" value="${item.ppActualOrderQty==null?'':item.ppActualOrderQty}" style="width:80px"></td>
-        <td><input type="text" data-pp-field="ppPoNo" value="${escapeHtml(item.ppPoNo||'')}" placeholder="${tf('เลขที่ PO','PO no.')}" style="width:110px"></td>
-        <td><select data-pp-field="ppOrderStatus" class="pp-status-select ${orderStatusDef.cls}">${PP_ORDER_STATUS.map(s=>`<option value="${s.v}" ${orderStatus===s.v?'selected':''}>${escapeHtml(tf(s.th,s.en))}</option>`).join('')}</select></td>
-        <td><select data-pp-field="ppDeliverySource"><option value="">-</option>${PP_DELIVERY_SOURCE.map(s=>`<option value="${s.v}" ${item.ppDeliverySource===s.v?'selected':''}>${escapeHtml(tf(s.th,s.en))}</option>`).join('')}</select></td>
-        <td><select data-pp-field="ppPaymentStatus" class="pp-status-select ${(PP_PAYMENT_STATUS.find(s=>s.v===paymentStatus)||PP_PAYMENT_STATUS[0]).cls}">${PP_PAYMENT_STATUS.map(s=>`<option value="${s.v}" ${paymentStatus===s.v?'selected':''}>${escapeHtml(tf(s.th,s.en))}</option>`).join('')}</select></td>
-        <td><input type="text" data-pp-field="ppNotes" value="${escapeHtml(item.ppNotes||'')}" placeholder="${tf('หมายเหตุ','note')}" style="width:140px"></td>
+        <td><input type="number" step="0.01" data-pp-field="ppActualOrderQty" value="${item.ppActualOrderQty==null?'':item.ppActualOrderQty}"></td>
+        <td><input type="text" data-pp-field="ppPoNo" value="${escapeHtml(item.ppPoNo||'')}" placeholder="${tf('เลขที่ PO','PO no.')}" title="${escapeHtml(item.ppPoNo||'')}"></td>
+        <td><select data-pp-field="ppOrderStatus" class="pp-status-select ${orderStatusDef.cls}" title="${orderStatusLabel}">${PP_ORDER_STATUS.map(s=>`<option value="${s.v}" ${orderStatus===s.v?'selected':''}>${escapeHtml(tf(s.th,s.en))}</option>`).join('')}</select></td>
+        <td><select data-pp-field="ppDeliverySource" title="${deliverySourceLabel}"><option value="">-</option>${PP_DELIVERY_SOURCE.map(s=>`<option value="${s.v}" ${item.ppDeliverySource===s.v?'selected':''}>${escapeHtml(tf(s.th,s.en))}</option>`).join('')}</select></td>
+        <td><select data-pp-field="ppPaymentStatus" class="pp-status-select ${paymentStatusDef.cls}" title="${paymentStatusLabel}">${PP_PAYMENT_STATUS.map(s=>`<option value="${s.v}" ${paymentStatus===s.v?'selected':''}>${escapeHtml(tf(s.th,s.en))}</option>`).join('')}</select></td>
+        <td><input type="text" data-pp-field="ppNotes" value="${escapeHtml(item.ppNotes||'')}" placeholder="${tf('หมายเหตุ','note')}" title="${escapeHtml(item.ppNotes||'')}"></td>
       </tr>`;
     }).join('');
     return catHeader + itemRows;
@@ -7542,6 +7590,7 @@ function wirePurchasePlan(proj=P()){
       const field = inp.dataset.ppField;
       inp.oninput = ()=>{
         item[field] = inp.value===''? null : (inp.type==='number'? parseNumLoose(inp.value) : inp.value);
+        if(inp.hasAttribute('title')) inp.title = inp.value; // keep the hover tooltip in sync with the (narrowed) input's live value
       };
       // Fields that feed a computed column (need-on-site/order-by date,
       // overdue alert, the quotation-vs-drawing mismatch highlight) need a
