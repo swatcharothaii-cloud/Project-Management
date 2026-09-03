@@ -7525,8 +7525,8 @@ function renderCostLogMenu(all, boqCategories, proj=P()){
     ${costLogTotalCardHtml(grandTotal, proj)}
     <div class="card kpi"><div class="stat"><span class="lbl">🧾 ${tf('จำนวนรายการ','Entries')}</span><span class="num tabular" style="font-size:19px">${all.length}</span></div></div>
   </div>
-  ${boqCategories.length? `<div class="cl-cat-grid">${cards}${unlinkedCard}</div>` : `<div class="empty"><span class="ic">📁</span>${tf('เพิ่มรายการงานในแผนงานหลักก่อน เพื่อให้มีหมวดงานให้เลือก','Add work items in the Master Plan first so there are categories to pick from')}</div>`}
   ${costLogCategoryChartHtml(all, proj)}
+  ${boqCategories.length? `<div class="cl-cat-grid">${cards}${unlinkedCard}</div>` : `<div class="empty"><span class="ic">📁</span>${tf('เพิ่มรายการงานในแผนงานหลักก่อน เพื่อให้มีหมวดงานให้เลือก','Add work items in the Master Plan first so there are categories to pick from')}</div>`}
   `;
 }
 // The sub-nav shown on every Cost Log page (เมนูหมวดงาน / หน้ารวม) -- a
