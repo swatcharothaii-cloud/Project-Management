@@ -7359,6 +7359,17 @@ function costLogRecalcTotal(c){ c.total = (c.qty||0) * (c.unitCost||0); return c
 // "หน้ารวม" all-entries view) -- a single category's scoped subtotal stays a
 // plain figure, since comparing one category's slice against the
 // whole-project cap would be misleading.
+// One category's slice of the 70%-of-BOQ purchasing cap (see
+// purchaseBudgetStatus()) -- just that category's own planned BOQ value, so
+// each category card on the Cost Log menu can show its own current spend
+// against its own budget instead of only the whole-project figure.
+function boqCategoryBudget(proj, cat){
+  let total = 0;
+  (proj.boq||[]).forEach(item=>{
+    if((item.category||'')===cat && item.unitPrice!=null) total += item.qtyTotal*item.unitPrice;
+  });
+  return total;
+}
 function costLogTotalCardHtml(total, proj){
   const bs = purchaseBudgetStatus(proj);
   const cap = bs.cap;
@@ -7482,9 +7493,26 @@ function renderCostLogMenu(all, boqCategories, proj=P()){
   });
   const cards = boqCategories.map(cat=>{
     const stat = catStats[cat] || {count:0, total:0};
+    // Each category's own slice of the 70%-of-BOQ cap -- shown as current /
+    // cap plus a thin progress bar, same ok/warn/over coloring as the
+    // whole-project card above, so a category card is meaningful on its own
+    // without having to open it first. Falls back to a plain figure when the
+    // category has no priced BOQ budget to compare against (cap<=0).
+    const catCap = boqCategoryBudget(proj, cat)*0.7;
+    const catWarnAt = boqCategoryBudget(proj, cat)*0.49;
+    const amountHtml = catCap>0
+      ? `<span class="tabular">${fmtCurrency(stat.total)} <span class="hint" style="font-weight:400">/ ${fmtCurrency(catCap)}</span></span>`
+      : `<span class="tabular">${fmtCurrency(stat.total)}</span>`;
+    const budgetBarHtml = catCap>0? (()=>{
+      const pct = stat.total/catCap*100;
+      const level = stat.total>=catCap? 'over' : stat.total>=catWarnAt? 'warn' : 'ok';
+      return `<div class="progress ${level==='over'?'bad':level==='warn'?'warn':'ok'}" style="margin-top:8px;height:6px"><i style="width:${clamp(pct,0,100)}%"></i></div>
+      <div class="hint" style="margin-top:4px;font-size:11px">${fmtNum(clamp(pct,0,999),0)}% ${tf('ของงบหมวดนี้ (เพดาน 70%)','of category budget (70% cap)')}</div>`;
+    })() : '';
     return `<button class="cl-cat-card" data-cl-view="category" data-cl-category="${escapeHtml(cat)}">
       <div class="cl-cat-card-name">📁 ${escapeHtml(cat)}</div>
-      <div class="cl-cat-card-stats"><span>${stat.count} ${tf('รายการ','entries')}</span><span class="tabular">${fmtCurrency(stat.total)}</span></div>
+      <div class="cl-cat-card-stats"><span>${stat.count} ${tf('รายการ','entries')}</span>${amountHtml}</div>
+      ${budgetBarHtml}
     </button>`;
   }).join('');
   const unlinkedStat = catStats[''];
