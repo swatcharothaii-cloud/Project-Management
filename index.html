@@ -7544,9 +7544,23 @@ function costLogSubnavHtml(view){
   ];
   return `<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px">${items.map(it=>`<button class="btn ${view===it.v?'primary':'ghost'} sm" data-cl-view="${it.v}">${it.label}</button>`).join('')}</div>`;
 }
+// Every standard BOQ work-category name, plus any custom category actually
+// used in this project's BOQ -- deliberately NOT limited to
+// boqCategoryGroups()'s "has at least one line item" categories. That filter
+// is correct for a BOQ listing table (no point showing an empty category
+// header there), but wrong here: a category with zero BOQ line items on this
+// particular project -- e.g. "16. งานทำความสะอาด" or "17. งานตรวจรับงาน"
+// when the BOQ was never itemized that far -- can still have real purchases
+// logged against it, so it still needs its own clickable card and its own
+// option in the "เชื่อมงาน" dropdown.
+function costLogAllCategories(proj){
+  const used = Array.from(new Set((proj.boq||[]).map(i=>i.category||'').filter(Boolean)));
+  const extra = used.filter(c=>!BOQ_CATEGORIES.includes(c));
+  return BOQ_CATEGORIES.concat(extra);
+}
 function renderCostLog(proj=P()){
   const all = proj.costLog||[];
-  const boqCategories = boqCategoryGroups(proj.boq||[]).map(g=>g.cat).filter(Boolean);
+  const boqCategories = costLogAllCategories(proj);
   // Guard against stale state from a different project -- e.g. switching
   // projects on the top-level Purchasing Hub while parked on a category
   // page whose name doesn't exist in the newly-selected project's BOQ --
