@@ -124,6 +124,14 @@ body{
   line-height:1.6;
   -webkit-font-smoothing:antialiased;
   min-height:100vh;
+  /* Safety net for the full-bleed (100vw) Purchasing Plan table wrap below:
+     on a desktop browser with a classic (non-overlay) scrollbar, 100vw is
+     measured against the initial containing block, which includes the
+     scrollbar's own width, so a 100vw-wide element can end up a few pixels
+     wider than the actually-visible viewport and add a stray horizontal
+     scrollbar to the whole page. Clipping it here costs nothing (nothing in
+     this app relies on horizontal page overflow) and keeps that always off. */
+  overflow-x:hidden;
 }
 h1,h2,h3,h4{font-family:var(--font-display);margin:0;text-wrap:balance;color:var(--ink-900)}
 p{margin:0}
@@ -343,8 +351,22 @@ tbody tr:hover{background:var(--surface-2)}
    first. This bar's own content is a 1px-tall spacer exactly as wide as the
    chart, so its native scrollbar thumb is proportioned to match, and
    wireMasterPlan() mirrors scrollLeft between the two in both directions. */
-.gantt-topscroll{overflow-x:auto;overflow-y:hidden;height:16px;margin-bottom:6px}
-.gantt-topscroll>div{height:1px}
+.gantt-topscroll,.table-topscroll{overflow-x:auto;overflow-y:hidden;height:16px;margin-bottom:6px}
+.gantt-topscroll>div,.table-topscroll>div{height:1px}
+/* Full-bleed, self-scrolling wide-table panel (currently used by the
+   Purchasing Plan screen) -- same "own bounded height + sticky header"
+   technique as .gantt-outer above, applied to a plain <table> instead of the
+   Gantt's div-grid. margin-left/right:calc(50% - 50vw) is the standard
+   "break out of a centered max-width container" trick: 50% resolves against
+   this element's own containing block (main's centered 1180px box) while
+   50vw resolves against the real viewport, so the difference re-centers a
+   100vw-wide element on the viewport regardless of how narrow or offset its
+   parent is -- letting the table use the full window width instead of being
+   squeezed into main's max-width:1180px column. The topscroll bar above the
+   table gets the exact same full-bleed treatment so the two stay aligned. */
+.pp-wrap,.pp-wrap-topscroll{width:100vw;margin-left:calc(50% - 50vw);margin-right:calc(50% - 50vw);box-sizing:border-box;padding-left:18px;padding-right:18px}
+.pp-wrap{max-height:calc(100vh - 220px);overflow-y:auto}
+.pp-table thead th{position:sticky;top:0;z-index:5}
 .gantt-scroll-btn{width:30px;height:30px;border-radius:50%;border:1px solid var(--line);background:var(--surface);color:var(--ink-700);font-size:13px;display:flex;align-items:center;justify-content:center;cursor:pointer}
 .gantt-scroll-btn:hover{background:var(--surface-2)}
 /* overflow-x:auto here (needed for the horizontal date-scroll) forces
@@ -7482,7 +7504,8 @@ function renderPurchasePlan(proj=P()){
     <div class="card kpi"><div class="stat"><span class="lbl">🟡 ${tf('ยังไม่ได้สั่ง','Not yet ordered')}</span><span class="num tabular" style="font-size:19px">${notOrderedCount}</span></div></div>
     <div class="card kpi"><div class="stat"><span class="lbl">🔴 ${tf('เกินกำหนดสั่งซื้อ','Overdue to order')}</span><span class="num tabular" style="font-size:19px;color:${overdueCount?'var(--coral-600)':'inherit'}">${overdueCount}</span></div></div>
   </div>
-  <div class="table-wrap"><table class="budget-table pp-table"><thead><tr>
+  <div class="table-topscroll pp-wrap-topscroll" id="pp-topscroll"><div id="pp-topscroll-spacer"></div></div>
+  <div class="table-wrap pp-wrap" id="pp-table-wrap"><table class="budget-table pp-table"><thead><tr>
     <th>${tf('No.','No.')}</th><th>${tf('รายการวัสดุ/อุปกรณ์','Item')}</th><th>${tf('หน่วย','Unit')}</th>
     <th>${tf('จำนวนตามใบเสนอราคา','Quotation Qty')}</th><th>${tf('จำนวนตามแบบขออนุญาต','Drawing Qty')}</th><th>${tf('ส่วนต่าง/หมายเหตุ','Variance / Note')}</th>
     <th>${tf('วันที่ต้องถึงหน้างาน','Need-on-Site Date')}</th><th>${tf('ซัพพลายเออร์','Supplier')}</th><th>${tf('Lead Time (วัน)','Lead Time (days)')}</th>
@@ -7492,7 +7515,26 @@ function renderPurchasePlan(proj=P()){
   </tr></thead><tbody>${rows}</tbody></table></div>
   `;
 }
+// Mirrors wireMasterPlan()'s #gantt-topscroll sync exactly: a slim scrollbar
+// pinned right above the table (reachable without scrolling all the way down
+// past however many BOQ items there are) whose scrollLeft is kept in lockstep
+// with the real table-wrap's own horizontal scroll, in both directions. The
+// spacer div's width has to be set from JS (table.scrollWidth) rather than
+// baked into the render-time HTML, since a plain <table> auto-sizes its
+// columns from cell content and that width isn't known until after layout.
+function wirePpTopscroll(){
+  const wrap = $('#pp-table-wrap');
+  const topScroll = $('#pp-topscroll');
+  const spacer = $('#pp-topscroll-spacer');
+  if(!wrap || !topScroll || !spacer) return;
+  const table = wrap.querySelector('table');
+  if(table) spacer.style.width = table.scrollWidth+'px';
+  let syncing = false;
+  topScroll.onscroll = ()=>{ if(syncing) return; syncing=true; wrap.scrollLeft = topScroll.scrollLeft; syncing=false; };
+  wrap.onscroll = ()=>{ if(syncing) return; syncing=true; topScroll.scrollLeft = wrap.scrollLeft; syncing=false; };
+}
 function wirePurchasePlan(proj=P()){
+  wirePpTopscroll();
   $$('[data-pp-row]').forEach(row=>{
     const item = proj.boq.find(i=>i.id===row.dataset.ppRow);
     if(!item) return;
