@@ -705,6 +705,51 @@ select.pp-status-select.pp-noneed{background:var(--surface-2);color:var(--ink-50
 .pp-table .badge{white-space:nowrap;padding:3px 8px;font-size:11px}
 .pp-table .budget-cat-row td{white-space:nowrap}
 
+/* ---------- Budget table (BOQ vs. Actual) ----------
+   Same fix as .pp-table above, for the same reason: 17 columns of mostly
+   currency figures plus one long item-name column, previously
+   table-layout:auto inside a horizontally-scrolling wrapper, which -- per
+   the comment on .pp-table -- never shrinks a column below its unwrapped
+   content width no matter how the columns are declared. table-layout:fixed
+   with explicit per-column widths (summing to 100%) makes the whole row
+   always fit whatever viewport it renders in. The description column wraps
+   onto multiple lines (overflow-wrap:anywhere -- Thai has no spaces to break
+   on) instead of forcing the table wider, and the two badge columns
+   (status / purchase alert) get the same wrap treatment since their labels
+   are now too long for a single-line pill at this width.
+   .bud-wrap/.bud-wrap-topscroll get the exact same full-bleed breakout as
+   .pp-wrap/.pp-wrap-topscroll (see the comment there) so a wide, page-long
+   table isn't squeezed into main's centered max-width:1180px column, and
+   .bud-wrap gets the same bounded-height + sticky-header treatment as
+   .pp-wrap/.gantt-outer so the header row and a reachable horizontal
+   scrollbar both stay pinned near the top of the screen instead of the
+   header scrolling away and the scrollbar ending up 100+ rows down. */
+.bud-wrap,.bud-wrap-topscroll{width:100vw;margin-left:calc(50% - 50vw);margin-right:calc(50% - 50vw);box-sizing:border-box;padding-left:18px;padding-right:18px}
+.bud-wrap{max-height:calc(100vh - 220px);overflow-y:auto}
+.bud-table thead th{position:sticky;top:0;z-index:5}
+.bud-table{table-layout:fixed;width:100%}
+.bud-table th,.bud-table td{padding:7px 8px;font-size:11.5px}
+.bud-table th{white-space:normal;overflow-wrap:anywhere;line-height:1.3;vertical-align:bottom;font-size:11px}
+.bud-table td:nth-child(1),.bud-table th:nth-child(1){width:2%}
+.bud-table td:nth-child(2),.bud-table th:nth-child(2){width:3.5%}
+.bud-table td:nth-child(3),.bud-table th:nth-child(3){white-space:normal;overflow-wrap:anywhere;width:13%}
+.bud-table td:nth-child(4),.bud-table th:nth-child(4){width:3.3%}
+.bud-table td:nth-child(5),.bud-table th:nth-child(5){width:4.8%}
+.bud-table td:nth-child(6),.bud-table th:nth-child(6){width:5.8%}
+.bud-table td:nth-child(7),.bud-table th:nth-child(7){width:7.2%}
+.bud-table td:nth-child(8),.bud-table th:nth-child(8){width:6.2%}
+.bud-table td:nth-child(9),.bud-table th:nth-child(9){width:4.8%}
+.bud-table td:nth-child(10),.bud-table th:nth-child(10){width:5.8%}
+.bud-table td:nth-child(11),.bud-table th:nth-child(11){width:7.2%}
+.bud-table td:nth-child(12),.bud-table th:nth-child(12){width:5.8%}
+.bud-table td:nth-child(13),.bud-table th:nth-child(13){width:5.8%}
+.bud-table td:nth-child(14),.bud-table th:nth-child(14){width:7.2%}
+.bud-table td:nth-child(15),.bud-table th:nth-child(15){white-space:normal;width:4.8%}
+.bud-table td:nth-child(16),.bud-table th:nth-child(16){white-space:normal;width:5.8%}
+.bud-table td:nth-child(17),.bud-table th:nth-child(17){white-space:normal;overflow-wrap:anywhere;width:7%}
+.bud-table .badge{white-space:normal;text-align:center;line-height:1.25;padding:3px 7px;font-size:10.5px}
+.bud-table .budget-cat-row td{white-space:normal}
+
 /* ---------- Kanban ----------
    The 4 status columns are a fixed set (not a variable-length list), so they
    sit inside one shared .card -- like every other page in the app -- and
@@ -8373,7 +8418,8 @@ function renderBudget(){
       <div class="sub" style="margin-top:4px">${costLogCountAll} ${tf('รายการที่บันทึกไว้','logged entries')}</div>
     </div>
   </div>
-  <div class="table-wrap"><table class="budget-table"><thead><tr>
+  <div class="table-topscroll bud-wrap-topscroll" id="bud-topscroll"><div id="bud-topscroll-spacer"></div></div>
+  <div class="table-wrap bud-wrap" id="bud-table-wrap"><table class="budget-table bud-table"><thead><tr>
     <th>${tf('No.','No.')}</th><th>${tf('รหัส','Code')}</th><th>${tf('รายการ','Description')}</th><th>${tf('หน่วย','Unit')}</th>
     <th>${tf('ปริมาณ BOQ','BOQ Qty')}</th><th>${tf('ราคา/หน่วย BOQ','BOQ Unit Price')}</th><th>${tf('รวม BOQ','BOQ Total')}</th>
     <th>${tf('งบจัดซื้อ (เพดาน 70%)','Purchase cap (70%)')}</th>
@@ -8383,7 +8429,25 @@ function renderBudget(){
   </tr></thead><tbody>${rows}</tbody></table></div>
   `;
 }
+// Mirrors wirePpTopscroll() exactly: a slim scrollbar pinned right above the
+// table (reachable without scrolling all the way down past 100+ BOQ rows)
+// whose scrollLeft is kept in lockstep with the real table-wrap's own
+// horizontal scroll, in both directions. The spacer's width has to be set
+// from JS (table.scrollWidth) since a table's real rendered width isn't
+// known until after layout.
+function wireBudTopscroll(){
+  const wrap = $('#bud-table-wrap');
+  const topScroll = $('#bud-topscroll');
+  const spacer = $('#bud-topscroll-spacer');
+  if(!wrap || !topScroll || !spacer) return;
+  const table = wrap.querySelector('table');
+  if(table) spacer.style.width = table.scrollWidth+'px';
+  let syncing = false;
+  topScroll.onscroll = ()=>{ if(syncing) return; syncing=true; wrap.scrollLeft = topScroll.scrollLeft; syncing=false; };
+  wrap.onscroll = ()=>{ if(syncing) return; syncing=true; topScroll.scrollLeft = wrap.scrollLeft; syncing=false; };
+}
 function wireBudget(){
+  wireBudTopscroll();
   // Reuse the Master Plan item editor -- tapping a budget row opens the same
   // edit form (which now carries the itemCode/unitPrice fields) so setting a
   // planned price and reviewing the schedule stay in one place.
