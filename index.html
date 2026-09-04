@@ -1021,7 +1021,7 @@ function loadData(){
   return null;
 }
 function saveDataLocalOnly(){
-  try{ localStorage.setItem(LS_KEY, JSON.stringify({contractor:state.contractor,projects:state.projects,role:state.role,lang:state.lang,contractors:state.contractors,approvers:state.approvers})); }
+  try{ localStorage.setItem(LS_KEY, JSON.stringify({contractor:state.contractor,projects:state.projects,role:state.role,lang:state.lang,contractors:state.contractors,approvers:state.approvers,driveApiKey:state.driveApiKey})); }
   catch(e){ toast(tf('บันทึกไม่สำเร็จ (พื้นที่จัดเก็บเต็ม)','Save failed (storage is full)')); }
 }
 // Every mutation in the app already funnels through this one function, which
@@ -1077,7 +1077,7 @@ function scheduleCloudPush(){
 }
 async function pushStateToCloud(){
   try{
-    const metaJSON = JSON.stringify({contractor:state.contractor, contractors:state.contractors, approvers:state.approvers});
+    const metaJSON = JSON.stringify({contractor:state.contractor, contractors:state.contractors, approvers:state.approvers, driveApiKey:state.driveApiKey});
     if(metaJSON !== lastPushedMetaJSON){
       lastPushedMetaJSON = metaJSON;
       await cloudDb.collection('meta').doc('settings').set(JSON.parse(metaJSON));
@@ -1115,6 +1115,7 @@ function applyCloudMeta(data){
   state.contractor = data.contractor || state.contractor;
   state.contractors = data.contractors || state.contractors;
   state.approvers = data.approvers || state.approvers;
+  state.driveApiKey = data.driveApiKey!=null? data.driveApiKey : state.driveApiKey;
   saveDataLocalOnly();
   safeRerender();
 }
@@ -1170,6 +1171,7 @@ async function initCloudSync(){
         state.contractor = data.contractor || state.contractor;
         state.contractors = data.contractors || state.contractors;
         state.approvers = data.approvers || state.approvers;
+        state.driveApiKey = data.driveApiKey!=null? data.driveApiKey : state.driveApiKey;
       }
       if(!projSnap.empty){
         const cloudProjects = [];
@@ -3960,6 +3962,7 @@ let state = {
   reportDate: todayStr(),
   photoQueue:false,
   lastExportedImg:null,
+  driveApiKey:'', // Google Drive API key for the Purchase-Order auto-sync feature (see GOOGLE DRIVE PURCHASE-ORDER SYNC below) -- company-wide, set on the Company Settings page, synced via meta/settings like contractor/contractors/approvers
 };
 // P() = the project currently open (state.view==='project'). Falls back to an
 // empty stub so calls made outside a project context never throw.
@@ -4094,7 +4097,7 @@ function rebuildLangConstants(){
 function bootstrap(){
   const saved = loadData();
   if(saved && saved.contractor && Array.isArray(saved.projects)){
-    Object.assign(state,{contractor:saved.contractor, projects:saved.projects, role:saved.role||'site', lang:saved.lang||'th', contractors:saved.contractors||[], approvers:saved.approvers||[]});
+    Object.assign(state,{contractor:saved.contractor, projects:saved.projects, role:saved.role||'site', lang:saved.lang||'th', contractors:saved.contractors||[], approvers:saved.approvers||[], driveApiKey:saved.driveApiKey||''});
   } else if(saved && saved.contractor && saved.boq){
     // migrate an older single-project save into the new multi-project shape
     Object.assign(state,{
@@ -4667,11 +4670,22 @@ function buildBoqFromImport(){
 }
 
 let projectDraft=null, editingProjectId=null;
+// Accepts either a raw Drive folder ID or a full folder link (e.g.
+// https://drive.google.com/drive/u/0/folders/1AbC...) pasted into the
+// project modal's Drive-folder field, and returns just the ID. Drive IDs
+// are long (25+ char) alnum/-/_ tokens, which is distinctive enough to
+// pull out of a URL with one regex; falls back to the trimmed raw input
+// so a bare ID typed directly still works.
+function extractDriveFolderId(raw){
+  if(!raw) return '';
+  const m = raw.match(/[-\w]{25,}/);
+  return m? m[0] : raw.trim();
+}
 let boqImport=null; // {rows:[[...]], hasHeader:bool, mapping:{code,name,unit,qty,price}, warning:'', sourceLabel:''} -- see BOQ IMPORT section
 function openProjectDraft(id){
   boqImport=null;
-  if(id==='new'){ projectDraft={name:'',zone:''}; editingProjectId='new'; }
-  else { const pr=state.projects.find(p=>p.id===id); projectDraft={name:pr.name,zone:pr.zone||''}; editingProjectId=id; }
+  if(id==='new'){ projectDraft={name:'',zone:'',driveFolderId:''}; editingProjectId='new'; }
+  else { const pr=state.projects.find(p=>p.id===id); projectDraft={name:pr.name,zone:pr.zone||'',driveFolderId:pr.driveFolderId||''}; editingProjectId=id; }
 }
 function boqImportSectionHtml(){
   if(!boqImport) return '';
@@ -4735,6 +4749,11 @@ function projectModalHtml(){
     <div class="modal-head"><h3>${editingProjectId==='new'? tf('สร้างโปรเจ็คใหม่','New project') : tf('แก้ไขโปรเจ็ค','Edit project')}</h3><button class="iconbtn" id="proj-modal-close">✕</button></div>
     <div class="field"><label>${tf('ชื่อโครงการ','Project name')}</label><input type="text" id="pm-name" value="${escapeHtml(d.name)}" placeholder="${tf('เช่น รีโนเวททาวน์โฮม 3 ชั้น','e.g. 3-storey townhome renovation')}"></div>
     <div class="field" style="margin-top:12px"><label>${tf('โซน/พื้นที่ทำงาน','Zone / work area')}</label><input type="text" id="pm-zone" value="${escapeHtml(d.zone)}" placeholder="${tf('เช่น Master Bedroom & Living Room','e.g. Master Bedroom & Living Room')}"></div>
+    <div class="field" style="margin-top:12px">
+      <label>📂 ${tf('โฟลเดอร์ Google Drive สำหรับใบสั่งซื้อ (ไม่บังคับ)','Google Drive purchasing folder (optional)')}</label>
+      <input type="text" id="pm-drive-folder" value="${escapeHtml(d.driveFolderId||'')}" placeholder="${tf('วางลิงก์โฟลเดอร์ Drive หรือรหัสโฟลเดอร์','Paste the Drive folder link or its folder ID')}">
+      <div class="hint" style="margin-top:4px">${tf('ใช้กับปุ่ม "ซิงค์ตอนนี้" ในหน้าบันทึกต้นทุนการจัดซื้อ — โฟลเดอร์นี้ควรมีโฟลเดอร์ย่อยชื่อตรงกับหมวดงาน (เช่น "4. งานไฟฟ้า-เดินสายไฟ") และต้องแชร์แบบ "ใครมีลิงก์ก็ดูได้"','Used by the "Sync now" button on the Procurement Cost Log page -- this folder should contain one subfolder per matching category name (e.g. "4. งานไฟฟ้า-เดินสายไฟ") and must be shared as "Anyone with the link".')}</div>
+    </div>
     ${importSection}
     <button class="btn primary block" style="margin-top:16px" id="pm-save">${importedCount>0? tf('สร้างโปรเจ็คพร้อม BOQ ','Create project with a BOQ of ')+importedCount+tf(' รายการ',' items') : tf('บันทึกโปรเจ็ค','Save project')}</button>
   </div></div>`;
@@ -4750,9 +4769,10 @@ function wireProjectModal(){
   // which rebuilds the whole modal from projectDraft. Without syncing first,
   // that render would silently blank out whatever the user already typed.
   const syncProjectFields = ()=>{
-    const nameEl=$('#pm-name'), zoneEl=$('#pm-zone');
+    const nameEl=$('#pm-name'), zoneEl=$('#pm-zone'), driveEl=$('#pm-drive-folder');
     if(nameEl) projectDraft.name = nameEl.value;
     if(zoneEl) projectDraft.zone = zoneEl.value;
+    if(driveEl) projectDraft.driveFolderId = driveEl.value;
   };
   const applyParsedRows = (rows)=>{
     if(!rows.length){ boqImport = {rows:[], warning:tf('ไม่พบข้อมูลตาราง','No table data found')}; return; }
@@ -4804,15 +4824,16 @@ function wireProjectModal(){
   });
   $('#pm-save').onclick = ()=>{
     const name=$('#pm-name').value.trim(), zone=$('#pm-zone').value.trim();
+    const driveFolderId = extractDriveFolderId($('#pm-drive-folder').value.trim());
     if(!name){ toast(tf('กรุณาระบุชื่อโครงการ','Please enter a project name')); return; }
     if(editingProjectId==='new'){
       const importedBoq = buildBoqFromImport();
-      state.projects.push({id:uid(), name, zone, boq:importedBoq, logs:[], materialRequests:[], costLog:[], inspectionReports:[], createdAt:new Date().toISOString()});
+      state.projects.push({id:uid(), name, zone, driveFolderId, driveSyncedFileIds:[], boq:importedBoq, logs:[], materialRequests:[], costLog:[], inspectionReports:[], createdAt:new Date().toISOString()});
       saveData(); closeProjectModal();
       toast(importedBoq.length? tf('สร้างโปรเจ็คใหม่แล้ว พร้อม BOQ ','Project created with a BOQ of ')+importedBoq.length+tf(' รายการ',' items') : tf('สร้างโปรเจ็คใหม่แล้ว','Project created'));
     } else {
       const pr=state.projects.find(p=>p.id===editingProjectId);
-      Object.assign(pr,{name,zone});
+      Object.assign(pr,{name,zone,driveFolderId});
       saveData(); closeProjectModal(); toast(tf('บันทึกโปรเจ็คแล้ว','Project saved'));
     }
   };
@@ -5082,6 +5103,13 @@ function renderProfile(){
     <button class="btn primary" id="btn-save-profile">${tf('บันทึกข้อมูลบริษัท','Save company info')}</button>
     <button class="btn ghost" id="btn-reset-demo">${tf('ล้างข้อมูลทั้งหมด / เริ่มใหม่ทั้งระบบ','Reset everything / start over')}</button>
   </div>
+  <div class="card tint">
+    <b style="font-family:var(--font-display)">📂 ${tf('เชื่อมต่อ Google Drive (ดึงใบสั่งซื้ออัตโนมัติ)','Google Drive connection (auto-pull purchase orders)')}</b>
+    <div class="sub" style="margin:6px 0 10px">${tf('ใช้สำหรับดึงไฟล์ใบสั่งซื้อจากโฟลเดอร์ Google Drive ของแต่ละโปรเจ็คมาอ่านยอดเงินอัตโนมัติ แล้วบันทึกลงหน้า "บันทึกต้นทุนการจัดซื้อ" ทันที ตั้งค่าครั้งเดียวที่นี่ ใช้ได้ทุกโปรเจ็ค (แต่ละโปรเจ็คตั้งค่าโฟลเดอร์ของตัวเองแยกกันในหน้าแก้ไขโปรเจ็ค)','Pulls purchase-order files from each project\'s Google Drive folder, auto-reads the amount, and logs it straight into the Procurement Cost Log page. Set this up once here -- it works for every project (each project points to its own Drive folder from its Edit project screen).')}</div>
+    <div class="field"><label>Google Drive API Key</label><input type="text" id="f-drive-apikey" value="${escapeHtml(state.driveApiKey||'')}" placeholder="AIza..."></div>
+    <div class="hint" style="margin-top:8px">${tf('ยังไม่มี API Key? ไปที่ console.cloud.google.com สร้างโปรเจ็ค เปิดใช้งาน "Google Drive API" แล้วสร้าง Credential ชนิด API Key จำกัดสิทธิ์ให้ใช้ได้เฉพาะ Google Drive API และจำกัด HTTP referrer เป็นโดเมนเว็บนี้เพื่อความปลอดภัย (วิธีนี้ใช้ได้เฉพาะกับโฟลเดอร์ Drive ที่แชร์แบบ "ใครมีลิงก์ก็ดูได้" เท่านั้น)','No API key yet? Go to console.cloud.google.com, create a project, enable the "Google Drive API", then create an API Key credential restricted to the Google Drive API and to this site\'s HTTP referrer for safety. (This only works against Drive folders shared as "Anyone with the link".)')}</div>
+    <button class="btn ghost sm" id="btn-save-drive-key" style="margin-top:10px">${tf('บันทึก API Key','Save API key')}</button>
+  </div>
   <div class="role-note">📶 ${tf('ใช้งานได้แม้สัญญาณอินเทอร์เน็ตหน้างานหลุด — แอปนี้ทำงานทั้งหมดในเครื่อง ไม่ต้องต่อเซิร์ฟเวอร์ระหว่างใช้งาน ข้อมูลบันทึกอยู่ในเบราว์เซอร์นี้เท่านั้น (จุดสีเขียว/เทาที่มุมบนซ้ายบอกสถานะอินเทอร์เน็ต ณ ตอนนี้) หมายเหตุ: การเปิดลิงก์ครั้งแรกและการรีเฟรชหน้าแต่ละครั้งยังต้องใช้อินเทอร์เน็ตเพื่อโหลดหน้าเว็บ','Keeps working even if the site connection drops — everything runs locally, no server round-trip needed while you work. Data is saved only in this browser (the green/grey dot at top-left shows the current connection status). Note: the first load and every page refresh still need internet to fetch the page itself.')}</div>
   <div class="card tint">
     <b style="font-family:var(--font-display)">🔗 ${tf('ลิงก์บันทึกประจำวันสำหรับผู้รับเหมา','Contractor daily-log links')}</b>
@@ -5103,6 +5131,11 @@ function wireProfile(){
       logo: (state.contractor&&state.contractor.logo)||''
     };
     saveData(); toast(tf('บันทึกข้อมูลบริษัทแล้ว','Company info saved')); render();
+  };
+  const saveDriveKeyBtn = $('#btn-save-drive-key');
+  if(saveDriveKeyBtn) saveDriveKeyBtn.onclick = ()=>{
+    state.driveApiKey = $('#f-drive-apikey').value.trim();
+    saveData(); toast(tf('บันทึก API Key แล้ว','API key saved'));
   };
   const logoInput = $('#f-logo');
   if(logoInput) logoInput.onchange = async (e)=>{
@@ -7388,6 +7421,11 @@ let costLogStatusFilter='all';
 // category" bucket, which is a valid selection, not "unset").
 let costLogView='menu';
 let costLogCategory='';
+// Progress/result of the Google Drive purchase-order sync (see GOOGLE DRIVE
+// PURCHASE-ORDER SYNC below) -- null when idle, otherwise
+// {running, done, total, imported, skipped, failed, log:[]}, read by
+// driveSyncPanelHtml() on the Cost Log menu page.
+let driveSyncState = null;
 // Which project the top-level "จัดซื้อ" (Procurement) hub screen is currently
 // logging costs into. Deliberately kept separate from state.currentProjectId
 // -- that one drives the "inside a project" screens/nav (P(), back button,
@@ -7498,7 +7536,7 @@ function costLogRowHtml(c, idx, boqCategories){
     <td><input type="text" data-cl-field="orderedBy" value="${escapeHtml(c.orderedBy||'')}" placeholder="${tf('ผู้สั่ง','Ordered by')}" style="width:100px"></td>
     <td><select data-cl-field="status">${COSTLOG_STATUS.map(s=>`<option value="${s.v}" ${c.status===s.v?'selected':''}>${s.ic} ${escapeHtml(tf(s.th,s.en))}</option>`).join('')}</select></td>
     <td><input type="text" data-cl-field="note" value="${escapeHtml(c.note||'')}" placeholder="${tf('หมายเหตุ','Note')}" style="width:140px"></td>
-    <td style="white-space:nowrap"><button class="iconbtn" data-cl-duplicate="${c.id}" title="${tf('เพิ่มอีกรายการในใบสั่งซื้อเดียวกัน (คัดลอกวันที่/เลขที่/ประเภทงาน/ผู้สั่ง)','Add another item to this same PO (copies date/PO no./work type/ordered by)')}">➕🧾</button><button class="iconbtn" data-cl-delete="${c.id}" title="${tf('ลบ','Delete')}">🗑️</button></td>
+    <td style="white-space:nowrap">${c.driveFileUrl? `<a class="iconbtn" href="${escapeHtml(c.driveFileUrl)}" target="_blank" rel="noopener" title="${tf('เปิดไฟล์ต้นฉบับจาก Google Drive','Open the original file from Google Drive')}">🔗</a>` : ''}<button class="iconbtn" data-cl-duplicate="${c.id}" title="${tf('เพิ่มอีกรายการในใบสั่งซื้อเดียวกัน (คัดลอกวันที่/เลขที่/ประเภทงาน/ผู้สั่ง)','Add another item to this same PO (copies date/PO no./work type/ordered by)')}">➕🧾</button><button class="iconbtn" data-cl-delete="${c.id}" title="${tf('ลบ','Delete')}">🗑️</button></td>
   </tr>`;
 }
 // The status-filterable table section, shared by the 'all' view (scoped =
@@ -7575,6 +7613,7 @@ function renderCostLogMenu(all, boqCategories, proj=P()){
     <div class="cl-cat-card-stats"><span>${unlinkedStat.count} ${tf('รายการ','entries')}</span><span class="tabular">${fmtCurrency(unlinkedStat.total)}</span></div>
   </button>` : '';
   return `
+  ${driveSyncPanelHtml(proj)}
   <div class="grid cols-auto" style="margin-bottom:16px">
     ${costLogTotalCardHtml(grandTotal, proj)}
     <div class="card kpi"><div class="stat"><span class="lbl">🧾 ${tf('จำนวนรายการ','Entries')}</span><span class="num tabular" style="font-size:19px">${all.length}</span></div></div>
@@ -7611,6 +7650,274 @@ function costLogAllCategories(proj){
   const used = Array.from(new Set((proj.boq||[]).map(i=>i.category||'').filter(Boolean)));
   const extra = used.filter(c=>!BOQ_CATEGORIES.includes(c));
   return BOQ_CATEGORIES.concat(extra);
+}
+/* ============================= GOOGLE DRIVE PURCHASE-ORDER SYNC =============================
+   Pulls purchase-order files (PDF/image) out of a project's Google Drive
+   folder tree and auto-creates Cost Log entries from them, reading each
+   file's total amount via OCR (Tesseract.js) so a purchase doesn't have to
+   be re-typed by hand from a PO that's already sitting in Drive.
+
+   Auth model: a plain Google API Key (state.driveApiKey, set once on the
+   Company Settings page), not OAuth/sign-in -- this app is a static site
+   with no backend of its own to keep an OAuth client secret on, so an API
+   key is the only option that doesn't require every user to sign in with
+   Google just to view purchase logs. The tradeoff: an API key only ever
+   works against files/folders shared as "Anyone with the link" -- it
+   cannot see anything private -- so the Drive folder tree this points at
+   must be shared that way. The key itself also ends up visible in this
+   public page's own network requests (anyone could copy it out of devtools)
+   -- restricting it to the Drive API only, plus an HTTP-referrer
+   restriction to this site's domain in Google Cloud Console, keeps that
+   exposure bounded to "can list/read the same public folder anyone with
+   the link could already read", not a real secret leak.
+
+   Each project's own root folder (the "01 Purchasing"-style folder) is
+   proj.driveFolderId, set from the project's Edit screen. Subfolders are
+   matched to BOQ categories purely by exact name (e.g.
+   "4. งานไฟฟ้า-เดินสายไฟ"), so the Drive folder tree must be named to match
+   costLogAllCategories() -- the same 18 standard names plus any custom BOQ
+   category, exactly like the Cost Log category cards themselves.
+
+   Every successfully-imported file's Drive id is recorded in
+   proj.driveSyncedFileIds so re-running "Sync now" never double-imports a
+   file that's already been read once (new files dropped into the same
+   folder later are picked up on the next sync; nothing already imported is
+   re-read or re-priced even if the source file changes).
+
+   OCR reading a total off an arbitrary PO layout is inherently a best
+   effort, not a guarantee -- parseAmountFromText() below always prefers a
+   number sitting next to a "grand total" keyword, but falls back to the
+   largest number anywhere in the document when no such keyword is found,
+   and flags that fallback case (confident:false) so the resulting entry's
+   note says to double-check it rather than presenting a guess as certain.
+   A file OCR can't find any number at all in still gets imported (not
+   silently dropped) with unitCost 0 and a clear "couldn't read an amount"
+   note, so nothing referenced in Drive goes missing from the log -- it just
+   needs a human to fill in the number. */
+const DRIVE_API_BASE = 'https://www.googleapis.com/drive/v3';
+function driveReady(proj){ return !!(state.driveApiKey && proj && proj.driveFolderId); }
+async function driveApiList(q, apiKey, fields){
+  const url = `${DRIVE_API_BASE}/files?q=${encodeURIComponent(q)}&fields=${encodeURIComponent(fields||'files(id,name,mimeType,webViewLink,modifiedTime)')}&pageSize=200&key=${encodeURIComponent(apiKey)}`;
+  const res = await fetch(url);
+  if(!res.ok){
+    const body = await res.text().catch(()=>'');
+    throw new Error(`Drive API ${res.status}: ${body.slice(0,200)}`);
+  }
+  const data = await res.json();
+  return data.files || [];
+}
+function driveListSubfolders(parentId, apiKey){
+  return driveApiList(`'${parentId}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false`, apiKey);
+}
+function driveListFilesInFolder(folderId, apiKey){
+  return driveApiList(`'${folderId}' in parents and mimeType!='application/vnd.google-apps.folder' and trashed=false`, apiKey);
+}
+async function driveDownloadFile(fileId, apiKey){
+  const res = await fetch(`${DRIVE_API_BASE}/files/${fileId}?alt=media&key=${encodeURIComponent(apiKey)}`);
+  if(!res.ok) throw new Error(`Drive download ${res.status}`);
+  return res.blob();
+}
+// Renders a PDF blob's pages to canvases (capped at 5 -- PO documents are
+// almost never longer, and OCR-ing dozens of pages per file would make a
+// sync run take far too long). Reuses the same pdf.js build/version
+// parsePdfFile() above already loads for BOQ file import.
+async function pdfBlobToCanvases(blob, maxPages){
+  await loadScriptOnce('https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js');
+  window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+  const buf = await blob.arrayBuffer();
+  const pdf = await window.pdfjsLib.getDocument({data:buf}).promise;
+  const n = Math.min(pdf.numPages, maxPages||5);
+  const canvases = [];
+  for(let p=1;p<=n;p++){
+    const page = await pdf.getPage(p);
+    const viewport = page.getViewport({scale:2});
+    const canvas = document.createElement('canvas');
+    canvas.width = viewport.width; canvas.height = viewport.height;
+    await page.render({canvasContext:canvas.getContext('2d'), viewport}).promise;
+    canvases.push(canvas);
+  }
+  return canvases;
+}
+let _tesseractWorkerPromise = null;
+function getTesseractWorker(){
+  if(!_tesseractWorkerPromise){
+    _tesseractWorkerPromise = loadScriptOnce('https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js')
+      .then(()=> window.Tesseract.createWorker(['eng','tha']));
+  }
+  return _tesseractWorkerPromise;
+}
+async function ocrImageSource(worker, source){
+  const { data } = await worker.recognize(source);
+  return data.text || '';
+}
+// Heuristic amount extraction: prefer a number sitting on (or right after)
+// a line containing a "grand total" keyword, Thai or English; fall back to
+// the largest number anywhere in the OCR text when no such keyword is
+// found. confident:false on the fallback path is what tells the caller to
+// flag the entry for a human to double-check instead of trusting it.
+// Two priority tiers, most-specific "this is the final grand total" phrasing
+// first -- a real invoice/PO almost always has a subtotal line (matching the
+// looser tier-2 words like "ยอดรวม"/"total") BEFORE its actual grand total
+// line (tier-1: "รวมทั้งสิ้น"/"grand total"), so tier 1 must be tried, in
+// full, before ever falling back to tier 2.
+const DRIVE_TOTAL_KEYWORDS_PRIORITY = [
+  ['รวมทั้งสิ้น','รวมเงินทั้งสิ้น','รวมเป็นเงินทั้งสิ้น','ยอดรวมสุทธิ','ยอดสุทธิ','จำนวนเงินรวมทั้งสิ้น','grand total','net total','total amount due','amount due'],
+  ['ยอดรวม','จำนวนเงินรวม','รวมเป็นเงิน','total amount','total'],
+];
+function parseAmountFromText(text){
+  if(!text) return {amount:null, confident:false};
+  // Matches a comma-grouped number (2,550.00) as one token first -- it must
+  // require at least one ",ddd" group so a plain multi-digit number with no
+  // separators (15000) doesn't get chopped at the first 3 digits before
+  // falling through to the second, no-comma alternative.
+  const numRe = /\d{1,3}(?:,\d{3})+(?:\.\d{1,2})?|\d+(?:\.\d{1,2})?/g;
+  const numsIn = (s)=> (s.match(numRe)||[]).map(n=>parseFloat(n.replace(/,/g,''))).filter(n=>!isNaN(n) && n>0);
+  const lines = text.split(/\r?\n/);
+  for(const tier of DRIVE_TOTAL_KEYWORDS_PRIORITY){
+    // Within a tier, scan from the bottom of the document up: the real
+    // grand total is virtually always the LAST "total"-labelled line, after
+    // any earlier subtotal/tax lines that happen to share the same tier's
+    // keywords (e.g. "ยอดรวม" appearing once before tax, once after).
+    for(let i=lines.length-1;i>=0;i--){
+      const low = lines[i].toLowerCase();
+      if(tier.some(k=>low.includes(k))){
+        let nums = numsIn(lines[i]);
+        if(!nums.length && lines[i+1]) nums = numsIn(lines[i+1]); // amount sometimes sits on the next line/table cell
+        if(nums.length) return {amount: Math.max(...nums), confident:true};
+      }
+    }
+  }
+  const allNums = numsIn(text);
+  if(allNums.length) return {amount: Math.max(...allNums), confident:false};
+  return {amount:null, confident:false};
+}
+// Best-effort PO number guess -- purely cosmetic (pre-fills the PO No.
+// column); an empty result never blocks the import.
+function parsePoNumberFromText(text){
+  if(!text) return '';
+  const m = text.match(/(?:เลขที่|PO\s*No\.?|PO#|Purchase\s*Order\s*No\.?)\s*[:\-]?\s*([A-Za-z0-9\-\/]{3,20})/i);
+  return m? m[1] : '';
+}
+// The Cost Log menu page's Drive-sync card: setup hint when not configured
+// yet, a "Sync now" button + live progress while running, or the last run's
+// summary + log once done (dismissible, with a "Sync again" shortcut).
+function driveSyncPanelHtml(proj){
+  if(driveSyncState && driveSyncState.running){
+    const pct = driveSyncState.total? Math.round(driveSyncState.done/driveSyncState.total*100) : 0;
+    return `<div class="card" style="margin-bottom:16px">
+      <b>🔄 ${tf('กำลังซิงค์ใบสั่งซื้อจาก Google Drive...','Syncing purchase orders from Google Drive...')}</b>
+      <div class="progress ok" style="margin-top:8px"><i style="width:${pct}%"></i></div>
+      <div class="hint" style="margin-top:6px">${driveSyncState.done} / ${driveSyncState.total || '?'} · ✅ ${driveSyncState.imported} · ⏭️ ${driveSyncState.skipped} · ❌ ${driveSyncState.failed}</div>
+      ${driveSyncState.log.length? `<div style="max-height:140px;overflow-y:auto;margin-top:8px;font-size:12px;line-height:1.6">${driveSyncState.log.slice(-30).map(l=>escapeHtml(l)).join('<br>')}</div>` : ''}
+    </div>`;
+  }
+  if(driveSyncState && !driveSyncState.running){
+    const summary = `${tf('เสร็จสิ้น','Done')} — ✅ ${driveSyncState.imported} ${tf('นำเข้า','imported')} · ⏭️ ${driveSyncState.skipped} ${tf('ข้าม','skipped')} · ❌ ${driveSyncState.failed} ${tf('ล้มเหลว','failed')}`;
+    return `<div class="card" style="margin-bottom:16px">
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+        <b>📂 ${tf('ผลการซิงค์ล่าสุด','Last sync result')}</b>
+        <button class="btn ghost sm" id="btn-drive-sync-dismiss">${tf('ปิด','Dismiss')}</button>
+      </div>
+      <div class="hint" style="margin-top:6px">${summary}</div>
+      ${driveSyncState.log.length? `<div style="max-height:140px;overflow-y:auto;margin-top:8px;font-size:12px;line-height:1.6">${driveSyncState.log.map(l=>escapeHtml(l)).join('<br>')}</div>` : ''}
+      <button class="btn primary sm" id="btn-drive-sync" style="margin-top:10px">🔄 ${tf('ซิงค์อีกครั้ง','Sync again')}</button>
+    </div>`;
+  }
+  if(!driveReady(proj)){
+    return `<div class="card tint" style="margin-bottom:16px">
+      <b>📂 ${tf('ดึงใบสั่งซื้อจาก Google Drive อัตโนมัติ','Auto-pull purchase orders from Google Drive')}</b>
+      <div class="hint" style="margin-top:6px">${!state.driveApiKey
+        ? tf('ยังไม่ได้ตั้งค่า Drive API Key — ไปที่หน้า "ตั้งค่าบริษัท" เพื่อตั้งค่าก่อน','Drive API key not set yet -- set it up on the "Company Settings" page first')
+        : tf('โปรเจ็คนี้ยังไม่ได้ตั้งค่าโฟลเดอร์ Google Drive — ไปที่ "แก้ไขโปรเจ็ค" เพื่อวางลิงก์โฟลเดอร์','This project has no Drive folder set yet -- open "Edit project" to paste the folder link')}</div>
+    </div>`;
+  }
+  return `<div class="card" style="margin-bottom:16px">
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+      <div><b>📂 ${tf('ดึงใบสั่งซื้อจาก Google Drive อัตโนมัติ','Auto-pull purchase orders from Google Drive')}</b>
+        <div class="hint" style="margin-top:4px">${tf('อ่านยอดเงินจากไฟล์ใบสั่งซื้อในแต่ละหมวดงานอัตโนมัติ แล้วบันทึกเป็นรายการต้นทุนทันที','Reads the amount off each category\'s purchase-order files automatically and logs it as a cost entry right away')}</div>
+      </div>
+      <button class="btn primary sm" id="btn-drive-sync">🔄 ${tf('ซิงค์ตอนนี้','Sync now')}</button>
+    </div>
+  </div>`;
+}
+async function driveSyncCostLog(proj){
+  const apiKey = state.driveApiKey;
+  if(!apiKey || !proj.driveFolderId){
+    toast(tf('กรุณาตั้งค่า Drive API Key (หน้าตั้งค่าบริษัท) และโฟลเดอร์ Drive ของโปรเจ็คนี้ก่อน','Please set the Drive API key (Company Settings) and this project\'s Drive folder first'));
+    return;
+  }
+  proj.driveSyncedFileIds = proj.driveSyncedFileIds || [];
+  const seen = new Set(proj.driveSyncedFileIds);
+  driveSyncState = {running:true, done:0, total:0, imported:0, skipped:0, failed:0, log:[]};
+  render();
+  try{
+    const subfolders = await driveListSubfolders(proj.driveFolderId, apiKey);
+    const categories = costLogAllCategories(proj);
+    // Only folders whose name exactly matches a known category are used --
+    // anything else found in that Drive folder is silently ignored rather
+    // than guessed at.
+    const matched = subfolders.filter(f=> categories.includes((f.name||'').trim()));
+    let allFiles = [];
+    for(const folder of matched){
+      const files = await driveListFilesInFolder(folder.id, apiKey);
+      files.forEach(f=> allFiles.push(Object.assign({}, f, {category: folder.name.trim()})));
+    }
+    allFiles = allFiles.filter(f=> !seen.has(f.id));
+    driveSyncState.total = allFiles.length;
+    render();
+    let worker = null;
+    for(const f of allFiles){
+      driveSyncState.done++;
+      try{
+        const mime = f.mimeType||'';
+        if(!/^image\//.test(mime) && mime!=='application/pdf'){
+          driveSyncState.skipped++;
+          driveSyncState.log.push(`⏭️ ${f.name} — ${tf('ข้าม (ไม่ใช่ไฟล์รูปภาพ/PDF)','skipped (not an image/PDF)')}`);
+          continue;
+        }
+        const blob = await driveDownloadFile(f.id, apiKey);
+        if(!worker) worker = await getTesseractWorker();
+        let text = '';
+        if(mime==='application/pdf'){
+          const canvases = await pdfBlobToCanvases(blob, 5);
+          for(const c of canvases) text += '\n' + await ocrImageSource(worker, c);
+        } else {
+          text = await ocrImageSource(worker, blob);
+        }
+        const {amount, confident} = parseAmountFromText(text);
+        const po = parsePoNumberFromText(text);
+        const entry = newCostLogEntry();
+        entry.taskId = f.category;
+        entry.itemName = f.name.replace(/\.[^.]+$/, '');
+        entry.po = po;
+        entry.qty = 1;
+        entry.unitCost = amount!=null? amount : 0;
+        costLogRecalcTotal(entry);
+        entry.status = 'ordered';
+        entry.driveFileId = f.id;
+        entry.driveFileUrl = f.webViewLink || '';
+        entry.note = amount==null
+          ? tf('นำเข้าอัตโนมัติจาก Google Drive — อ่านยอดเงินไม่สำเร็จ กรุณากรอกเอง','Auto-imported from Google Drive -- couldn\'t read an amount, please fill it in')
+          : (confident? tf('นำเข้าอัตโนมัติจาก Google Drive','Auto-imported from Google Drive') : tf('นำเข้าอัตโนมัติจาก Google Drive — โปรดตรวจสอบยอดเงิน','Auto-imported from Google Drive -- please double-check the amount'));
+        proj.costLog = proj.costLog || [];
+        proj.costLog.push(entry);
+        proj.driveSyncedFileIds.push(f.id);
+        seen.add(f.id);
+        driveSyncState.imported++;
+        driveSyncState.log.push(`✅ ${f.name} — ${amount!=null? fmtCurrency(amount) : tf('ไม่พบยอดเงิน','no amount found')}`);
+      }catch(err){
+        driveSyncState.failed++;
+        driveSyncState.log.push(`❌ ${f.name} — ${(err&&err.message)||err}`);
+      }
+      saveData();
+      render();
+    }
+    if(worker) await worker.terminate();
+  }catch(err){
+    driveSyncState.log.push(`❌ ${tf('ผิดพลาด','Error')}: ${(err&&err.message)||err}`);
+  }
+  driveSyncState.running = false;
+  render();
 }
 function renderCostLog(proj=P()){
   const all = proj.costLog||[];
@@ -7651,6 +7958,10 @@ function renderCostLog(proj=P()){
   `;
 }
 function wireCostLog(proj=P()){
+  const driveSyncBtn = $('#btn-drive-sync');
+  if(driveSyncBtn) driveSyncBtn.onclick = ()=> driveSyncCostLog(proj);
+  const driveSyncDismissBtn = $('#btn-drive-sync-dismiss');
+  if(driveSyncDismissBtn) driveSyncDismissBtn.onclick = ()=>{ driveSyncState=null; render(); };
   const addBtn = $('#btn-add-costlog');
   if(addBtn) addBtn.onclick = ()=>{
     proj.costLog = proj.costLog||[];
