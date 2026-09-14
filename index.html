@@ -7885,10 +7885,17 @@ async function driveSyncCostLog(proj){
           text = await ocrImageSource(worker, blob);
         }
         const {amount, confident} = parseAmountFromText(text);
-        const po = parsePoNumberFromText(text);
+        // OCR rarely finds a clean "เลขที่/PO No." label on a real-world
+        // scan, but purchasing staff almost always name the file after the
+        // PO number itself (e.g. "PO.L7-2608078.pdf") -- so that filename is
+        // a far more reliable PO number than anything we could guess at for
+        // an item description, and is used as the fallback for the former
+        // rather than being dumped into the latter.
+        const fileBaseName = f.name.replace(/\.[^.]+$/, '');
+        const po = parsePoNumberFromText(text) || fileBaseName;
         const entry = newCostLogEntry();
         entry.taskId = f.category;
-        entry.itemName = f.name.replace(/\.[^.]+$/, '');
+        entry.itemName = '';
         entry.po = po;
         entry.qty = 1;
         entry.unitCost = amount!=null? amount : 0;
@@ -7896,9 +7903,11 @@ async function driveSyncCostLog(proj){
         entry.status = 'ordered';
         entry.driveFileId = f.id;
         entry.driveFileUrl = f.webViewLink || '';
-        entry.note = amount==null
-          ? tf('นำเข้าอัตโนมัติจาก Google Drive — อ่านยอดเงินไม่สำเร็จ กรุณากรอกเอง','Auto-imported from Google Drive -- couldn\'t read an amount, please fill it in')
-          : (confident? tf('นำเข้าอัตโนมัติจาก Google Drive','Auto-imported from Google Drive') : tf('นำเข้าอัตโนมัติจาก Google Drive — โปรดตรวจสอบยอดเงิน','Auto-imported from Google Drive -- please double-check the amount'));
+        const noteParts = [tf('นำเข้าอัตโนมัติจาก Google Drive','Auto-imported from Google Drive')];
+        if(amount==null) noteParts.push(tf('อ่านยอดเงินไม่สำเร็จ กรุณากรอกเอง','couldn\'t read an amount, please fill it in'));
+        else if(!confident) noteParts.push(tf('โปรดตรวจสอบยอดเงิน','please double-check the amount'));
+        noteParts.push(tf('กรุณากรอกชื่อรายการสินค้า','please fill in the item name'));
+        entry.note = noteParts.join(' — ');
         proj.costLog = proj.costLog || [];
         proj.costLog.push(entry);
         proj.driveSyncedFileIds.push(f.id);
