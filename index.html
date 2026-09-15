@@ -9040,7 +9040,6 @@ function reqReportBlock(r){
 function reportBodyHtml(date){
   const proj = P();
   const log = proj.logs.find(l=>l.date===date);
-  const dayReqs = reqsForDate(date);
   const c = state.contractor||{};
   if(!proj.boq.length){
     return `<div class="rp-section"><div class="empty">${tf('ยังไม่มีข้อมูลแผนงานสำหรับสร้างรายงาน','No plan data yet to build a report')}</div></div>`;
@@ -9097,7 +9096,6 @@ function reportBodyHtml(date){
       ${log.issues.map(iss=>`<p style="font-size:13px;line-height:1.7">${severityInfo(iss.severity).ic} <b>${escapeHtml(iss.type||'')}</b> — ${escapeHtml(iss.detail||'')}</p>`).join('')}
     </div>` : (log && log.note ? `<div class="rp-section"><h3>⚠️ ${tf('บันทึกอุปสรรคหน้างาน','Site Issues & Notes')}</h3><p style="font-size:13px;line-height:1.7">${escapeHtml(log.note)}</p></div>` : '')}
     ${log && log.deliveryNote ? `<div class="rp-section"><h3>🚚 ${tf('การรับของหน้างานวันนี้','Today’s Material Deliveries')}</h3><p style="font-size:13px;line-height:1.7">${escapeHtml(log.deliveryNote)}</p></div>` : ''}
-    ${dayReqs.length? `<div class="rp-section"><h3>🛒 ${tf('รายงานการสั่งซื้อวัสดุหน้างาน (Material Request & Procurement Status)','Material Request & Procurement Status')}</h3>${dayReqs.map(reqReportBlock).join('<hr style="border:none;border-top:1px dashed #E3E1F0;margin:2px 0">')}</div>` : ''}
     <div class="rp-section" id="rp-photo-section">
       <h3>📸 ${tf('ภาพถ่ายความคืบหน้าหน้างานประจำวัน','Daily Site Progress Photos')}</h3>
       <div class="rp-photogrid" id="rp-photogrid"><span class="sub">${tf('กำลังโหลดรูปภาพ...','Loading photos...')}</span></div>
