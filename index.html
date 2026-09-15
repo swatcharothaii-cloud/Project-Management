@@ -4075,6 +4075,18 @@ const PP_DELIVERY_SOURCE = [
   {v:'domestic', th:'ในประเทศ', en:'Domestic'},
   {v:'import', th:'นำเข้า/ต่างประเทศ', en:'Import'},
 ];
+// Which slice of the Purchasing Plan table is currently shown: 'all', the
+// two derived alert states ('overdue'/'duesoon', from ppAlertStatus()) shown
+// in the summary banner above the table, or one of PP_ORDER_STATUS's own
+// values. Lives at module scope (not persisted, resets on reload) the same
+// way costLogStatusFilter does -- it's view state, not project data.
+let ppStatusFilter = 'all';
+function ppMatchesStatusFilter(item, filter){
+  if(filter==='all') return true;
+  if(filter==='overdue') return ppAlertStatus(item)==='overdue';
+  if(filter==='duesoon') return ppAlertStatus(item)==='duesoon';
+  return (item.ppOrderStatus||'not_ordered')===filter;
+}
 // NOTE: ROLE_LABEL/STATUS_LABEL/PSTATUS above are captured once at parse time
 // using tf(), which reads state.lang at that instant. rebuildLangConstants()
 // re-evaluates them after a language switch so labels update immediately.
@@ -8078,19 +8090,31 @@ function renderPurchasePlan(proj=P()){
     return `<div class="page-head"><div><h2>${tf('แผนสั่งของ (Purchasing Plan)','Purchasing Plan')}</h2></div></div><div class="empty"><span class="ic">📦</span>${tf('เพิ่มรายการงานในแผนงานหลักก่อน เพื่อเริ่มวางแผนสั่งของ','Add work items in the Master Plan first to start planning material orders')}</div>`;
   }
   const groups = boqCategoryGroups(proj.boq);
+  // Counted over every item regardless of the filter below, so the summary
+  // banner/KPI cards/dropdown counts always describe the whole project --
+  // only the table rows themselves are narrowed by ppStatusFilter.
   let overdueCount=0, dueSoonCount=0, notOrderedCount=0;
+  const orderStatusCounts = {};
+  PP_ORDER_STATUS.forEach(s=> orderStatusCounts[s.v]=0);
+  groups.forEach(g=> g.items.forEach(item=>{
+    const st = item.ppOrderStatus || 'not_ordered';
+    orderStatusCounts[st] = (orderStatusCounts[st]||0) + 1;
+    const alert = ppAlertStatus(item);
+    if(alert==='overdue') overdueCount++; else if(alert==='duesoon') dueSoonCount++;
+    if(st==='not_ordered') notOrderedCount++;
+  }));
   const rows = groups.map(g=>{
+    const filteredItems = g.items.filter(item=> ppMatchesStatusFilter(item, ppStatusFilter));
+    if(!filteredItems.length) return '';
     const label = g.cat? escapeHtml(g.cat) : tf('ไม่ระบุหมวดหมู่','Uncategorized');
     const catHeader = `<tr class="budget-cat-row"><td colspan="17">📁 ${label}</td></tr>`;
-    const itemRows = g.items.map(item=>{
+    const itemRows = filteredItems.map(item=>{
       const orderStatus = item.ppOrderStatus || 'not_ordered';
       const orderStatusDef = PP_ORDER_STATUS.find(s=>s.v===orderStatus) || PP_ORDER_STATUS[0];
       const paymentStatus = item.ppPaymentStatus || 'pending';
       const needDate = ppNeedOnSiteDate(item);
       const orderByDate = ppOrderByDate(item);
       const alert = ppAlertStatus(item);
-      if(alert==='overdue') overdueCount++; else if(alert==='duesoon') dueSoonCount++;
-      if(orderStatus==='not_ordered') notOrderedCount++;
       const alertHtml = alert==='overdue'? `<span class="badge pp-cancelled">🔴 ${tf('เกินกำหนด','Overdue')}</span>`
         : alert==='duesoon'? `<span class="badge pp-not-ordered">🟡 ${tf('ใกล้ถึงกำหนด','Due soon')}</span>` : '';
       const quotationQty = (item.ppQuotationQty!=null && item.ppQuotationQty!=='') ? item.ppQuotationQty : item.qtyTotal;
@@ -8129,6 +8153,20 @@ function renderPurchasePlan(proj=P()){
   }).join('');
   const alertNote = overdueCount? `<div class="role-note" style="margin-bottom:16px;background:var(--coral-50);border-color:var(--coral-500);color:var(--coral-600)">🔴 ${overdueCount} ${tf('รายการเกินกำหนดสั่งซื้อแล้วแต่ยังไม่ได้สั่ง','item(s) are past their order-by date and still not ordered')}${dueSoonCount? ` · 🟡 ${dueSoonCount} ${tf('รายการใกล้ถึงกำหนด (ภายใน 3 วัน)','due within 3 days')}` : ''}</div>`
     : dueSoonCount? `<div class="role-note" style="margin-bottom:16px;background:var(--amber-50);border-color:var(--amber-500)">🟡 ${dueSoonCount} ${tf('รายการใกล้ถึงกำหนดสั่งซื้อ (ภายใน 3 วัน)','item(s) are due to be ordered within 3 days')}</div>` : '';
+  // Status filter dropdown -- lets the same summary bar that shows the
+  // overdue/due-soon/not-ordered counts also narrow the table to just one
+  // of those slices (plus each PP_ORDER_STATUS value), instead of only
+  // ever showing the fixed totals. Options carry their own live count so
+  // picking one tells you up front how many rows to expect.
+  const ppFilterOptions = [
+    {v:'all', label:`${tf('ทั้งหมด','All')} (${proj.boq.length})`},
+    {v:'overdue', label:`🔴 ${tf('เกินกำหนด','Overdue')} (${overdueCount})`},
+    {v:'duesoon', label:`🟡 ${tf('ใกล้ถึงกำหนด','Due soon')} (${dueSoonCount})`},
+  ].concat(PP_ORDER_STATUS.map(s=>({v:s.v, label:`${tf(s.th,s.en)} (${orderStatusCounts[s.v]||0})`})));
+  const ppFilterHtml = `<div class="field" style="max-width:280px;margin-bottom:16px">
+    <label>${tf('กรองตามสถานะ','Filter by status')}</label>
+    <select id="pp-status-filter">${ppFilterOptions.map(o=>`<option value="${o.v}" ${ppStatusFilter===o.v?'selected':''}>${escapeHtml(o.label)}</option>`).join('')}</select>
+  </div>`;
   return `
   <div class="page-head">
     <div><h2>${tf('แผนสั่งของ (Purchasing Plan)','Purchasing Plan')}</h2><div class="sub">${tf(`แผนสั่งของเข้าหน้างานของทุกรายการใน BOQ — วันที่ต้องถึงหน้างานดึงจากแผนงานหลักอัตโนมัติ ส่วนวันที่ต้องสั่งซื้อคำนวณจาก Lead Time ที่กรอกต่อรายการ (ค่าเริ่มต้น ${PP_DEFAULT_LEAD_DAYS} วันก่อนถึงหน้างาน ถ้าไม่ได้กรอก)`,`Material ordering plan for every BOQ item — the need-on-site date is pulled automatically from the Master Plan, and the order-by date is computed from the lead time entered per item (defaults to ${PP_DEFAULT_LEAD_DAYS} days before the need-on-site date if left blank)`)}</div></div>
@@ -8139,6 +8177,8 @@ function renderPurchasePlan(proj=P()){
     <div class="card kpi"><div class="stat"><span class="lbl">🟡 ${tf('ยังไม่ได้สั่ง','Not yet ordered')}</span><span class="num tabular" style="font-size:19px">${notOrderedCount}</span></div></div>
     <div class="card kpi"><div class="stat"><span class="lbl">🔴 ${tf('เกินกำหนดสั่งซื้อ','Overdue to order')}</span><span class="num tabular" style="font-size:19px;color:${overdueCount?'var(--coral-600)':'inherit'}">${overdueCount}</span></div></div>
   </div>
+  ${ppFilterHtml}
+  ${rows? `
   <div class="table-topscroll pp-wrap-topscroll" id="pp-topscroll"><div id="pp-topscroll-spacer"></div></div>
   <div class="table-wrap pp-wrap" id="pp-table-wrap"><table class="budget-table pp-table"><thead><tr>
     <th>${tf('No.','No.')}</th><th>${tf('รายการวัสดุ/อุปกรณ์','Item')}</th><th>${tf('หน่วย','Unit')}</th>
@@ -8148,6 +8188,7 @@ function renderPurchasePlan(proj=P()){
     <th>${tf('จำนวนที่สั่งจริง','Actual Order Qty')}</th><th>${tf('เลขที่ใบสั่งซื้อ','PO No.')}</th><th>${tf('สถานะการสั่งของ','Order Status')}</th>
     <th>${tf('แหล่งจัดส่ง','Delivery Source')}</th><th>${tf('สถานะการจ่ายเงิน','Payment Status')}</th><th>${tf('หมายเหตุ','Notes')}</th>
   </tr></thead><tbody>${rows}</tbody></table></div>
+  ` : `<div class="empty"><span class="ic">📦</span>${tf('ไม่มีรายการในสถานะนี้','No items with this status')}</div>`}
   `;
 }
 // Mirrors wireMasterPlan()'s #gantt-topscroll sync exactly: a slim scrollbar
@@ -8170,6 +8211,8 @@ function wirePpTopscroll(){
 }
 function wirePurchasePlan(proj=P()){
   wirePpTopscroll();
+  const filterSel = $('#pp-status-filter');
+  if(filterSel) filterSel.onchange = ()=>{ ppStatusFilter = filterSel.value; render(); };
   $$('[data-pp-row]').forEach(row=>{
     const item = proj.boq.find(i=>i.id===row.dataset.ppRow);
     if(!item) return;
