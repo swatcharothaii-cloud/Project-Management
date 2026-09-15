@@ -4326,8 +4326,23 @@ const TABS = [
   {id:'report',label:tf('รายงาน','Report'),ic:'🖨️'},
 ];
 
+// Panels with their own internal scroll (overflow-y:auto + a capped
+// max-height, as opposed to just scrolling with the page) -- editing any
+// field in one of these calls saveData()+render() on every keystroke/change
+// (per-field autosave, not a "save" button), and since render() below
+// replaces #app's entire innerHTML, editing a row far down a long list used
+// to visibly snap the whole panel back to its top every single time. Their
+// scroll position is captured before the rebuild and reapplied after, so
+// editing a row keeps that row in view instead of jumping the viewport away
+// from what the user is actively working on.
+const SCROLL_PRESERVE_IDS = ['gantt-scroll-container','pp-table-wrap','bud-table-wrap'];
 function render(){
   const app = $('#app');
+  const savedScrolls = {};
+  SCROLL_PRESERVE_IDS.forEach(id=>{
+    const el = document.getElementById(id);
+    if(el) savedScrolls[id] = {top: el.scrollTop, left: el.scrollLeft};
+  });
   app.innerHTML = `
     ${renderTopbar()}
     ${renderTabbar()}
@@ -4337,6 +4352,12 @@ function render(){
   wireGlobal();
   wireScreen();
   updateNetStatus();
+  SCROLL_PRESERVE_IDS.forEach(id=>{
+    const saved = savedScrolls[id];
+    if(!saved) return;
+    const el = document.getElementById(id);
+    if(el){ el.scrollTop = saved.top; el.scrollLeft = saved.left; }
+  });
 }
 // Modals are rendered as siblings of <main> (not inside the animated .screen
 // wrapper) because position:fixed overlays get trapped by any ancestor whose
