@@ -6163,7 +6163,7 @@ async function refreshGalleryPhotos(){
 /* ============================= SCREEN: DAILY LOG ============================= */
 let pendingPhotos = []; // {dataUrl, caption, tag}
 let dailyDraft = null;  // {date, weather, workforce:[], entries:[], issues:[], deliveryNote} -- persists across re-renders
-let dailyEntryDraft = {itemSearch:'', itemId:'', qty:'', note:''}; // the "not yet added" progress-entry composer row
+let dailyEntryDraft = {itemSearch:'', itemId:'', qty:'', note:'', customText:''}; // the "not yet added" progress-entry composer row -- customText backs the free-text ("not tied to a BOQ item") composer alongside it
 let historyModalOpen=false, historyDate=null, historyViewing=false; // Daily Log "history" viewer: pick a date, list saved logs, view read-only without touching today's draft
 const PHOTO_MAX = 30;
 const STANDARD_WORKTYPES = [
@@ -6237,7 +6237,7 @@ function ensureDailyDraft(){
     issues: existing ? (existing.issues && existing.issues.length ? existing.issues.map(i=>({...i})) : (existing.note ? [{type:tf('อื่นๆ','Other'),detail:existing.note,severity:'amber'}] : [])) : [],
     deliveryNote: existing ? (existing.deliveryNote||'') : '',
   };
-  dailyEntryDraft = {itemSearch:'', itemId:'', qty:'', note:''};
+  dailyEntryDraft = {itemSearch:'', itemId:'', qty:'', note:'', customText:''};
 }
 function syncDailyDraftFromDom(){
   if(!dailyDraft) return;
@@ -6249,6 +6249,7 @@ function syncDailyDraftFromDom(){
   const isv=g('#de-item-search'); if(isv!==undefined) dailyEntryDraft.itemSearch=isv;
   const q=g('#de-qty'); if(q!==undefined) dailyEntryDraft.qty=q;
   const n=g('#de-note'); if(n!==undefined) dailyEntryDraft.note=n;
+  const ct=g('#de-custom-text'); if(ct!==undefined) dailyEntryDraft.customText=ct;
 }
 
 /* ---- Daily / weekly / monthly log summary (aggregated from proj.logs) ---- */
@@ -6410,6 +6411,21 @@ function renderDailyLog(){
   }
   const itemDatalist = proj.boq.map(i=>`<option value="${escapeHtml(boqItemSearchLabel(i))}"></option>`).join('');
   const entryRows = d.entries.map((e,idx)=>{
+    // Free-text entries (added via #de-add-custom, see wireDailyLog()) carry
+    // no itemId at all -- distinct from a real item that was later deleted
+    // from the BOQ (which still has a non-empty itemId that just no longer
+    // resolves, and keeps showing the "(item removed from plan)" message
+    // below). Check for that case first so a free-text note never gets
+    // mislabeled as a deleted item.
+    if(!e.itemId){
+      return `<div class="mini-row">
+        <div class="txt">
+          <span class="t1">📝 ${tf('บันทึกอิสระ (ไม่อ้างอิง BOQ)','Free-text note (not tied to BOQ)')}</span>
+          <span class="t2">${escapeHtml(e.note||'')}</span>
+        </div>
+        <button class="iconbtn" data-rm-entry="${idx}">✕</button>
+      </div>`;
+    }
     const it = proj.boq.find(i=>i.id===e.itemId);
     const catLabel = e.category || e.zone || '';
     const pctLabel = (it && it.qtyTotal) ? pctOfLabel(e.actualQty, it.qtyTotal) : fmtNum(e.actualQty,2)+(it?' '+escapeHtml(it.unit):'');
@@ -6435,6 +6451,11 @@ function renderDailyLog(){
       <div class="field" style="grid-column:1/-1"><label>${tf('หมายเหตุความคืบหน้า (ไม่บังคับ)','Progress note (optional)')}</label><input type="text" id="de-note" value="${escapeHtml(dailyEntryDraft.note)}" placeholder="${tf('เช่น เดินสายไฟแสงสว่างในตู้เสื้อผ้าเสร็จแล้ว รอฝ้าปิดทับ','e.g. wardrobe wiring done, awaiting ceiling close-up')}"></div>
     </div>
     <button class="btn ghost sm" style="margin-top:10px" id="de-add">+ ${tf('เพิ่มรายการนี้','Add this entry')}</button>
+    <div class="field" style="margin-top:16px;padding-top:14px;border-top:1px dashed var(--line)">
+      <label>${tf('หรือพิมพ์อธิบายเอง (ไม่ต้องอ้างอิงรายการใน BOQ)','Or type your own description (not tied to any BOQ item)')}</label>
+      <input type="text" id="de-custom-text" value="${escapeHtml(dailyEntryDraft.customText||'')}" placeholder="${tf('เช่น ทำความสะอาดหน้างานหลังเลิกงาน, ประชุมกับลูกค้าเรื่องแบบ...','e.g. cleaned up the site after work, met the client about the drawings...')}">
+      <button class="btn ghost sm" style="margin-top:10px" id="de-add-custom">+ ${tf('เพิ่มบันทึกอิสระ','Add free-text note')}</button>
+    </div>
     ${entryRows? `<div style="display:flex;flex-direction:column;gap:8px;margin-top:14px">${entryRows}</div>` : `<div class="hint" style="margin-top:12px">${tf('ยังไม่ได้เพิ่มความคืบหน้าใดๆ สำหรับวันนี้','No progress entries added for today yet')}</div>`}
   </div>`;
 
@@ -6702,7 +6723,27 @@ function wireDailyLog(){
     // quantities exactly as before -- the % is purely an input convenience.
     const actualQty = (pct/100) * (item.qtyTotal||0);
     dailyDraft.entries.push({itemId:item.id, category:item.category||'', actualQty, note:(dailyEntryDraft.note||'').trim()});
-    dailyEntryDraft = {itemSearch:'', itemId:'', qty:'', note:''};
+    dailyEntryDraft = {itemSearch:'', itemId:'', qty:'', note:'', customText:''};
+    render();
+  };
+  // Free-text progress note, not tied to any BOQ item -- for work that
+  // doesn't map to a line in the plan (site cleanup, a client meeting,
+  // anything worth recording today that isn't a %-of-quantity BOQ entry).
+  // Pushed into the same dailyDraft.entries array as regular BOQ entries
+  // (itemId:'' is what entryRows / the #de-add-custom branch below checks
+  // to tell the two kinds apart), so it's saved, listed and removable
+  // exactly like any other entry -- it just never matches a BOQ item in the
+  // per-item progress calculations (actualCumAt etc. all filter by
+  // e.itemId===item.id, and '' never equals a real item id).
+  const customInp = $('#de-custom-text');
+  if(customInp) customInp.oninput = ()=>{ dailyEntryDraft.customText = customInp.value; };
+  const deAddCustom = $('#de-add-custom');
+  if(deAddCustom) deAddCustom.onclick = ()=>{
+    syncDailyDraftFromDom();
+    const text = (dailyEntryDraft.customText||'').trim();
+    if(!text){ toast(tf('กรุณาพิมพ์ข้อความก่อนเพิ่ม','Please type a note before adding')); return; }
+    dailyDraft.entries.push({itemId:'', category:'', actualQty:0, note:text});
+    dailyEntryDraft.customText = '';
     render();
   };
   $$('[data-rm-entry]').forEach(b=> b.onclick = ()=>{ syncDailyDraftFromDom(); dailyDraft.entries.splice(Number(b.dataset.rmEntry),1); render(); });
@@ -6785,7 +6826,7 @@ function wireDailyLog(){
   if(clearBtn) clearBtn.onclick = ()=>{
     if(!confirm(tf('ล้างข้อมูลในฟอร์มของวันนี้ทั้งหมด (ที่ยังไม่ได้บันทึก)? การกดบันทึกหลังจากนี้จะบันทึกทับด้วยฟอร์มเปล่า','Clear everything in today’s form (unsaved changes)? Saving afterwards will overwrite with a blank form.'))) return;
     dailyDraft = {date: state.selectedLogDate, weather:'', workforce:[], entries:[], issues:[], deliveryNote:''};
-    dailyEntryDraft = {itemSearch:'', itemId:'', qty:'', note:''};
+    dailyEntryDraft = {itemSearch:'', itemId:'', qty:'', note:'', customText:''};
     pendingPhotos = [];
     toast(tf('เคลียร์ฟอร์มแล้ว','Form cleared'));
     render();
