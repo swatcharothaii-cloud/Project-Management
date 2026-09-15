@@ -850,7 +850,25 @@ select.pp-status-select.pp-noneed{background:var(--surface-2);color:var(--ink-50
   #reportPrintable .rp-company-info{font-size:10px!important;margin-top:5px!important;line-height:1.35!important}
   #reportPrintable .rp-meta{padding:8px 16px!important;gap:4px 14px!important;font-size:10.5px!important}
   #reportPrintable .rp-meta b{font-size:9px!important;margin-bottom:0!important}
-  #reportPrintable .rp-section{padding:8px 16px!important;page-break-inside:avoid}
+  /* page-break-inside:avoid on every .rp-section (including the photo
+     section) used to mean: if the photo grid -- often the tallest section,
+     since it can hold several photos -- didn't fit in whatever space was
+     left at the bottom of the current page, the browser didn't split it;
+     it pushed the *entire* section onto a fresh page instead, leaving
+     everything below the last section that did fit as dead blank space.
+     That's exactly the "big empty gap, then a lone page-1 badge, then the
+     photos start on page 2" layout reported by the user even for a short
+     day's report with little else on it. The fix: let the photo section
+     itself break across pages (so it fills the remaining space on page 1
+     before continuing on page 2 like normal flowing content), and instead
+     only protect each individual photo figure from being split in half
+     mid-image -- that's the only place a mid-element break actually looks
+     bad. Every other section (workforce, progress, issues, etc.) is short
+     enough that keeping page-break-inside:avoid on it is still the right
+     call -- it just needs to not apply to the one section that isn't.
+  */
+  #reportPrintable .rp-section{padding:8px 16px!important}
+  #reportPrintable .rp-section:not(#rp-photo-section){page-break-inside:avoid;break-inside:avoid}
   #reportPrintable .rp-section h3{font-size:11px!important;margin-bottom:6px!important}
   #reportPrintable .rp-section p{font-size:10.5px!important;line-height:1.4!important}
   #reportPrintable table{font-size:10.5px!important}
@@ -858,6 +876,7 @@ select.pp-status-select.pp-noneed{background:var(--surface-2);color:var(--ink-50
   #reportPrintable .rp-photogrid{grid-template-columns:repeat(4,1fr)!important;gap:6px!important}
   #reportPrintable .rp-photogrid img{height:130px!important}
   #reportPrintable .rp-photogrid figcaption{font-size:8.5px!important;padding:3px 5px!important}
+  #reportPrintable .rp-photogrid figure{page-break-inside:avoid;break-inside:avoid}
   #reportPrintable .rp-foot{padding:6px 16px!important;font-size:9px!important}
 }
 .exported-wrap{margin-top:10px;text-align:center}
