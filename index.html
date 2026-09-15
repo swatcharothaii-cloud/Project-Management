@@ -9044,27 +9044,6 @@ function reportBodyHtml(date){
   if(!proj.boq.length){
     return `<div class="rp-section"><div class="empty">${tf('ยังไม่มีข้อมูลแผนงานสำหรับสร้างรายงาน','No plan data yet to build a report')}</div></div>`;
   }
-  // The exported/printed report deliberately mirrors the Daily Log form
-  // itself -- just today's entries as typed in -- rather than a computed
-  // project-wide analytics table (ahead/behind %, completion forecast,
-  // every BOQ item's cumulative progress). Those lived here previously but
-  // were dropped at the user's request in favor of a plain record of what
-  // was logged today, under the same heading as the form's own progress
-  // section ("บันทึกความคืบหน้างานตาม BOQ" / "Progress Logged Today").
-  // Kept to just category / % done / note (no item name column) at the
-  // user's request -- matches the Daily Log form's own progress composer,
-  // which now takes "ปริมาณที่ทำได้วันนี้" as a % of the item's total planned
-  // qty (qtyTotal) rather than a raw quantity, so the report shows that same
-  // % back rather than a re-derived unit count.
-  const entryRows = (log && log.entries && log.entries.length) ? log.entries.map(e=>{
-    const item = proj.boq.find(i=>i.id===e.itemId);
-    const pctLabel = (item && item.qtyTotal) ? pctOfLabel(e.actualQty, item.qtyTotal) : (fmtNum(e.actualQty,2)+' '+escapeHtml((item&&item.unit)||''));
-    return `<tr>
-      <td>${escapeHtml(e.category||(item&&item.category)||'-')}</td>
-      <td class="tabular">${pctLabel}</td>
-      <td>${escapeHtml(e.note||'-')}</td>
-    </tr>`;
-  }).join('') : '';
   return `
     <div class="rp-head">
       <div style="display:flex;align-items:center;gap:14px">
@@ -9089,9 +9068,6 @@ function reportBodyHtml(date){
       ${log.weather? `<p style="font-size:13px;line-height:1.7"><b>${tf('สภาพหน้างาน:','Condition:')}</b> ${escapeHtml(log.weather)}</p>` : ''}
       ${(log.workforce&&log.workforce.length)? `<div class="table-wrap" style="margin-top:8px"><table><thead><tr><th>${tf('ทีมงาน','Team')}</th><th>${tf('จำนวนคน','Headcount')}</th><th>${tf('ประเภทงาน','Work type')}</th></tr></thead><tbody>${log.workforce.map(w=>`<tr><td>${escapeHtml(w.team||'-')}</td><td class="tabular">${escapeHtml(String(w.count||'-'))}</td><td>${escapeHtml(w.workType||'-')}</td></tr>`).join('')}</tbody></table></div>` : ''}
     </div>` : ''}
-    <div class="rp-section"><h3>📋 ${tf('บันทึกความคืบหน้างานตาม BOQ','Progress Logged Today')}</h3>
-      ${entryRows? `<div class="table-wrap"><table><thead><tr><th>${tf('หมวดหมู่','Category')}</th><th>${tf('ปริมาณที่ได้วันนี้','Done today')}</th><th>${tf('หมายเหตุ','Note')}</th></tr></thead><tbody>${entryRows}</tbody></table></div>` : `<p class="sub" style="font-size:13px">${tf('ไม่มีรายการความคืบหน้าที่บันทึกในวันนี้','No progress entries logged for this day')}</p>`}
-    </div>
     ${log && log.issues && log.issues.length ? `<div class="rp-section"><h3>⚠️ ${tf('ปัญหาและอุปสรรคหน้างาน','Site Issues & Defect Log')}</h3>
       ${log.issues.map(iss=>`<p style="font-size:13px;line-height:1.7">${severityInfo(iss.severity).ic} <b>${escapeHtml(iss.type||'')}</b> — ${escapeHtml(iss.detail||'')}</p>`).join('')}
     </div>` : (log && log.note ? `<div class="rp-section"><h3>⚠️ ${tf('บันทึกอุปสรรคหน้างาน','Site Issues & Notes')}</h3><p style="font-size:13px;line-height:1.7">${escapeHtml(log.note)}</p></div>` : '')}
