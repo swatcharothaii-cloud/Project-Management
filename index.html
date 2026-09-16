@@ -5168,6 +5168,11 @@ function renderProfile(){
     <div class="sub" style="margin:6px 0 10px">${tf('แต่ละโปรเจ็คมีลิงก์บันทึกประจำวันของตัวเอง — ไปที่หน้า “โปรเจ็คทั้งหมด” แล้วกด “ลิงก์บันทึกประจำวัน” บนการ์ดโปรเจ็คที่ต้องการ','Every project has its own daily-log link — go to “All Projects” and tap “Daily log link” on the project card you need.')}</div>
     <button class="btn ghost sm" data-view="hub">${tf('ไปหน้าโปรเจ็คทั้งหมด','Go to All Projects')}</button>
   </div>
+  <div class="card tint">
+    <b style="font-family:var(--font-display)">💾 ${tf('สำรองข้อมูล (Backup)','Backup')}</b>
+    <div class="sub" style="margin:6px 0 10px">${tf('ดาวน์โหลดข้อมูลทุกโปรเจ็คทั้งหมด (แผนงาน BOQ บันทึกประจำวัน ใบสั่งของ ต้นทุน งบประมาณ ฯลฯ) เป็นไฟล์ .json เก็บไว้เป็นข้อมูลสำรองส่วนตัว — เปิดกลับมาดูหรือกู้คืนข้อมูลได้ในอนาคต หมายเหตุ: รูปภาพที่แนบไว้ในระบบไม่ได้รวมอยู่ในไฟล์นี้ (รูปภาพถูกสำรองแยกไว้อัตโนมัติในระบบคลาวด์อยู่แล้ว ไม่เสี่ยงหายเหมือนข้อมูลอื่น)','Download every project (plans, BOQ, daily logs, material requests, costs, budget, etc.) as a .json file for your own backup — reopen or restore from it later. Note: attached photos are not included in this file (they\'re already auto-backed-up separately in the cloud, so they aren\'t at the same risk).')}</div>
+    <button class="btn ghost sm" id="btn-export-backup">⬇️ ${tf('ดาวน์โหลดข้อมูลสำรอง','Download backup')}</button>
+  </div>
   `;
 }
 function wireProfile(){
@@ -5195,6 +5200,26 @@ function wireProfile(){
     const dataUrl = await compressImage(f,240,0.75);
     state.contractor = state.contractor||{}; state.contractor.logo = dataUrl;
     saveData(); render(); toast(tf('อัปเดตโลโก้แล้ว','Logo updated'));
+  };
+  // Same shape as the localStorage payload (see saveDataLocalOnly()) and the
+  // Firestore meta/settings + projects/{id} docs it mirrors -- so this file
+  // is a faithful full export of everything except photos (see the note in
+  // the card above for why those are deliberately left out).
+  const exportBackupBtn = $('#btn-export-backup');
+  if(exportBackupBtn) exportBackupBtn.onclick = ()=>{
+    const payload = {
+      app: 'SitePulse', exportedAt: new Date().toISOString(),
+      contractor: state.contractor, contractors: state.contractors,
+      approvers: state.approvers, driveApiKey: state.driveApiKey,
+      projects: state.projects
+    };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], {type:'application/json'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = 'sitepulse-backup-' + todayStr() + '.json';
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    toast(tf('ดาวน์โหลดไฟล์สำรองข้อมูลแล้ว','Backup file downloaded'));
   };
   $('#btn-reset-demo').onclick = ()=>{
     if(!confirm(tf('ล้างข้อมูลทั้งหมดทุกโปรเจ็ค (แผนงาน บันทึก รูปภาพ ใบสั่งของ) และเริ่มต้นใหม่ทั้งระบบหรือไม่?','Clear every project (plans, logs, photos, material requests) and start over completely?'))) return;
