@@ -7066,7 +7066,7 @@ function requestModalHtml(){
   return `
   <div class="modal-bg" id="req-modal-bg">
     <div class="modal">
-      <div class="modal-head"><div><h3>${tf('สร้างใบสั่งของ','New material request')}</h3><div style="margin-top:2px;font-size:12px;font-weight:400;color:var(--ink-500)">${escapeHtml(P().name||'-')}</div></div><button class="iconbtn" id="req-modal-close">✕</button></div>
+      <div class="modal-head"><div><h3>${tf('สร้างใบสั่งของ','New material request')}</h3><div style="margin-top:3px;font-size:14.5px;font-weight:500;color:var(--ink-500)">${escapeHtml(P().name||'-')}</div></div><button class="iconbtn" id="req-modal-close">✕</button></div>
       ${(()=>{ const bs = purchaseBudgetStatus(); if(bs.cap<=0) return ''; if(bs.level==='over') return `<div class="role-note" style="margin-bottom:12px;background:var(--coral-50);border-color:var(--coral-500);color:var(--coral-600)">🔴 ${tf('ใช้จ่ายเกินงบจัดซื้อแล้ว (เพดาน 70% ของ BOQ รวม)','Spending has exceeded the purchasing cap (70% of total BOQ)')} — ${tf('ใช้ไป','Spent')} ${fmtCurrency(bs.totalActualAll)} / ${tf('เพดาน','cap')} ${fmtCurrency(bs.cap)} — ${tf('โปรดพิจารณาก่อนสั่งของเพิ่ม','please consider carefully before ordering more')}</div>`; if(bs.level==='warn') return `<div class="role-note" style="margin-bottom:12px;background:var(--amber-50);border-color:var(--amber-500)">🟡 ${tf('ใกล้ถึงเพดานงบจัดซื้อแล้ว (เพดาน 70% ของ BOQ รวม)','Approaching the purchasing cap (70% of total BOQ)')} — ${tf('ใช้ไป','Spent')} ${fmtCurrency(bs.totalActualAll)} / ${tf('เพดาน','cap')} ${fmtCurrency(bs.cap)}</div>`; return `<div class="role-note" style="margin-bottom:12px">🛒 ${tf('งบจัดซื้อ','Purchasing budget')}: ${tf('ใช้ไป','spent')} ${fmtCurrency(bs.totalActualAll)} / ${tf('เพดาน 70% ของ BOQ','70%-of-BOQ cap')} ${fmtCurrency(bs.cap)}</div>`; })()}
       <div class="grid cols-2">
         <div class="field"><label>${tf('ผู้สั่งของ','Requested by')}</label><input type="text" id="rq-by" value="${escapeHtml(f.requestedBy)}" placeholder="${tf('ชื่อช่าง/ทีมงาน','crew / team name')}"></div>
@@ -7256,7 +7256,7 @@ function detailModalHtml(){
   // -- same pattern as the reference-photo gallery modal.
   const totalPhotoCount = (r.photoIds||[]).length + r.lines.reduce((s,l)=> s+((l.photoIds||[]).length),0);
   return `<div class="modal-bg" id="dt-modal-bg"><div class="modal" style="max-width:960px">
-    <div class="modal-head"><div><h3>${r.reqNo}</h3><div style="margin-top:2px;font-size:12px;font-weight:400;color:var(--ink-500)">${escapeHtml(P().name||'-')}</div></div><div style="display:flex;gap:6px"><button class="iconbtn" id="dt-share-link" title="${tf('คัดลอกลิงก์สำหรับส่งให้อนุมัติ','Copy an approval link to share')}">🔗</button>${canTrashDetail? `<button class="iconbtn" id="dt-trash" title="${tf('ลบ (ย้ายไปถังขยะ)','Delete (move to trash)')}">🗑️</button>` : ''}<button class="iconbtn" id="dt-modal-close">✕</button></div></div>
+    <div class="modal-head"><div><h3>${r.reqNo}</h3><div style="margin-top:3px;font-size:14.5px;font-weight:500;color:var(--ink-500)">${escapeHtml(P().name||'-')}</div></div><div style="display:flex;gap:6px"><button class="iconbtn" id="dt-share-link" title="${tf('คัดลอกลิงก์สำหรับส่งให้อนุมัติ','Copy an approval link to share')}">🔗</button>${canTrashDetail? `<button class="iconbtn" id="dt-trash" title="${tf('ลบ (ย้ายไปถังขยะ)','Delete (move to trash)')}">🗑️</button>` : ''}<button class="iconbtn" id="dt-modal-close">✕</button></div></div>
     <span class="badge ${r.status}">${STATUS_LABEL[r.status]}</span>
     ${dueNote}
     <div class="dt-layout">
