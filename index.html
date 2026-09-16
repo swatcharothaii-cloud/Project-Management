@@ -4533,35 +4533,98 @@ function wireGlobal(){
 }
 
 /* ============================= SCREEN: HUB (ALL PROJECTS) ============================= */
+// Sum of qtyTotal*unitPrice across every priced BOQ item -- the same total
+// the Budget page computes inline for its own KPI row, exposed standalone so
+// other views (the Hub's project-group rollup) can get a project's total
+// planned budget without needing to open that project first.
+function boqTotalBudget(boq){
+  let total = 0;
+  (boq||[]).forEach(item=>{ if(item.unitPrice!=null) total += (item.qtyTotal||0)*item.unitPrice; });
+  return total;
+}
+// One project's card in the Hub -- factored out so a grouped sub-project
+// (rendered nested inside its group-card, see groupCardHtml below) uses the
+// exact same markup/behavior (data-open-project etc.) as a standalone one.
+function projectCardHtml(pr, asOf){
+  const summary = pr.boq.length? projectSummary(asOf, pr.boq, pr.logs) : null;
+  const lastLog = pr.logs[pr.logs.length-1];
+  const st = !summary? 'idle' : summary.delta>=0?'ok':'bad';
+  const pillText = !summary? tf('ยังไม่มีข้อมูลเพียงพอ','Not enough data yet')
+    : (summary.delta>=0? tf('เร็วกว่าแผน ','Ahead of plan ')+fmtNum(Math.abs(summary.delta),1)+'%' : tf('ล่าช้ากว่าแผน ','Behind plan ')+fmtNum(Math.abs(summary.delta),1)+'%');
+  return `<div class="card proj-card">
+    <div class="proj-card-head">
+      <div>
+        <b style="font-family:var(--font-display);font-size:16px">${escapeHtml(pr.name||tf('(ไม่มีชื่อโปรเจ็ค)','(untitled project)'))}</b>
+        ${pr.zone? `<div class="sub">${escapeHtml(pr.zone)}</div>` : ''}
+      </div>
+      <span class="badge ${st}">${st==='ok'?'🟢':st==='bad'?'🔴':'⏳'} ${pillText}</span>
+    </div>
+    ${summary? `
+    <div class="progress ${st==='ok'?'ok':st==='bad'?'bad':''}" style="margin-top:10px"><i style="width:${clamp(summary.actualPct,0,100)}%"></i></div>
+    <div class="sub" style="margin-top:6px">${tf('ความคืบหน้าจริง','Actual progress')} <b class="tabular" style="color:var(--ink-700)">${fmtNum(summary.actualPct,1)}%</b> ${tf('จากแผน','vs. planned')} <span class="tabular">${fmtNum(summary.plannedPct,1)}%</span></div>`
+    : `<div class="empty" style="margin-top:10px;padding:16px">${tf('ยังไม่มีรายการงานใน BOQ','No BOQ items yet')}</div>`}
+    <div class="sub" style="margin-top:6px">${pr.boq.length} ${tf('รายการงาน','work items')} · ${tf('บันทึกล่าสุด','last log')} ${lastLog? fmtDate(lastLog.date) : tf('ยังไม่มีบันทึก','none yet')}</div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:14px">
+      <button class="btn primary sm" data-open-project="${pr.id}">${tf('เข้าโปรเจ็ค','Open project')}</button>
+      <button class="btn ghost sm" data-edit-project="${pr.id}">${tf('แก้ไข','Edit')}</button>
+      <button class="btn ghost sm" data-copy-open="${pr.id}">🔗 ${tf('ลิงก์เข้าโปรเจ็คนี้','Project link')}</button>
+      <button class="btn ghost sm" data-copy-field="${pr.id}">🔗 ${tf('ลิงก์บันทึกประจำวัน','Daily log link')}</button>
+      <button class="btn danger sm" data-del-project="${pr.id}">${tf('ลบ','Delete')}</button>
+    </div>
+  </div>`;
+}
+// A "project group" block -- every sub-project sharing the same non-empty
+// groupName (e.g. "Project A" for A.1/A.2/A.3) rendered together inside one
+// wrapper card, with a rollup summary (avg. progress, total BOQ budget,
+// total actual spend) on top and each sub-project's own full card nested
+// below. Sub-projects stay fully independent records (own BOQ/budget/daily
+// log/etc.) -- this is purely a display-level grouping, nothing is merged.
+function groupCardHtml(groupName, members, asOf){
+  const withData = members.map(pr=> pr.boq.length? projectSummary(asOf, pr.boq, pr.logs) : null).filter(Boolean);
+  const avgActual = withData.length? withData.reduce((s,x)=>s+x.actualPct,0)/withData.length : 0;
+  const avgPlanned = withData.length? withData.reduce((s,x)=>s+x.plannedPct,0)/withData.length : 0;
+  const delta = avgActual - avgPlanned;
+  const st = !withData.length? 'idle' : delta>=0?'ok':'bad';
+  const pillText = !withData.length? tf('ยังไม่มีข้อมูลเพียงพอ','Not enough data yet')
+    : (delta>=0? tf('เร็วกว่าแผน (เฉลี่ย) ','Ahead of plan (avg) ')+fmtNum(Math.abs(delta),1)+'%' : tf('ล่าช้ากว่าแผน (เฉลี่ย) ','Behind plan (avg) ')+fmtNum(Math.abs(delta),1)+'%');
+  const totalBudget = members.reduce((s,pr)=>s+boqTotalBudget(pr.boq),0);
+  const totalActual = members.reduce((s,pr)=>s+projectActualCostTotal(pr),0);
+  const memberCards = members.map(pr=>projectCardHtml(pr, asOf)).join('');
+  return `<div class="card tint group-card" style="grid-column:1/-1;border-style:dashed">
+    <div class="proj-card-head">
+      <div>
+        <b style="font-family:var(--font-display);font-size:17px">🗂️ ${escapeHtml(groupName)}</b>
+        <div class="sub">${members.length} ${tf('โปรเจ็คย่อย','sub-projects')}</div>
+      </div>
+      <span class="badge ${st}">${st==='ok'?'🟢':st==='bad'?'🔴':'⏳'} ${pillText}</span>
+    </div>
+    ${withData.length? `
+    <div class="progress ${st==='ok'?'ok':st==='bad'?'bad':''}" style="margin-top:10px"><i style="width:${clamp(avgActual,0,100)}%"></i></div>
+    <div class="sub" style="margin-top:6px">${tf('ความคืบหน้าจริงเฉลี่ย','Avg. actual progress')} <b class="tabular" style="color:var(--ink-700)">${fmtNum(avgActual,1)}%</b> ${tf('จากแผน','vs. planned')} <span class="tabular">${fmtNum(avgPlanned,1)}%</span></div>` : ''}
+    <div class="sub" style="margin-top:6px">${tf('งบประมาณรวม (BOQ)','Total BOQ budget')} <b class="tabular" style="color:var(--ink-700)">${fmtCurrency(totalBudget)}</b> · ${tf('ใช้จ่ายจริงรวม','Total actual spend')} <b class="tabular">${fmtCurrency(totalActual)}</b></div>
+    <div class="grid cols-proj" style="margin-top:14px">${memberCards}</div>
+  </div>`;
+}
 function renderHub(){
   const asOf = todayStr();
+  // Partition into groups (by non-empty groupName) vs. standalone projects,
+  // then walk state.projects in its original order and emit one block per
+  // project -- except a group only emits its combined block the first time
+  // one of its members is reached, after which the rest of that group's
+  // members are skipped (they were already rendered inside that block).
+  const groupMap = {};
+  state.projects.forEach(pr=>{
+    const g = (pr.groupName||'').trim();
+    if(!g) return;
+    (groupMap[g] = groupMap[g]||[]).push(pr);
+  });
+  const renderedGroups = new Set();
   const cards = state.projects.map(pr=>{
-    const summary = pr.boq.length? projectSummary(asOf, pr.boq, pr.logs) : null;
-    const lastLog = pr.logs[pr.logs.length-1];
-    const st = !summary? 'idle' : summary.delta>=0?'ok':'bad';
-    const pillText = !summary? tf('ยังไม่มีข้อมูลเพียงพอ','Not enough data yet')
-      : (summary.delta>=0? tf('เร็วกว่าแผน ','Ahead of plan ')+fmtNum(Math.abs(summary.delta),1)+'%' : tf('ล่าช้ากว่าแผน ','Behind plan ')+fmtNum(Math.abs(summary.delta),1)+'%');
-    return `<div class="card proj-card">
-      <div class="proj-card-head">
-        <div>
-          <b style="font-family:var(--font-display);font-size:16px">${escapeHtml(pr.name||tf('(ไม่มีชื่อโปรเจ็ค)','(untitled project)'))}</b>
-          ${pr.zone? `<div class="sub">${escapeHtml(pr.zone)}</div>` : ''}
-        </div>
-        <span class="badge ${st}">${st==='ok'?'🟢':st==='bad'?'🔴':'⏳'} ${pillText}</span>
-      </div>
-      ${summary? `
-      <div class="progress ${st==='ok'?'ok':st==='bad'?'bad':''}" style="margin-top:10px"><i style="width:${clamp(summary.actualPct,0,100)}%"></i></div>
-      <div class="sub" style="margin-top:6px">${tf('ความคืบหน้าจริง','Actual progress')} <b class="tabular" style="color:var(--ink-700)">${fmtNum(summary.actualPct,1)}%</b> ${tf('จากแผน','vs. planned')} <span class="tabular">${fmtNum(summary.plannedPct,1)}%</span></div>`
-      : `<div class="empty" style="margin-top:10px;padding:16px">${tf('ยังไม่มีรายการงานใน BOQ','No BOQ items yet')}</div>`}
-      <div class="sub" style="margin-top:6px">${pr.boq.length} ${tf('รายการงาน','work items')} · ${tf('บันทึกล่าสุด','last log')} ${lastLog? fmtDate(lastLog.date) : tf('ยังไม่มีบันทึก','none yet')}</div>
-      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:14px">
-        <button class="btn primary sm" data-open-project="${pr.id}">${tf('เข้าโปรเจ็ค','Open project')}</button>
-        <button class="btn ghost sm" data-edit-project="${pr.id}">${tf('แก้ไข','Edit')}</button>
-        <button class="btn ghost sm" data-copy-open="${pr.id}">🔗 ${tf('ลิงก์เข้าโปรเจ็คนี้','Project link')}</button>
-        <button class="btn ghost sm" data-copy-field="${pr.id}">🔗 ${tf('ลิงก์บันทึกประจำวัน','Daily log link')}</button>
-        <button class="btn danger sm" data-del-project="${pr.id}">${tf('ลบ','Delete')}</button>
-      </div>
-    </div>`;
+    const g = (pr.groupName||'').trim();
+    if(!g) return projectCardHtml(pr, asOf);
+    if(renderedGroups.has(g)) return '';
+    renderedGroups.add(g);
+    return groupCardHtml(g, groupMap[g], asOf);
   }).join('');
   return `
   <div class="page-head">
@@ -4733,11 +4796,17 @@ function extractDriveFolderId(raw){
   const m = raw.match(/[-\w]{25,}/);
   return m? m[0] : raw.trim();
 }
+// Distinct, non-empty project group names already in use (e.g. "Project A"),
+// sorted -- powers the group-name datalist in the project modal so typing the
+// same group on every sub-project (A.1, A.2, A.3) is a pick, not a retype.
+function projectGroupNames(){
+  return Array.from(new Set(state.projects.map(p=>(p.groupName||'').trim()).filter(Boolean))).sort();
+}
 let boqImport=null; // {rows:[[...]], hasHeader:bool, mapping:{code,name,unit,qty,price}, warning:'', sourceLabel:''} -- see BOQ IMPORT section
 function openProjectDraft(id){
   boqImport=null;
-  if(id==='new'){ projectDraft={name:'',zone:'',driveFolderId:''}; editingProjectId='new'; }
-  else { const pr=state.projects.find(p=>p.id===id); projectDraft={name:pr.name,zone:pr.zone||'',driveFolderId:pr.driveFolderId||''}; editingProjectId=id; }
+  if(id==='new'){ projectDraft={name:'',zone:'',driveFolderId:'',groupName:''}; editingProjectId='new'; }
+  else { const pr=state.projects.find(p=>p.id===id); projectDraft={name:pr.name,zone:pr.zone||'',driveFolderId:pr.driveFolderId||'',groupName:pr.groupName||''}; editingProjectId=id; }
 }
 function boqImportSectionHtml(){
   if(!boqImport) return '';
@@ -4802,6 +4871,12 @@ function projectModalHtml(){
     <div class="field"><label>${tf('ชื่อโครงการ','Project name')}</label><input type="text" id="pm-name" value="${escapeHtml(d.name)}" placeholder="${tf('เช่น รีโนเวททาวน์โฮม 3 ชั้น','e.g. 3-storey townhome renovation')}"></div>
     <div class="field" style="margin-top:12px"><label>${tf('โซน/พื้นที่ทำงาน','Zone / work area')}</label><input type="text" id="pm-zone" value="${escapeHtml(d.zone)}" placeholder="${tf('เช่น Master Bedroom & Living Room','e.g. Master Bedroom & Living Room')}"></div>
     <div class="field" style="margin-top:12px">
+      <label>🗂️ ${tf('กลุ่มโปรเจ็ค (ไม่บังคับ)','Project group (optional)')}</label>
+      <input type="text" id="pm-group" list="pm-group-list" value="${escapeHtml(d.groupName||'')}" placeholder="${tf('เช่น Project A','e.g. Project A')}">
+      <datalist id="pm-group-list">${projectGroupNames().map(g=>`<option value="${escapeHtml(g)}">`).join('')}</datalist>
+      <div class="hint" style="margin-top:4px">${tf('ใส่ชื่อกลุ่มเดียวกัน (เช่น "Project A") ในโปรเจ็คย่อยทุกตัว (A.1, A.2, A.3) เพื่อให้หน้า "โปรเจ็คทั้งหมด" จัดกลุ่มและสรุปงบ/ความคืบหน้ารวมให้อัตโนมัติ','Give every sub-project (A.1, A.2, A.3) the exact same group name (e.g. "Project A") so the All Projects page groups them and rolls up their budget/progress automatically')}</div>
+    </div>
+    <div class="field" style="margin-top:12px">
       <label>📂 ${tf('โฟลเดอร์ Google Drive สำหรับใบสั่งซื้อ (ไม่บังคับ)','Google Drive purchasing folder (optional)')}</label>
       <input type="text" id="pm-drive-folder" value="${escapeHtml(d.driveFolderId||'')}" placeholder="${tf('วางลิงก์โฟลเดอร์ Drive หรือรหัสโฟลเดอร์','Paste the Drive folder link or its folder ID')}">
       <div class="hint" style="margin-top:4px">${tf('ใช้กับปุ่ม "ซิงค์ตอนนี้" ในหน้าบันทึกต้นทุนการจัดซื้อ — โฟลเดอร์นี้ควรมีโฟลเดอร์ย่อยชื่อตรงกับหมวดงาน (เช่น "4. งานไฟฟ้า-เดินสายไฟ") และต้องแชร์แบบ "ใครมีลิงก์ก็ดูได้"','Used by the "Sync now" button on the Procurement Cost Log page -- this folder should contain one subfolder per matching category name (e.g. "4. งานไฟฟ้า-เดินสายไฟ") and must be shared as "Anyone with the link".')}</div>
@@ -4821,10 +4896,11 @@ function wireProjectModal(){
   // which rebuilds the whole modal from projectDraft. Without syncing first,
   // that render would silently blank out whatever the user already typed.
   const syncProjectFields = ()=>{
-    const nameEl=$('#pm-name'), zoneEl=$('#pm-zone'), driveEl=$('#pm-drive-folder');
+    const nameEl=$('#pm-name'), zoneEl=$('#pm-zone'), driveEl=$('#pm-drive-folder'), groupEl=$('#pm-group');
     if(nameEl) projectDraft.name = nameEl.value;
     if(zoneEl) projectDraft.zone = zoneEl.value;
     if(driveEl) projectDraft.driveFolderId = driveEl.value;
+    if(groupEl) projectDraft.groupName = groupEl.value;
   };
   const applyParsedRows = (rows)=>{
     if(!rows.length){ boqImport = {rows:[], warning:tf('ไม่พบข้อมูลตาราง','No table data found')}; return; }
@@ -4877,15 +4953,16 @@ function wireProjectModal(){
   $('#pm-save').onclick = ()=>{
     const name=$('#pm-name').value.trim(), zone=$('#pm-zone').value.trim();
     const driveFolderId = extractDriveFolderId($('#pm-drive-folder').value.trim());
+    const groupName = $('#pm-group').value.trim();
     if(!name){ toast(tf('กรุณาระบุชื่อโครงการ','Please enter a project name')); return; }
     if(editingProjectId==='new'){
       const importedBoq = buildBoqFromImport();
-      state.projects.push({id:uid(), name, zone, driveFolderId, driveSyncedFileIds:[], boq:importedBoq, logs:[], materialRequests:[], costLog:[], inspectionReports:[], createdAt:new Date().toISOString()});
+      state.projects.push({id:uid(), name, zone, groupName, driveFolderId, driveSyncedFileIds:[], boq:importedBoq, logs:[], materialRequests:[], costLog:[], inspectionReports:[], createdAt:new Date().toISOString()});
       saveData(); closeProjectModal();
       toast(importedBoq.length? tf('สร้างโปรเจ็คใหม่แล้ว พร้อม BOQ ','Project created with a BOQ of ')+importedBoq.length+tf(' รายการ',' items') : tf('สร้างโปรเจ็คใหม่แล้ว','Project created'));
     } else {
       const pr=state.projects.find(p=>p.id===editingProjectId);
-      Object.assign(pr,{name,zone,driveFolderId});
+      Object.assign(pr,{name,zone,groupName,driveFolderId});
       saveData(); closeProjectModal(); toast(tf('บันทึกโปรเจ็คแล้ว','Project saved'));
     }
   };
