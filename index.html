@@ -6836,7 +6836,7 @@ function wireDailyLog(){
 /* ============================= SCREEN: PROCUREMENT ============================= */
 let creatingRequest=false, requestForm=null, procureDetailId=null;
 function newRequestForm(){
-  return { requestedBy:(state.contractor&&state.contractor.nickname)||'', area:'', workType:'', necessityType:'', approverName:'', lines:[{name:'',qty:'',unit:'',neededDate:addDays(todayStr(),2),category:'',taskId:'',photos:[]}], photos:[] };
+  return { requestedBy:(state.contractor&&state.contractor.nickname)||'', area:'', workType:'', necessityType:'', approverName:'', lines:[{name:'',qty:'',unit:'',neededDate:addDays(todayStr(),2),category:'',taskId:'',photos:[]}], photos:[], note:'' };
 }
 function necessityLabel(v){ const n=NECESSITY_TYPES.find(x=>x.v===v); return n? n.label : ''; }
 function genReqNo(dateStr){
@@ -7087,6 +7087,9 @@ function requestModalHtml(){
         <div class="rq-lines" id="rq-lines">${lineRows}</div>
         <button class="btn ghost sm" style="margin-top:8px" id="rq-add-line">+ ${tf('เพิ่มรายการวัสดุ','Add material line')}</button>
       </div>
+      <div class="field" style="margin-top:14px"><label>${tf('หมายเหตุ (ไม่บังคับ)','Note (optional)')}</label>
+        <textarea id="rq-note" rows="2" placeholder="${tf('เช่น สีตัวอย่างตามที่ตกลงกับลูกค้า, ต้องการของก่อนเที่ยง...','e.g. colour per the sample agreed with the client, needed before noon...')}">${escapeHtml(f.note||'')}</textarea>
+      </div>
       <div class="field" style="margin-top:14px"><label>${tf('แนบไฟล์ (รูปภาพ / PDF — เช่น วัสดุ ตัวอย่างสี สเปกหรือใบเสนอราคา)','Attach files (images / PDF -- material, colour sample, spec or quotation)')}</label>
         <label class="photo-drop" for="rq-photo-input" id="rq-drop-zone">📎 ${tf('แตะเพื่อเลือกไฟล์ หรือลากไฟล์มาวางที่นี่','Tap to choose files, or drag & drop here')}</label>
         <input type="file" id="rq-photo-input" accept="image/*,application/pdf" multiple style="display:none">
@@ -7110,6 +7113,7 @@ function wireRequestModal(){
   const necessitySel=$('#rq-necessity'); if(necessitySel) necessitySel.onchange=()=>{ requestForm.necessityType = necessitySel.value; };
   const approverSel=$('#rq-approver'); if(approverSel) approverSel.onchange=()=>{ requestForm.approverName = approverSel.value; };
   const approverTxt=$('#rq-approver-text'); if(approverTxt) approverTxt.oninput=()=>{ requestForm.approverName = approverTxt.value; };
+  const noteInp=$('#rq-note'); if(noteInp) noteInp.oninput=()=>{ requestForm.note = noteInp.value; };
   $('#rq-add-line').onclick=()=>{ requestForm.lines.push({name:'',qty:'',unit:'',neededDate:addDays(todayStr(),2),category:'',taskId:'',photos:[]}); render(); };
   $$('[data-rm-line]').forEach(b=> b.onclick=()=>{ if(requestForm.lines.length>1){ requestForm.lines.splice(Number(b.dataset.rmLine),1); render(); } else toast(tf('ต้องมีอย่างน้อย 1 รายการ','At least one line is required')); });
   $$('[data-line]').forEach(inp=> inp.oninput=()=>{ requestForm.lines[Number(inp.dataset.idx)][inp.dataset.line] = inp.value; });
@@ -7183,6 +7187,7 @@ function wireRequestModal(){
       id:uid(), reqNo, createdAt:new Date().toISOString(), requestedBy:by, area, workType:wt,
       necessityType, approverName,
       lines: savedLines,
+      note: (requestForm.note||'').trim(),
       photoIds, photoMeta, status:'pending', approval:null, procurement:null,
       trashed:false
     });
@@ -7269,6 +7274,7 @@ function detailModalHtml(){
           <div class="field" style="grid-column:1/-1"><label class="hint">${tf('พื้นที่ที่ต้องใช้ของ','Area needed')}</label><b>${escapeHtml(r.area||'-')}</b></div>
         </div>
         <div class="table-wrap" style="margin-top:12px"><table><thead><tr><th>${tf('วัสดุ','Material')}</th><th>${tf('จำนวน','Qty')}</th><th>${tf('วันที่ต้องใช้','Needed by')}</th>${hasAnyActualCost? `<th>${tf('ต้นทุนจริง','Actual cost')}</th>`:''}</tr></thead><tbody>${lines}</tbody></table></div>
+        ${r.note? `<div class="field" style="margin-top:12px"><label class="hint">${tf('หมายเหตุ','Note')}</label><div style="font-size:13px;line-height:1.6;white-space:pre-wrap">${escapeHtml(r.note)}</div></div>` : ''}
         <div style="margin-top:14px"><b style="font-family:var(--font-display);font-size:13px">${tf('ไทม์ไลน์','Timeline')}</b><div class="timeline">${timeline}</div></div>
         ${actions}
       </div>
