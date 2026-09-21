@@ -5304,7 +5304,7 @@ function renderOverview(){
     }
     const st = summary.delta>=0?'ok':'bad';
     return `<tr>
-      <td>${escapeHtml(pr.name||tf('(ไม่มีชื่อโปรเจ็ค)','(untitled project)'))}${pr.zone?` <span class="sub" style="font-weight:400">(${escapeHtml(pr.zone)})</span>`:''}</td>
+      <td>${escapeHtml(pr.name||tf('(ไม่มีชื่อโปรเจ็ค)','(untitled project)'))}</td>
       <td class="tabular">${fmtNum(summary.plannedPct,1)}%</td>
       <td class="tabular">${fmtNum(summary.actualPct,1)}%</td>
       <td><span class="badge ${st}">${st==='ok'? '🟢 '+tf('เร็วกว่า/ตรงแผน','Ahead / on plan') : '🔴 '+tf('ล่าช้า','Behind')} ${fmtNum(Math.abs(summary.delta),1)}%</span></td>
