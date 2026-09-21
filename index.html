@@ -4619,6 +4619,11 @@ function projectCardHtml(pr, asOf){
   const st = !summary? 'idle' : summary.delta>=0?'ok':'bad';
   const pillText = !summary? tf('ยังไม่มีข้อมูลเพียงพอ','Not enough data yet')
     : (summary.delta>=0? tf('เร็วกว่าแผน ','Ahead of plan ')+fmtNum(Math.abs(summary.delta),1)+'%' : tf('ล่าช้ากว่าแผน ','Behind plan ')+fmtNum(Math.abs(summary.delta),1)+'%');
+  // Same header + KPI-tile-row language as groupCardHtml (below) so a
+  // standalone project's card reads consistently with a grouped one --
+  // the only thing that differs is there's no "N โปรเจ็คย่อย" sub-count.
+  const totalBudget = boqTotalBudget(pr.boq);
+  const totalActual = projectActualCostTotal(pr);
   return `<div class="card proj-card">
     <div class="proj-card-head">
       <div>
@@ -4627,11 +4632,16 @@ function projectCardHtml(pr, asOf){
       </div>
       <span class="status-chip ${st}"><i class="dot"></i>${pillText}</span>
     </div>
-    ${summary? `
-    <div class="progress ${st==='ok'?'ok':st==='bad'?'bad':''}"><i style="width:${clamp(summary.actualPct,0,100)}%"></i></div>
-    <div class="sub" style="margin-top:6px">${tf('ความคืบหน้าจริง','Actual progress')} <b class="tabular" style="color:var(--ink-700)">${fmtNum(summary.actualPct,1)}%</b> ${tf('จากแผน','vs. planned')} <span class="tabular">${fmtNum(summary.plannedPct,1)}%</span></div>`
-    : `<div class="empty" style="padding:16px">${tf('ยังไม่มีรายการงานใน BOQ','No BOQ items yet')}</div>`}
-    <div class="sub" style="margin-top:6px">${pr.boq.length} ${tf('รายการงาน','work items')} · ${tf('บันทึกล่าสุด','last log')} ${lastLog? fmtDate(lastLog.date) : tf('ยังไม่มีบันทึก','none yet')}</div>
+    <div class="group-kpi-row">
+      ${summary? `
+      <div class="hub-stat sm"><span class="hub-stat-lbl">${tf('ความคืบหน้าจริง','Actual progress')}</span><span class="hub-stat-val">${fmtNum(summary.actualPct,1)}%</span></div>
+      <div class="hub-stat sm"><span class="hub-stat-lbl">${tf('จากแผน','vs. planned')}</span><span class="hub-stat-val">${fmtNum(summary.plannedPct,1)}%</span></div>` : ''}
+      <div class="hub-stat sm"><span class="hub-stat-lbl">${tf('งบประมาณ (BOQ)','BOQ budget')}</span><span class="hub-stat-val">${fmtCurrency(totalBudget)}</span></div>
+      <div class="hub-stat sm"><span class="hub-stat-lbl">${tf('ใช้จ่ายจริง','Actual spend')}</span><span class="hub-stat-val">${fmtCurrency(totalActual)}</span></div>
+    </div>
+    ${summary? `<div class="progress ${st==='ok'?'ok':st==='bad'?'bad':''}" style="margin-top:14px"><i style="width:${clamp(summary.actualPct,0,100)}%"></i></div>`
+    : `<div class="empty" style="padding:16px;margin-top:2px">${tf('ยังไม่มีรายการงานใน BOQ','No BOQ items yet')}</div>`}
+    <div class="sub" style="margin-top:10px">${pr.boq.length} ${tf('รายการงาน','work items')} · ${tf('บันทึกล่าสุด','last log')} ${lastLog? fmtDate(lastLog.date) : tf('ยังไม่มีบันทึก','none yet')}</div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:14px">
       <button class="btn primary sm" data-open-project="${pr.id}">${tf('เข้าโปรเจ็ค','Open project')}</button>
       <button class="btn ghost sm" data-edit-project="${pr.id}">${tf('แก้ไข','Edit')}</button>
