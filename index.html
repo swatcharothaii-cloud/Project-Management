@@ -9254,9 +9254,9 @@ function renderBilling(proj=P()){
   </div>
   <div class="grid cols-auto" style="margin-bottom:16px">
     <div class="card kpi"><div class="stat"><span class="lbl">💰 ${tf('ยอดเงิน BOQ (มูลค่าสัญญา)','BOQ value (contract amount)')}</span><span class="num tabular" style="font-size:19px">${fmtCurrency(boqTotal)}</span></div></div>
-    <div class="card kpi"><div class="stat"><span class="lbl">🧾 ${tf('เบิกไปแล้วรวม','Total billed')}</span><span class="num tabular" style="font-size:19px">${fmtCurrency(billedTotal)}</span></div></div>
-    <div class="card kpi"><div class="stat"><span class="lbl">✅ ${tf('ชำระแล้วรวม','Total paid')}</span><span class="num tabular" style="font-size:19px;color:var(--mint-600)">${fmtCurrency(paidTotal)}</span></div></div>
-    <div class="card kpi"><div class="stat"><span class="lbl">${remaining>=0?'💵':'🔴'} ${tf('ยอดคงเหลือ (ยังไม่ได้เบิก)','Remaining (not yet billed)')}</span><span class="num tabular" style="font-size:19px;color:${remaining<0?'var(--coral-600)':'inherit'}">${fmtCurrency(remaining)}</span></div></div>
+    <div class="card kpi"><div class="stat"><span class="lbl">🧾 ${tf('เบิกไปแล้วรวม','Total billed')}</span><span class="num tabular" id="bm-kpi-billed" style="font-size:19px">${fmtCurrency(billedTotal)}</span></div></div>
+    <div class="card kpi"><div class="stat"><span class="lbl">✅ ${tf('ชำระแล้วรวม','Total paid')}</span><span class="num tabular" id="bm-kpi-paid" style="font-size:19px;color:var(--mint-600)">${fmtCurrency(paidTotal)}</span></div></div>
+    <div class="card kpi"><div class="stat"><span class="lbl" id="bm-kpi-remaining-lbl">${remaining>=0?'💵':'🔴'} ${tf('ยอดคงเหลือ (ยังไม่ได้เบิก)','Remaining (not yet billed)')}</span><span class="num tabular" id="bm-kpi-remaining" style="font-size:19px;color:${remaining<0?'var(--coral-600)':'inherit'}">${fmtCurrency(remaining)}</span></div></div>
   </div>
   ${driveHint}
   ${milestones.length===0? `<div class="empty"><span class="ic">💵</span>${tf('ยังไม่มีงวดเบิกเงิน กด "เพิ่มงวด" เพื่อเริ่มวางแผนการเรียกเก็บเงิน','No billing installments yet -- tap "Add installment" to start planning the draw schedule')}</div>` : `
@@ -9267,6 +9267,41 @@ function renderBilling(proj=P()){
   </tr></thead><tbody>${rows}</tbody></table></div>`}
   <button class="btn primary sm" id="btn-add-milestone" style="margin-top:14px" ${milestones.length>=BILLING_MAX_MILESTONES?'disabled':''}>+ ${tf('เพิ่มงวด','Add installment')} (${milestones.length}/${BILLING_MAX_MILESTONES})</button>
   `;
+}
+// Recomputes every derived value across the Billing table (per-row amount,
+// cascading remaining balance, per-row status badge, and the page's KPI
+// cards) and patches the existing DOM in place -- called after an in-memory
+// field edit instead of a full render() so the user's typing focus survives
+// (see the comment in wireBilling()).
+function billingPatchDerived(proj, boqTotal){
+  const milestones = proj.billingMilestones || [];
+  let running = boqTotal, billedTotal = 0, paidTotal = 0;
+  milestones.forEach(m=>{
+    const amount = billingMilestoneAmount(m, boqTotal);
+    running -= amount;
+    billedTotal += amount;
+    if(m.paidDate) paidTotal += amount;
+    const row = document.querySelector(`[data-bm-row="${m.id}"]`);
+    if(!row) return;
+    const amtCell = row.querySelector('[data-bm-amount]');
+    if(amtCell) amtCell.textContent = fmtCurrency(amount);
+    const balCell = row.querySelector('[data-bm-balance]');
+    if(balCell){ balCell.textContent = fmtCurrency(running); balCell.style.color = running<0? 'var(--coral-600)' : 'inherit'; }
+    const stBadge = row.querySelector('[data-bm-status]');
+    if(stBadge){
+      const st = m.paidDate? 'ok' : m.billDate? 'warn' : 'idle';
+      const stLabel = m.paidDate? tf('ชำระแล้ว','Paid') : m.billDate? tf('เบิกแล้ว รอชำระ','Billed, awaiting payment') : tf('ยังไม่เบิก','Not billed yet');
+      stBadge.className = `badge ${st}`;
+      stBadge.textContent = stLabel;
+    }
+  });
+  const remaining = boqTotal - billedTotal;
+  const billedEl = $('#bm-kpi-billed'); if(billedEl) billedEl.textContent = fmtCurrency(billedTotal);
+  const paidEl = $('#bm-kpi-paid'); if(paidEl) paidEl.textContent = fmtCurrency(paidTotal);
+  const remEl = $('#bm-kpi-remaining');
+  if(remEl){ remEl.textContent = fmtCurrency(remaining); remEl.style.color = remaining<0? 'var(--coral-600)' : 'inherit'; }
+  const remLbl = $('#bm-kpi-remaining-lbl');
+  if(remLbl) remLbl.textContent = `${remaining>=0?'💵':'🔴'} ${tf('ยอดคงเหลือ (ยังไม่ได้เบิก)','Remaining (not yet billed)')}`;
 }
 async function billingOpenPicker(proj, rowId){
   if(!billingReady(proj)){ toast(tf('กรุณาตั้งค่า Drive API Key และโฟลเดอร์ Drive สำหรับใบแจ้งหนี้ก่อน','Please set up the Drive API key and this project\'s billing Drive folder first')); return; }
@@ -9289,6 +9324,16 @@ function wireBilling(proj=P()){
     saveData(); render();
   };
   const boqTotal = boqTotalBudget(proj.boq);
+  // Like Cost Log's data-cl-field rows: oninput mutates the in-memory entry
+  // and patches only the DOM cells that changed, WITHOUT calling render() --
+  // a full render() on every keystroke would replace the <input> the user is
+  // typing into and drop focus after a single character. saveData() (and the
+  // Firestore push it schedules) only fires on blur, once the user leaves
+  // the field. The catch here versus Cost Log is that a pct/billDate/paidDate
+  // edit can change MORE than just this row's own total cell -- every row's
+  // running "ยอดคงเหลือ" balance below it, this row's status badge, and the
+  // page-level KPI cards -- so billingPatchDerived() walks the whole
+  // milestone list and patches every affected cell directly by id/attribute.
   $$('[data-bm-row]').forEach(row=>{
     const id = row.dataset.bmRow;
     const m = (proj.billingMilestones||[]).find(x=>x.id===id);
@@ -9298,18 +9343,12 @@ function wireBilling(proj=P()){
       inp.oninput = ()=>{
         if(field==='pct'){
           m.pct = inp.value===''? null : parseNumLoose(inp.value);
-          const amtCell = row.querySelector('[data-bm-amount]');
-          if(amtCell) amtCell.textContent = fmtCurrency(billingMilestoneAmount(m, boqTotal));
         } else {
           m[field] = inp.value;
         }
-        // A row's own status badge (paid / billed / not yet) and every row's
-        // running "ยอดคงเหลือ" balance after it can change from any field
-        // edit here (pct, billDate, paidDate), so both need a full re-render
-        // -- unlike Cost Log's single-row-total-only inline edit, this can't
-        // be patched by touching just this row's own cells.
-        saveData(); render();
+        billingPatchDerived(proj, boqTotal);
       };
+      inp.onblur = ()=> saveData();
     });
   });
   $$('[data-bm-delete]').forEach(btn=>{
