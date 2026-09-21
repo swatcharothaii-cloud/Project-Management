@@ -4680,24 +4680,49 @@ function groupCardHtml(groupName, members, asOf){
 function renderHub(){
   const asOf = todayStr();
   // Partition into groups (by non-empty groupName) vs. standalone projects,
-  // then walk state.projects in its original order and emit one block per
-  // project -- except a group only emits its combined block the first time
-  // one of its members is reached, after which the rest of that group's
-  // members are skipped (they were already rendered inside that block).
+  // then walk state.projects once, building one entry per project -- except
+  // a group only emits its combined entry the first time one of its members
+  // is reached, after which the rest of that group's members are skipped
+  // (they were already rendered inside that block).
+  //
+  // Entries are then sorted so the page reads as a tidy, prioritized list
+  // instead of raw Firestore fetch order (which is arbitrary and reshuffles
+  // on every reload): projects/groups that are BEHIND plan surface first
+  // (they need attention), then ON TRACK ones, then ones with no BOQ data
+  // yet (nothing to triage); within each of those tiers, alphabetical by
+  // name keeps the order stable and predictable run to run.
   const groupMap = {};
   state.projects.forEach(pr=>{
     const g = (pr.groupName||'').trim();
     if(!g) return;
     (groupMap[g] = groupMap[g]||[]).push(pr);
   });
+  const STATUS_RANK = { bad:0, ok:1, idle:2 };
   const renderedGroups = new Set();
-  const cards = state.projects.map(pr=>{
+  const entries = [];
+  state.projects.forEach(pr=>{
     const g = (pr.groupName||'').trim();
-    if(!g) return projectCardHtml(pr, asOf);
-    if(renderedGroups.has(g)) return '';
+    if(!g){
+      const summary = pr.boq.length? projectSummary(asOf, pr.boq, pr.logs) : null;
+      const st = !summary? 'idle' : summary.delta>=0?'ok':'bad';
+      entries.push({ name: pr.name||'', rank: STATUS_RANK[st], html: projectCardHtml(pr, asOf) });
+      return;
+    }
+    if(renderedGroups.has(g)) return;
     renderedGroups.add(g);
-    return groupCardHtml(g, groupMap[g], asOf);
-  }).join('');
+    const members = groupMap[g];
+    const withData = members.map(m=> m.boq.length? projectSummary(asOf, m.boq, m.logs) : null).filter(Boolean);
+    let st;
+    if(!withData.length) st = 'idle';
+    else {
+      const avgActual = withData.reduce((s,x)=>s+x.actualPct,0)/withData.length;
+      const avgPlanned = withData.reduce((s,x)=>s+x.plannedPct,0)/withData.length;
+      st = (avgActual-avgPlanned)>=0 ? 'ok' : 'bad';
+    }
+    entries.push({ name: g, rank: STATUS_RANK[st], html: groupCardHtml(g, members, asOf) });
+  });
+  entries.sort((a,b)=> a.rank-b.rank || a.name.localeCompare(b.name,'th'));
+  const cards = entries.map(e=>e.html).join('');
   // Portfolio-level roll-up shown above the card grid -- every independent
   // project counts once here even when it's nested inside a group card
   // below, so these totals always reconcile with "sum of every project"
