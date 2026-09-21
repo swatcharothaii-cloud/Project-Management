@@ -237,6 +237,35 @@ main{flex:1;width:100%;max-width:1180px;margin:0 auto;padding:22px 18px 64px;}
 .screen-hub .proj-card:has(.badge.ok){border-left-color:var(--mint-500)}
 .screen-hub .proj-card:has(.badge.bad){border-left-color:var(--coral-500)}
 .screen-hub .group-card{border-left:4px solid var(--purple-500)}
+
+/* ---------- Hub formal redesign ----------
+   A quieter, report-style alternative to .badge for the Hub's per-project
+   status: a bordered neutral chip with a small colored dot, rather than a
+   solid-color pill with an emoji. Reads closer to a status column in a
+   management report than a consumer-app tag. */
+.status-chip{
+  display:inline-flex;align-items:center;gap:7px;padding:5px 12px;border-radius:999px;
+  border:1px solid var(--line);background:var(--surface);
+  font-size:12px;font-weight:600;color:var(--ink-700);white-space:nowrap;flex:none;
+}
+.status-chip .dot{width:7px;height:7px;border-radius:50%;flex:none}
+.status-chip.ok .dot{background:var(--mint-500);box-shadow:0 0 0 3px var(--mint-50)}
+.status-chip.bad .dot{background:var(--coral-500);box-shadow:0 0 0 3px var(--coral-50)}
+.status-chip.idle .dot{background:var(--ink-300)}
+/* Header/body divider for the Hub's project + group cards -- a thin rule
+   instead of a margin gap, so the card reads as two clearly separated
+   sections (identity, then figures) the way a formal report table would. */
+.proj-card-head{padding-bottom:13px;border-bottom:1px solid var(--line-soft);margin-bottom:13px;display:flex;flex-wrap:wrap;justify-content:space-between;gap:10px 12px;align-items:flex-start}
+/* Compact stat tile used for the Hub summary strip and each group card's
+   rollup row -- label over a tabular-numeral value, the same "figure card"
+   language as the Dashboard's .kpi tiles, so multi-number summaries read as
+   a small table rather than a run-on sentence. */
+.hub-stat{display:flex;flex-direction:column;gap:2px}
+.hub-stat .hub-stat-lbl{font-size:11.5px;font-weight:600;color:var(--ink-500);text-transform:uppercase;letter-spacing:.02em}
+.hub-stat .hub-stat-val{font-family:var(--font-mono);font-weight:600;font-size:17px;color:var(--ink-900)}
+.hub-stat.sm .hub-stat-val{font-size:15px}
+.hub-summary-bar{display:flex;flex-wrap:wrap;gap:28px;padding:16px 20px;background:var(--surface);border:1px solid var(--line);border-radius:var(--radius-md);box-shadow:var(--shadow-sm)}
+.group-kpi-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:16px;margin-top:2px}
 .grid{display:grid;gap:14px}
 .grid.cols-auto{grid-template-columns:repeat(auto-fit,minmax(240px,1fr))}
 .grid.cols-2{grid-template-columns:repeat(auto-fit,minmax(300px,1fr))}
@@ -4596,18 +4625,18 @@ function projectCardHtml(pr, asOf){
         <b style="font-family:var(--font-display);font-size:16px">${escapeHtml(pr.name||tf('(ไม่มีชื่อโปรเจ็ค)','(untitled project)'))}</b>
         ${pr.zone? `<div class="sub">${escapeHtml(pr.zone)}</div>` : ''}
       </div>
-      <span class="badge ${st}">${st==='ok'?'🟢':st==='bad'?'🔴':'⏳'} ${pillText}</span>
+      <span class="status-chip ${st}"><i class="dot"></i>${pillText}</span>
     </div>
     ${summary? `
-    <div class="progress ${st==='ok'?'ok':st==='bad'?'bad':''}" style="margin-top:10px"><i style="width:${clamp(summary.actualPct,0,100)}%"></i></div>
+    <div class="progress ${st==='ok'?'ok':st==='bad'?'bad':''}"><i style="width:${clamp(summary.actualPct,0,100)}%"></i></div>
     <div class="sub" style="margin-top:6px">${tf('ความคืบหน้าจริง','Actual progress')} <b class="tabular" style="color:var(--ink-700)">${fmtNum(summary.actualPct,1)}%</b> ${tf('จากแผน','vs. planned')} <span class="tabular">${fmtNum(summary.plannedPct,1)}%</span></div>`
-    : `<div class="empty" style="margin-top:10px;padding:16px">${tf('ยังไม่มีรายการงานใน BOQ','No BOQ items yet')}</div>`}
+    : `<div class="empty" style="padding:16px">${tf('ยังไม่มีรายการงานใน BOQ','No BOQ items yet')}</div>`}
     <div class="sub" style="margin-top:6px">${pr.boq.length} ${tf('รายการงาน','work items')} · ${tf('บันทึกล่าสุด','last log')} ${lastLog? fmtDate(lastLog.date) : tf('ยังไม่มีบันทึก','none yet')}</div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:14px">
       <button class="btn primary sm" data-open-project="${pr.id}">${tf('เข้าโปรเจ็ค','Open project')}</button>
       <button class="btn ghost sm" data-edit-project="${pr.id}">${tf('แก้ไข','Edit')}</button>
-      <button class="btn ghost sm" data-copy-open="${pr.id}">🔗 ${tf('ลิงก์เข้าโปรเจ็คนี้','Project link')}</button>
-      <button class="btn ghost sm" data-copy-field="${pr.id}">🔗 ${tf('ลิงก์บันทึกประจำวัน','Daily log link')}</button>
+      <button class="btn ghost sm" data-copy-open="${pr.id}">${tf('คัดลอกลิงก์เข้าโปรเจ็ค','Copy project link')}</button>
+      <button class="btn ghost sm" data-copy-field="${pr.id}">${tf('คัดลอกลิงก์บันทึกประจำวัน','Copy daily-log link')}</button>
       <button class="btn danger sm" data-del-project="${pr.id}">${tf('ลบ','Delete')}</button>
     </div>
   </div>`;
@@ -4632,16 +4661,20 @@ function groupCardHtml(groupName, members, asOf){
   return `<div class="card tint group-card" style="grid-column:1/-1;border-style:dashed">
     <div class="proj-card-head">
       <div>
-        <b style="font-family:var(--font-display);font-size:17px">🗂️ ${escapeHtml(groupName)}</b>
+        <b style="font-family:var(--font-display);font-size:17px">${escapeHtml(groupName)}</b>
         <div class="sub">${members.length} ${tf('โปรเจ็คย่อย','sub-projects')}</div>
       </div>
-      <span class="badge ${st}">${st==='ok'?'🟢':st==='bad'?'🔴':'⏳'} ${pillText}</span>
+      <span class="status-chip ${st}"><i class="dot"></i>${pillText}</span>
     </div>
-    ${withData.length? `
-    <div class="progress ${st==='ok'?'ok':st==='bad'?'bad':''}" style="margin-top:10px"><i style="width:${clamp(avgActual,0,100)}%"></i></div>
-    <div class="sub" style="margin-top:6px">${tf('ความคืบหน้าจริงเฉลี่ย','Avg. actual progress')} <b class="tabular" style="color:var(--ink-700)">${fmtNum(avgActual,1)}%</b> ${tf('จากแผน','vs. planned')} <span class="tabular">${fmtNum(avgPlanned,1)}%</span></div>` : ''}
-    <div class="sub" style="margin-top:6px">${tf('งบประมาณรวม (BOQ)','Total BOQ budget')} <b class="tabular" style="color:var(--ink-700)">${fmtCurrency(totalBudget)}</b> · ${tf('ใช้จ่ายจริงรวม','Total actual spend')} <b class="tabular">${fmtCurrency(totalActual)}</b></div>
-    <div class="grid cols-proj" style="margin-top:14px">${memberCards}</div>
+    <div class="group-kpi-row">
+      ${withData.length? `
+      <div class="hub-stat sm"><span class="hub-stat-lbl">${tf('คืบหน้าจริงเฉลี่ย','Avg. actual')}</span><span class="hub-stat-val">${fmtNum(avgActual,1)}%</span></div>
+      <div class="hub-stat sm"><span class="hub-stat-lbl">${tf('จากแผนเฉลี่ย','Avg. planned')}</span><span class="hub-stat-val">${fmtNum(avgPlanned,1)}%</span></div>` : ''}
+      <div class="hub-stat sm"><span class="hub-stat-lbl">${tf('งบประมาณรวม (BOQ)','Total BOQ budget')}</span><span class="hub-stat-val">${fmtCurrency(totalBudget)}</span></div>
+      <div class="hub-stat sm"><span class="hub-stat-lbl">${tf('ใช้จ่ายจริงรวม','Total actual spend')}</span><span class="hub-stat-val">${fmtCurrency(totalActual)}</span></div>
+    </div>
+    ${withData.length? `<div class="progress ${st==='ok'?'ok':st==='bad'?'bad':''}" style="margin-top:14px"><i style="width:${clamp(avgActual,0,100)}%"></i></div>` : ''}
+    <div class="grid cols-proj" style="margin-top:16px">${memberCards}</div>
   </div>`;
 }
 function renderHub(){
@@ -4665,11 +4698,32 @@ function renderHub(){
     renderedGroups.add(g);
     return groupCardHtml(g, groupMap[g], asOf);
   }).join('');
+  // Portfolio-level roll-up shown above the card grid -- every independent
+  // project counts once here even when it's nested inside a group card
+  // below, so these totals always reconcile with "sum of every project"
+  // rather than "sum of every card shown". Gives the page a report-style
+  // opening (the key totals first) instead of starting straight into cards.
+  let onTrackCount=0, behindCount=0, idleCount=0;
+  state.projects.forEach(pr=>{
+    if(!pr.boq.length){ idleCount++; return; }
+    const s = projectSummary(asOf, pr.boq, pr.logs);
+    if(s.delta>=0) onTrackCount++; else behindCount++;
+  });
+  const totalBudgetAll = state.projects.reduce((s,pr)=>s+boqTotalBudget(pr.boq),0);
+  const totalActualAll = state.projects.reduce((s,pr)=>s+projectActualCostTotal(pr),0);
+  const summaryBar = state.projects.length? `<div class="hub-summary-bar">
+    <div class="hub-stat"><span class="hub-stat-lbl">${tf('โปรเจ็คทั้งหมด','Total projects')}</span><span class="hub-stat-val">${state.projects.length}</span></div>
+    <div class="hub-stat"><span class="hub-stat-lbl">${tf('ตามแผน / เร็วกว่าแผน','On track / ahead')}</span><span class="hub-stat-val" style="color:var(--mint-600)">${onTrackCount}</span></div>
+    <div class="hub-stat"><span class="hub-stat-lbl">${tf('ล่าช้ากว่าแผน','Behind plan')}</span><span class="hub-stat-val" style="color:${behindCount?'var(--coral-600)':'var(--ink-900)'}">${behindCount}</span></div>
+    <div class="hub-stat"><span class="hub-stat-lbl">${tf('งบประมาณรวมทุกโปรเจ็ค (BOQ)','Combined BOQ budget')}</span><span class="hub-stat-val">${fmtCurrency(totalBudgetAll)}</span></div>
+    <div class="hub-stat"><span class="hub-stat-lbl">${tf('ใช้จ่ายจริงรวม','Combined actual spend')}</span><span class="hub-stat-val">${fmtCurrency(totalActualAll)}</span></div>
+  </div>` : '';
   return `
   <div class="page-head">
-    <div><h2>${tf('โปรเจ็คทั้งหมด','All Projects')}</h2><div class="sub">${state.contractor&&state.contractor.company? escapeHtml(state.contractor.company)+' · ' : ''}${tf('จัดการหลายโปรเจ็คในที่เดียว กดเข้าโปรเจ็คเพื่อบันทึกงานประจำวันหรือดูแดชบอร์ด','Manage every project in one place -- open a project to log daily work or check its dashboard.')}</div></div>
+    <div><h2>${tf('โปรเจ็คทั้งหมด','All Projects')}</h2><div class="sub">${state.contractor&&state.contractor.company? escapeHtml(state.contractor.company)+' · ' : ''}${tf('ภาพรวมพอร์ตโฟลิโอโปรเจ็คทั้งหมด — กดเข้าโปรเจ็คเพื่อบันทึกงานประจำวันหรือดูแดชบอร์ด','Full portfolio overview -- open a project to log daily work or check its dashboard.')}</div></div>
     <button class="btn primary" id="btn-add-project">+ ${tf('สร้างโปรเจ็คใหม่','New project')}</button>
   </div>
+  ${summaryBar}
   ${state.projects.length===0? `<div class="empty"><span class="ic">🏗️</span>${tf('ยังไม่มีโปรเจ็ค','No projects yet')}<br>${tf('กด “สร้างโปรเจ็คใหม่” เพื่อเริ่มต้น','Tap “New project” to get started')}</div>` : `<div class="grid cols-proj">${cards}</div>`}
   `;
 }
