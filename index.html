@@ -4402,6 +4402,7 @@ const TABS = [
   {id:'purchaseplan',label:tf('แผนสั่งของ','Purchasing Plan'),ic:'📦'},
   {id:'costlog',label:tf('บันทึกต้นทุนจัดซื้อ','Cost Log'),ic:'🧾'},
   {id:'budget',label:tf('งบประมาณ','Budget'),ic:'💰'},
+  {id:'billing',label:tf('เบิกเงินงวด','Billing'),ic:'💵'},
   {id:'dailylog',label:tf('บันทึกประจำวัน','Daily Log'),ic:'📝'},
   {id:'report',label:tf('รายงาน','Report'),ic:'🖨️'},
 ];
@@ -4541,6 +4542,7 @@ function renderScreen(){
     case 'purchaseplan': return renderPurchasePlan();
     case 'costlog': return renderCostLog();
     case 'budget': return renderBudget();
+    case 'billing': return renderBilling();
     case 'dashboard': return renderDashboard();
     case 'report': return renderReport();
     default: return renderMasterPlan();
@@ -4560,6 +4562,7 @@ function resetTransient(){
   procureTrashOpen=false;
   costLogStatusFilter='all'; costLogView='menu'; costLogCategory='';
   editingInspectionId=null; inspectionDraft=null;
+  billingPickerRowId=null; billingPickerFiles=null; billingPickerLoading=false; billingPickerError='';
 }
 function goToHub(){
   resetTransient();
@@ -4933,8 +4936,8 @@ function projectGroupNames(){
 let boqImport=null; // {rows:[[...]], hasHeader:bool, mapping:{code,name,unit,qty,price}, warning:'', sourceLabel:''} -- see BOQ IMPORT section
 function openProjectDraft(id){
   boqImport=null;
-  if(id==='new'){ projectDraft={name:'',zone:'',driveFolderId:'',groupName:''}; editingProjectId='new'; }
-  else { const pr=state.projects.find(p=>p.id===id); projectDraft={name:pr.name,zone:pr.zone||'',driveFolderId:pr.driveFolderId||'',groupName:pr.groupName||''}; editingProjectId=id; }
+  if(id==='new'){ projectDraft={name:'',zone:'',driveFolderId:'',billingFolderId:'',groupName:''}; editingProjectId='new'; }
+  else { const pr=state.projects.find(p=>p.id===id); projectDraft={name:pr.name,zone:pr.zone||'',driveFolderId:pr.driveFolderId||'',billingFolderId:pr.billingFolderId||'',groupName:pr.groupName||''}; editingProjectId=id; }
 }
 function boqImportSectionHtml(){
   if(!boqImport) return '';
@@ -5009,6 +5012,11 @@ function projectModalHtml(){
       <input type="text" id="pm-drive-folder" value="${escapeHtml(d.driveFolderId||'')}" placeholder="${tf('วางลิงก์โฟลเดอร์ Drive หรือรหัสโฟลเดอร์','Paste the Drive folder link or its folder ID')}">
       <div class="hint" style="margin-top:4px">${tf('ใช้กับปุ่ม "ซิงค์ตอนนี้" ในหน้าบันทึกต้นทุนการจัดซื้อ — โฟลเดอร์นี้ควรมีโฟลเดอร์ย่อยชื่อตรงกับหมวดงาน (เช่น "4. งานไฟฟ้า-เดินสายไฟ") และต้องแชร์แบบ "ใครมีลิงก์ก็ดูได้"','Used by the "Sync now" button on the Procurement Cost Log page -- this folder should contain one subfolder per matching category name (e.g. "4. งานไฟฟ้า-เดินสายไฟ") and must be shared as "Anyone with the link".')}</div>
     </div>
+    <div class="field" style="margin-top:12px">
+      <label>💵 ${tf('โฟลเดอร์ Google Drive สำหรับใบแจ้งหนี้/บัญชี (ไม่บังคับ)','Google Drive billing / accounting folder (optional)')}</label>
+      <input type="text" id="pm-billing-folder" value="${escapeHtml(d.billingFolderId||'')}" placeholder="${tf('วางลิงก์โฟลเดอร์ Drive หรือรหัสโฟลเดอร์','Paste the Drive folder link or its folder ID')}">
+      <div class="hint" style="margin-top:4px">${tf('ใช้กับปุ่ม "แนบจาก Drive" ในหน้าเบิกเงินงวด เพื่อเลือกไฟล์ใบแจ้งหนี้แนบกับแต่ละงวดโดยไม่ต้องอัปโหลดซ้ำ — ต้องแชร์แบบ "ใครมีลิงก์ก็ดูได้" เช่นกัน','Used by the "Attach from Drive" button on the Billing page to attach an invoice file to an installment without re-uploading it -- must also be shared as "Anyone with the link".')}</div>
+    </div>
     ${importSection}
     <button class="btn primary block" style="margin-top:16px" id="pm-save">${importedCount>0? tf('สร้างโปรเจ็คพร้อม BOQ ','Create project with a BOQ of ')+importedCount+tf(' รายการ',' items') : tf('บันทึกโปรเจ็ค','Save project')}</button>
   </div></div>`;
@@ -5024,10 +5032,11 @@ function wireProjectModal(){
   // which rebuilds the whole modal from projectDraft. Without syncing first,
   // that render would silently blank out whatever the user already typed.
   const syncProjectFields = ()=>{
-    const nameEl=$('#pm-name'), zoneEl=$('#pm-zone'), driveEl=$('#pm-drive-folder'), groupEl=$('#pm-group');
+    const nameEl=$('#pm-name'), zoneEl=$('#pm-zone'), driveEl=$('#pm-drive-folder'), billingDriveEl=$('#pm-billing-folder'), groupEl=$('#pm-group');
     if(nameEl) projectDraft.name = nameEl.value;
     if(zoneEl) projectDraft.zone = zoneEl.value;
     if(driveEl) projectDraft.driveFolderId = driveEl.value;
+    if(billingDriveEl) projectDraft.billingFolderId = billingDriveEl.value;
     if(groupEl) projectDraft.groupName = groupEl.value;
   };
   const applyParsedRows = (rows)=>{
@@ -5081,16 +5090,17 @@ function wireProjectModal(){
   $('#pm-save').onclick = ()=>{
     const name=$('#pm-name').value.trim(), zone=$('#pm-zone').value.trim();
     const driveFolderId = extractDriveFolderId($('#pm-drive-folder').value.trim());
+    const billingFolderId = extractDriveFolderId($('#pm-billing-folder').value.trim());
     const groupName = $('#pm-group').value.trim();
     if(!name){ toast(tf('กรุณาระบุชื่อโครงการ','Please enter a project name')); return; }
     if(editingProjectId==='new'){
       const importedBoq = buildBoqFromImport();
-      state.projects.push({id:uid(), name, zone, groupName, driveFolderId, driveSyncedFileIds:[], boq:importedBoq, logs:[], materialRequests:[], costLog:[], inspectionReports:[], createdAt:new Date().toISOString()});
+      state.projects.push({id:uid(), name, zone, groupName, driveFolderId, driveSyncedFileIds:[], billingFolderId, billingMilestones:[], boq:importedBoq, logs:[], materialRequests:[], costLog:[], inspectionReports:[], createdAt:new Date().toISOString()});
       saveData(); closeProjectModal();
       toast(importedBoq.length? tf('สร้างโปรเจ็คใหม่แล้ว พร้อม BOQ ','Project created with a BOQ of ')+importedBoq.length+tf(' รายการ',' items') : tf('สร้างโปรเจ็คใหม่แล้ว','Project created'));
     } else {
       const pr=state.projects.find(p=>p.id===editingProjectId);
-      Object.assign(pr,{name,zone,groupName,driveFolderId});
+      Object.assign(pr,{name,zone,groupName,driveFolderId,billingFolderId});
       saveData(); closeProjectModal(); toast(tf('บันทึกโปรเจ็คแล้ว','Project saved'));
     }
   };
@@ -7755,6 +7765,11 @@ let costLogCategory='';
 // {running, done, total, imported, skipped, failed, log:[]}, read by
 // driveSyncPanelHtml() on the Cost Log menu page.
 let driveSyncState = null;
+// Transient state for the Billing page's "แนบจาก Drive" (Attach from Drive)
+// file picker -- which row's picker is open, the fetched file list for it,
+// and loading/error state. Not persisted; reset on leaving the screen (see
+// resetTransient()) and scoped to at most one open picker at a time.
+let billingPickerRowId=null, billingPickerFiles=null, billingPickerLoading=false, billingPickerError='';
 // Which project the top-level "จัดซื้อ" (Procurement) hub screen is currently
 // logging costs into. Deliberately kept separate from state.currentProjectId
 // -- that one drives the "inside a project" screens/nav (P(), back button,
@@ -9143,6 +9158,188 @@ function wireBudget(){
   $$('[data-edit-item]').forEach(row=> row.onclick = ()=>{ openItemDraft(row.dataset.editItem); render(); });
 }
 
+/* ============================= SCREEN: BILLING MILESTONES (customer draw schedule) =============================
+   Tracks the customer-facing side of the contract -- money OWED TO the
+   contractor, billed in up to 6 installments ("งวด") against the project's
+   BOQ contract value -- as opposed to the Cost Log/Drive-sync section above,
+   which tracks money the contractor pays OUT to suppliers. Deliberately a
+   separate, much simpler Drive integration than the Purchase-Order sync:
+   that one OCRs a whole folder tree to auto-total dozens of POs; billing only
+   ever has up to 6 rows, so instead of auto-import + OCR, each row gets a
+   lightweight "แนบจาก Drive" picker that lists the files directly inside
+   proj.billingFolderId (via the same driveListFilesInFolder() helper) and
+   lets the user click one to attach as that installment's invoice --
+   percentage, dates and invoice numbers stay manual since they aren't
+   reliably readable off an arbitrary invoice layout anyway.
+
+   Each milestone: {id, pct, billDate, invoiceNo, paidDate, nextPlanDate,
+   driveFileId, driveFileUrl, driveFileName, note}. Installment NUMBER isn't
+   stored -- it's just the row's position in proj.billingMilestones (1-based),
+   so reordering never needs a renumber pass and two rows can never collide
+   on the same number. amount/remaining balance are always derived from pct x
+   the live BOQ total rather than stored, so they never drift out of sync
+   with the BOQ (mirrors how boqTotalBudget()/projectActualCostTotal() work
+   everywhere else in this app). */
+const BILLING_MAX_MILESTONES = 6;
+function newBillingMilestone(){
+  return {id:uid(), pct:null, billDate:'', invoiceNo:'', paidDate:'', nextPlanDate:'', driveFileId:'', driveFileUrl:'', driveFileName:'', note:''};
+}
+function billingReady(proj){ return !!(state.driveApiKey && proj && proj.billingFolderId); }
+function billingMilestoneAmount(m, boqTotal){ return (m.pct||0)/100*boqTotal; }
+// One row's "แนบจาก Drive" mini file-picker -- an inline panel that opens
+// directly under that row (not a modal) while billingPickerRowId matches it,
+// listing every file straight inside proj.billingFolderId (no subfolder walk
+// -- unlike the Purchase-Order sync, an invoice folder isn't expected to be
+// split into BOQ-category subfolders).
+function billingDrivePickerHtml(m){
+  if(billingPickerRowId!==m.id) return '';
+  let body;
+  if(billingPickerLoading) body = `<div class="hint">⏳ ${tf('กำลังโหลดรายชื่อไฟล์...','Loading file list...')}</div>`;
+  else if(billingPickerError) body = `<div class="hint" style="color:var(--coral-600)">❌ ${escapeHtml(billingPickerError)}</div>`;
+  else if(!billingPickerFiles || !billingPickerFiles.length) body = `<div class="hint">${tf('ไม่พบไฟล์ในโฟลเดอร์นี้','No files found in this folder')}</div>`;
+  else body = `<div style="max-height:220px;overflow-y:auto;display:flex;flex-direction:column;gap:4px">${billingPickerFiles.map(f=>`
+    <button class="btn ghost sm" style="justify-content:flex-start;text-align:left" data-bm-attach-file="${f.id}" data-bm-attach-row="${m.id}" title="${escapeHtml(f.name)}">📄 ${escapeHtml(f.name)}</button>
+  `).join('')}</div>`;
+  return `<div class="card tint" style="margin-top:8px;padding:12px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+      <b style="font-size:13px">📂 ${tf('เลือกไฟล์ใบแจ้งหนี้จาก Drive','Pick an invoice file from Drive')}</b>
+      <button class="iconbtn" data-bm-pick-close title="${tf('ปิด','Close')}">✕</button>
+    </div>
+    ${body}
+  </div>`;
+}
+function billingMilestoneRowHtml(m, idx, boqTotal, runningBalance){
+  const amount = billingMilestoneAmount(m, boqTotal);
+  const st = m.paidDate? 'ok' : m.billDate? 'warn' : 'idle';
+  const stLabel = m.paidDate? tf('ชำระแล้ว','Paid') : m.billDate? tf('เบิกแล้ว รอชำระ','Billed, awaiting payment') : tf('ยังไม่เบิก','Not billed yet');
+  return `<tr data-bm-row="${m.id}">
+    <td class="tabular hint">${idx+1}</td>
+    <td><input type="number" step="0.1" min="0" max="100" data-bm-field="pct" value="${m.pct==null?'':m.pct}" placeholder="%" style="width:70px"></td>
+    <td class="tabular" data-bm-amount>${fmtCurrency(amount)}</td>
+    <td><input type="date" data-bm-field="billDate" value="${m.billDate||''}"></td>
+    <td><input type="text" data-bm-field="invoiceNo" value="${escapeHtml(m.invoiceNo||'')}" placeholder="INV-..." style="width:120px"></td>
+    <td><input type="date" data-bm-field="paidDate" value="${m.paidDate||''}"></td>
+    <td class="tabular" data-bm-balance style="color:${runningBalance<0?'var(--coral-600)':'inherit'}">${fmtCurrency(runningBalance)}</td>
+    <td><input type="date" data-bm-field="nextPlanDate" value="${m.nextPlanDate||''}"></td>
+    <td><span class="badge ${st}" data-bm-status>${stLabel}</span></td>
+    <td>${m.driveFileUrl? `<a class="iconbtn" href="${escapeHtml(m.driveFileUrl)}" target="_blank" rel="noopener" title="${escapeHtml(m.driveFileName||tf('เปิดไฟล์แนบ','Open attached file'))}">🔗</a>` : ''}<button class="iconbtn" data-bm-pick="${m.id}" title="${tf('แนบจาก Drive','Attach from Drive')}">📂</button></td>
+    <td><button class="iconbtn" data-bm-delete="${m.id}" title="${tf('ลบ','Delete')}">🗑️</button></td>
+  </tr>${billingDrivePickerHtml(m)? `<tr><td colspan="11" style="border-top:none">${billingDrivePickerHtml(m)}</td></tr>` : ''}`;
+}
+function renderBilling(proj=P()){
+  if(!proj.boq.length){
+    return `<div class="page-head"><div><h2>${tf('เบิกเงินงวด (เรียกเก็บเงินลูกค้า)','Billing Milestones (Customer Draw Schedule)')}</h2></div></div><div class="empty"><span class="ic">💵</span>${tf('เพิ่มรายการงานในแผนงานหลักก่อน เพื่อให้มียอดเงิน BOQ สำหรับคำนวณงวด','Add work items in the Master Plan first so there\'s a BOQ value to calculate installments from')}</div>`;
+  }
+  const boqTotal = boqTotalBudget(proj.boq);
+  const milestones = proj.billingMilestones || [];
+  let running = boqTotal;
+  const rows = milestones.map((m,idx)=>{
+    running -= billingMilestoneAmount(m, boqTotal);
+    return billingMilestoneRowHtml(m, idx, boqTotal, running);
+  }).join('');
+  const billedTotal = milestones.reduce((s,m)=> s+billingMilestoneAmount(m,boqTotal), 0);
+  const paidTotal = milestones.filter(m=>m.paidDate).reduce((s,m)=> s+billingMilestoneAmount(m,boqTotal), 0);
+  const remaining = boqTotal - billedTotal;
+  const driveHint = billingReady(proj)
+    ? ''
+    : `<div class="card tint" style="margin-bottom:16px">
+        <b>📂 ${tf('แนบไฟล์ใบแจ้งหนี้จาก Google Drive','Attach invoice files from Google Drive')}</b>
+        <div class="hint" style="margin-top:6px">${!state.driveApiKey
+          ? tf('ยังไม่ได้ตั้งค่า Drive API Key — ไปที่หน้า "ตั้งค่าบริษัท" เพื่อตั้งค่าก่อน','Drive API key not set yet -- set it up on the "Company Settings" page first')
+          : tf('โปรเจ็คนี้ยังไม่ได้ตั้งค่าโฟลเดอร์ Drive สำหรับใบแจ้งหนี้ — ไปที่ "แก้ไขโปรเจ็ค" เพื่อวางลิงก์โฟลเดอร์','This project has no billing Drive folder set yet -- open "Edit project" to paste the folder link')}</div>
+      </div>`;
+  return `
+  <div class="page-head">
+    <div><h2>${tf('เบิกเงินงวด (เรียกเก็บเงินลูกค้า)','Billing Milestones (Customer Draw Schedule)')}</h2><div class="sub">${tf('แบ่งการเรียกเก็บเงินลูกค้าได้สูงสุด 6 งวด เทียบกับยอดเงิน BOQ ของโปรเจ็คนี้','Split customer billing into up to 6 installments against this project\'s BOQ value')}</div></div>
+  </div>
+  <div class="grid cols-auto" style="margin-bottom:16px">
+    <div class="card kpi"><div class="stat"><span class="lbl">💰 ${tf('ยอดเงิน BOQ (มูลค่าสัญญา)','BOQ value (contract amount)')}</span><span class="num tabular" style="font-size:19px">${fmtCurrency(boqTotal)}</span></div></div>
+    <div class="card kpi"><div class="stat"><span class="lbl">🧾 ${tf('เบิกไปแล้วรวม','Total billed')}</span><span class="num tabular" style="font-size:19px">${fmtCurrency(billedTotal)}</span></div></div>
+    <div class="card kpi"><div class="stat"><span class="lbl">✅ ${tf('ชำระแล้วรวม','Total paid')}</span><span class="num tabular" style="font-size:19px;color:var(--mint-600)">${fmtCurrency(paidTotal)}</span></div></div>
+    <div class="card kpi"><div class="stat"><span class="lbl">${remaining>=0?'💵':'🔴'} ${tf('ยอดคงเหลือ (ยังไม่ได้เบิก)','Remaining (not yet billed)')}</span><span class="num tabular" style="font-size:19px;color:${remaining<0?'var(--coral-600)':'inherit'}">${fmtCurrency(remaining)}</span></div></div>
+  </div>
+  ${driveHint}
+  ${milestones.length===0? `<div class="empty"><span class="ic">💵</span>${tf('ยังไม่มีงวดเบิกเงิน กด "เพิ่มงวด" เพื่อเริ่มวางแผนการเรียกเก็บเงิน','No billing installments yet -- tap "Add installment" to start planning the draw schedule')}</div>` : `
+  <div class="table-wrap"><table class="budget-table"><thead><tr>
+    <th>${tf('งวดที่','No.')}</th><th>${tf('%','%')}</th><th>${tf('มูลค่างวด','Amount')}</th><th>${tf('เบิกวันที่','Billed date')}</th>
+    <th>${tf('เลขที่ Invoice','Invoice No.')}</th><th>${tf('วันชำระเงินจริง','Actual paid date')}</th><th>${tf('ยอดคงเหลือ','Remaining balance')}</th>
+    <th>${tf('แผนงวดถัดไป','Next installment plan')}</th><th>${tf('สถานะ','Status')}</th><th>${tf('ไฟล์แนบ','Attachment')}</th><th></th>
+  </tr></thead><tbody>${rows}</tbody></table></div>`}
+  <button class="btn primary sm" id="btn-add-milestone" style="margin-top:14px" ${milestones.length>=BILLING_MAX_MILESTONES?'disabled':''}>+ ${tf('เพิ่มงวด','Add installment')} (${milestones.length}/${BILLING_MAX_MILESTONES})</button>
+  `;
+}
+async function billingOpenPicker(proj, rowId){
+  if(!billingReady(proj)){ toast(tf('กรุณาตั้งค่า Drive API Key และโฟลเดอร์ Drive สำหรับใบแจ้งหนี้ก่อน','Please set up the Drive API key and this project\'s billing Drive folder first')); return; }
+  billingPickerRowId = rowId; billingPickerFiles=null; billingPickerLoading=true; billingPickerError='';
+  render();
+  try{
+    billingPickerFiles = await driveListFilesInFolder(proj.billingFolderId, state.driveApiKey);
+  }catch(err){
+    billingPickerError = (err&&err.message)||String(err);
+  }
+  billingPickerLoading = false;
+  render();
+}
+function wireBilling(proj=P()){
+  const addBtn = $('#btn-add-milestone');
+  if(addBtn) addBtn.onclick = ()=>{
+    proj.billingMilestones = proj.billingMilestones || [];
+    if(proj.billingMilestones.length>=BILLING_MAX_MILESTONES){ toast(tf('เพิ่มได้สูงสุด 6 งวด','Up to 6 installments only')); return; }
+    proj.billingMilestones.push(newBillingMilestone());
+    saveData(); render();
+  };
+  const boqTotal = boqTotalBudget(proj.boq);
+  $$('[data-bm-row]').forEach(row=>{
+    const id = row.dataset.bmRow;
+    const m = (proj.billingMilestones||[]).find(x=>x.id===id);
+    if(!m) return;
+    row.querySelectorAll('input[data-bm-field]').forEach(inp=>{
+      const field = inp.dataset.bmField;
+      inp.oninput = ()=>{
+        if(field==='pct'){
+          m.pct = inp.value===''? null : parseNumLoose(inp.value);
+          const amtCell = row.querySelector('[data-bm-amount]');
+          if(amtCell) amtCell.textContent = fmtCurrency(billingMilestoneAmount(m, boqTotal));
+        } else {
+          m[field] = inp.value;
+        }
+        // A row's own status badge (paid / billed / not yet) and every row's
+        // running "ยอดคงเหลือ" balance after it can change from any field
+        // edit here (pct, billDate, paidDate), so both need a full re-render
+        // -- unlike Cost Log's single-row-total-only inline edit, this can't
+        // be patched by touching just this row's own cells.
+        saveData(); render();
+      };
+    });
+  });
+  $$('[data-bm-delete]').forEach(btn=>{
+    btn.onclick = ()=>{
+      if(!confirm(tf('ลบงวดนี้หรือไม่?','Delete this installment?'))) return;
+      proj.billingMilestones = (proj.billingMilestones||[]).filter(m=>m.id!==btn.dataset.bmDelete);
+      if(billingPickerRowId===btn.dataset.bmDelete){ billingPickerRowId=null; billingPickerFiles=null; }
+      saveData(); render();
+    };
+  });
+  $$('[data-bm-pick]').forEach(btn=>{
+    btn.onclick = ()=> billingOpenPicker(proj, btn.dataset.bmPick);
+  });
+  const pickCloseBtn = $('[data-bm-pick-close]');
+  if(pickCloseBtn) pickCloseBtn.onclick = ()=>{ billingPickerRowId=null; billingPickerFiles=null; billingPickerError=''; render(); };
+  $$('[data-bm-attach-file]').forEach(btn=>{
+    btn.onclick = ()=>{
+      const m = (proj.billingMilestones||[]).find(x=>x.id===btn.dataset.bmAttachRow);
+      const file = (billingPickerFiles||[]).find(f=>f.id===btn.dataset.bmAttachFile);
+      if(!m || !file) return;
+      m.driveFileId = file.id;
+      m.driveFileUrl = file.webViewLink || '';
+      m.driveFileName = file.name || '';
+      billingPickerRowId=null; billingPickerFiles=null;
+      saveData(); render();
+      toast(tf('แนบไฟล์แล้ว','File attached'));
+    };
+  });
+}
+
 /* ============================= SCREEN: DASHBOARD ============================= */
 function renderDashboard(){
   const asOf = todayStr();
@@ -9457,6 +9654,7 @@ function wireScreen(){
   else if(state.tab==='purchaseplan') wirePurchasePlan();
   else if(state.tab==='costlog') wireCostLog();
   else if(state.tab==='budget') wireBudget();
+  else if(state.tab==='billing') wireBilling();
   else if(state.tab==='report') wireReport();
 }
 
