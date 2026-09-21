@@ -39,6 +39,7 @@
   --amber-50:#FEF6E7;
   --blue-600:#2563D9;
   --blue-500:#3B82F6;
+  --blue-100:#D3E4FC;
   --blue-50:#EAF1FE;
   --weekend-tint:rgba(30,27,49,.09);
   --shadow-sm:0 1px 2px rgba(30,27,49,.06),0 1px 1px rgba(30,27,49,.04);
@@ -77,6 +78,7 @@
     --amber-50:#3A2C0F;
     --blue-600:#9DBBFF;
     --blue-500:#5B8DF5;
+    --blue-100:#2C4570;
     --blue-50:#16233F;
     --weekend-tint:rgba(0,0,0,.28);
     --shadow-sm:0 1px 2px rgba(0,0,0,.4);
@@ -107,6 +109,10 @@
   --amber-600:#FFD27D;
   --amber-500:#FBBF3F;
   --amber-50:#3A2C0F;
+  --blue-600:#9DBBFF;
+  --blue-500:#5B8DF5;
+  --blue-100:#2C4570;
+  --blue-50:#16233F;
   --weekend-tint:rgba(0,0,0,.28);
   --shadow-sm:0 1px 2px rgba(0,0,0,.4);
   --shadow-md:0 8px 24px -8px rgba(0,0,0,.5);
@@ -205,6 +211,32 @@ main{flex:1;width:100%;max-width:1180px;margin:0 auto;padding:22px 18px 64px;}
   padding:18px;box-shadow:var(--shadow-sm);
 }
 .card.tint{background:var(--purple-50);border-color:var(--purple-100)}
+
+/* ---------- Screen tone: Hub vs. Dashboard -----------------------------
+   The topbar/tabbar (siblings of .screen, see render()) always stay brand
+   purple so the app chrome never changes. Inside the content area though,
+   the two most-visited screens now read at a glance:
+     - Hub ("โปรเจ็คทั้งหมด" / All Projects) is the multi-project directory
+       -- keeps the default brand purple, plus a left-edge status stripe on
+       each card (green/red/purple) so on-track vs. behind-plan projects
+       can be scanned without reading the pill text.
+     - Dashboard (per-project analytics) swaps every purple-driven
+       component -- buttons, progress fill, tint cards, badges, the
+       S-Curve's planned line -- to a cool blue accent, purely by
+       re-pointing --purple-* at --blue-* for this subtree. Every component
+       already reads var(--purple-*) for its accent, so this one block
+       re-skins the whole page without touching component CSS. */
+.screen-dashboard{
+  --purple-700:var(--blue-600);
+  --purple-600:var(--blue-600);
+  --purple-500:var(--blue-500);
+  --purple-100:var(--blue-100);
+  --purple-50:var(--blue-50);
+}
+.screen-hub .proj-card{border-left:4px solid var(--line);transition:border-color .15s ease}
+.screen-hub .proj-card:has(.badge.ok){border-left-color:var(--mint-500)}
+.screen-hub .proj-card:has(.badge.bad){border-left-color:var(--coral-500)}
+.screen-hub .group-card{border-left:4px solid var(--purple-500)}
 .grid{display:grid;gap:14px}
 .grid.cols-auto{grid-template-columns:repeat(auto-fit,minmax(240px,1fr))}
 .grid.cols-2{grid-template-columns:repeat(auto-fit,minmax(300px,1fr))}
@@ -4362,10 +4394,17 @@ function render(){
     const el = document.getElementById(id);
     if(el) savedScrolls[id] = {top: el.scrollTop, left: el.scrollLeft};
   });
+  // Purely presentational tone hook (see the "Screen tone" CSS block) --
+  // lets the Hub and the per-project Dashboard read as visually distinct
+  // modes (directory vs. analytics) without branching any component's
+  // markup. Every other screen keeps the default brand-purple look.
+  const screenTone = FIELD_MODE ? '' :
+    state.view==='hub' ? 'screen-hub' :
+    (state.view==='project' && state.tab==='dashboard') ? 'screen-dashboard' : '';
   app.innerHTML = `
     ${renderTopbar()}
     ${renderTabbar()}
-    <main><div class="screen">${renderScreen()}</div></main>
+    <main><div class="screen ${screenTone}">${renderScreen()}</div></main>
     ${renderModalRoot()}
   `;
   wireGlobal();
