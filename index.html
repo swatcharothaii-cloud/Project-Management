@@ -9383,7 +9383,7 @@ function renderBilling(proj=P()){
     running -= billingMilestoneAmount(m, boqTotal);
     return billingMilestoneRowHtml(m, idx, boqTotal, running);
   }).join('');
-  const billedTotal = milestones.reduce((s,m)=> s+billingMilestoneAmount(m,boqTotal), 0);
+  const billedTotal = milestones.filter(m=>m.billDate||m.paidDate).reduce((s,m)=> s+billingMilestoneAmount(m,boqTotal), 0);
   const paidTotal = milestones.filter(m=>m.paidDate).reduce((s,m)=> s+billingMilestoneAmount(m,boqTotal), 0);
   const remaining = boqTotal - billedTotal;
   const driveHint = billingSyncPanelHtml(proj);
@@ -9420,7 +9420,7 @@ function billingPatchDerived(proj, boqTotal){
   milestones.forEach(m=>{
     const amount = billingMilestoneAmount(m, boqTotal);
     running -= amount;
-    billedTotal += amount;
+    if(m.billDate || m.paidDate) billedTotal += amount;
     if(m.paidDate) paidTotal += amount;
     const row = document.querySelector(`[data-bm-row="${m.id}"]`);
     if(!row) return;
