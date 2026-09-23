@@ -41,6 +41,11 @@
   --blue-500:#3B82F6;
   --blue-100:#D3E4FC;
   --blue-50:#EAF1FE;
+  --slate-700:#334155;
+  --slate-600:#475569;
+  --slate-500:#64748B;
+  --slate-100:#E2E8F0;
+  --slate-50:#F1F5F9;
   --weekend-tint:rgba(30,27,49,.09);
   --shadow-sm:0 1px 2px rgba(30,27,49,.06),0 1px 1px rgba(30,27,49,.04);
   --shadow-md:0 8px 24px -8px rgba(79,70,229,.22);
@@ -80,6 +85,11 @@
     --blue-500:#5B8DF5;
     --blue-100:#2C4570;
     --blue-50:#16233F;
+    --slate-700:#CBD5E1;
+    --slate-600:#94A3B8;
+    --slate-500:#7C8CA6;
+    --slate-100:#334155;
+    --slate-50:#1E293B;
     --weekend-tint:rgba(0,0,0,.28);
     --shadow-sm:0 1px 2px rgba(0,0,0,.4);
     --shadow-md:0 8px 24px -8px rgba(0,0,0,.5);
@@ -113,6 +123,11 @@
   --blue-500:#5B8DF5;
   --blue-100:#2C4570;
   --blue-50:#16233F;
+  --slate-700:#CBD5E1;
+  --slate-600:#94A3B8;
+  --slate-500:#7C8CA6;
+  --slate-100:#334155;
+  --slate-50:#1E293B;
   --weekend-tint:rgba(0,0,0,.28);
   --shadow-sm:0 1px 2px rgba(0,0,0,.4);
   --shadow-md:0 8px 24px -8px rgba(0,0,0,.5);
@@ -212,27 +227,37 @@ main{flex:1;width:100%;max-width:1180px;margin:0 auto;padding:22px 18px 64px;}
 }
 .card.tint{background:var(--purple-50);border-color:var(--purple-100)}
 
-/* ---------- Screen tone: Hub vs. Dashboard -----------------------------
-   The topbar/tabbar (siblings of .screen, see render()) always stay brand
-   purple so the app chrome never changes. Inside the content area though,
-   the two most-visited screens now read at a glance:
-     - Hub ("โปรเจ็คทั้งหมด" / All Projects) is the multi-project directory
-       -- keeps the default brand purple, plus a left-edge status stripe on
-       each card (green/red/purple) so on-track vs. behind-plan projects
-       can be scanned without reading the pill text.
-     - Dashboard (per-project analytics) swaps every purple-driven
-       component -- buttons, progress fill, tint cards, badges, the
-       S-Curve's planned line -- to a cool blue accent, purely by
-       re-pointing --purple-* at --blue-* for this subtree. Every component
-       already reads var(--purple-*) for its accent, so this one block
-       re-skins the whole page without touching component CSS. */
-.screen-dashboard{
-  --purple-700:var(--blue-600);
-  --purple-600:var(--blue-600);
-  --purple-500:var(--blue-500);
-  --purple-100:var(--blue-100);
-  --purple-50:var(--blue-50);
+/* ---------- Screen tone: outside a project vs. inside one -----------------
+   The app now reads as two distinct modes, chrome included (topbar, tabbar,
+   and every purple-driven component -- buttons, progress fill, tint cards,
+   badges, table headers):
+     - Hub and every other top-level, company-wide screen (Overview,
+       Purchasing, Inspection, Company settings, Contractors) are the
+       "outside a project" management/report mode -- re-pointed from brand
+       purple to a neutral slate/graphite accent (--slate-*) so they read as
+       formal, at-a-glance reporting screens.
+     - Once you're "inside a project" (any per-project tab, including the
+       Dashboard) the app stays brand purple -- the default --purple-*
+       values, no override needed -- so opening a project feels like
+       switching into that project's own active workspace.
+   render() puts the 'screen-hub' class on #app itself (an ancestor of the
+   topbar/tabbar/main, not just the content pane) specifically so this one
+   variable re-point reskins the whole shell, not just the page content.
+   Every component already reads var(--purple-*) for its accent, so nothing
+   else has to change per-component. */
+#app.screen-hub{
+  --purple-700:var(--slate-700);
+  --purple-600:var(--slate-600);
+  --purple-500:var(--slate-500);
+  --purple-100:var(--slate-100);
+  --purple-50:var(--slate-50);
 }
+#app.screen-hub .topbar{background:linear-gradient(135deg,var(--slate-700),var(--slate-600))}
+/* A touch more breathing room for cards in this "report" mode -- 18px felt
+   fine for a single project's working screens, but the Hub's cards are
+   scanned side by side, and the extra room reads as a more deliberate,
+   formal layout. */
+.screen-hub .card{padding:20px 22px}
 .screen-hub .proj-card{border-left:4px solid var(--line);transition:border-color .15s ease}
 .screen-hub .proj-card:has(.badge.ok){border-left-color:var(--mint-500)}
 .screen-hub .proj-card:has(.badge.bad){border-left-color:var(--coral-500)}
@@ -264,8 +289,26 @@ main{flex:1;width:100%;max-width:1180px;margin:0 auto;padding:22px 18px 64px;}
 .hub-stat .hub-stat-lbl{font-size:11.5px;font-weight:600;color:var(--ink-500);text-transform:uppercase;letter-spacing:.02em}
 .hub-stat .hub-stat-val{font-family:var(--font-mono);font-weight:600;font-size:17px;color:var(--ink-900)}
 .hub-stat.sm .hub-stat-val{font-size:15px}
-.hub-summary-bar{display:flex;flex-wrap:wrap;gap:28px;padding:16px 20px;background:var(--surface);border:1px solid var(--line);border-radius:var(--radius-md);box-shadow:var(--shadow-sm)}
-.group-kpi-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:16px;margin-top:2px}
+.hub-summary-bar{display:flex;flex-wrap:wrap;gap:28px;padding:18px 22px;background:var(--surface);border:1px solid var(--line);border-radius:var(--radius-md);box-shadow:var(--shadow-sm)}
+.group-kpi-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(122px,1fr));gap:14px 16px;margin-top:2px}
+/* Project/group card progress bar with its own inline % readout -- the
+   number was previously only findable up in the KPI tiles, so the bar on
+   its own didn't say what it meant. Small tabular-numeral label, right
+   where the eye already lands after scanning the tiles. */
+.proj-card-progress{display:flex;align-items:center;gap:10px;margin-top:14px}
+.proj-card-progress .progress{flex:1}
+.proj-card-progress .proj-card-progress-val{font-family:var(--font-mono);font-weight:700;font-size:12.5px;color:var(--ink-700);flex:none;min-width:38px;text-align:right}
+/* Card footer actions, split into one clear primary CTA and a row of muted
+   secondary actions -- previously five equal-weight buttons competed for
+   attention, which read as busy for a directory the user scans over and
+   over. A thin top rule separates the actions from the card body, the way
+   a formal report's footer row would. */
+.proj-card-actions{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px 16px;margin-top:16px;padding-top:14px;border-top:1px solid var(--line-soft)}
+.proj-card-actions-secondary{display:flex;align-items:center;flex-wrap:wrap;gap:6px 16px}
+.proj-card-actions-secondary button{background:none;border:none;padding:0;font:inherit;cursor:pointer;font-size:12px;font-weight:600;color:var(--ink-500);white-space:nowrap}
+.proj-card-actions-secondary button:hover{color:var(--purple-700);text-decoration:underline}
+.proj-card-actions-secondary button.danger{color:var(--coral-500)}
+.proj-card-actions-secondary button.danger:hover{color:var(--coral-600)}
 .grid{display:grid;gap:14px}
 .grid.cols-auto{grid-template-columns:repeat(auto-fit,minmax(240px,1fr))}
 .grid.cols-2{grid-template-columns:repeat(auto-fit,minmax(300px,1fr))}
@@ -4425,16 +4468,17 @@ function render(){
     if(el) savedScrolls[id] = {top: el.scrollTop, left: el.scrollLeft};
   });
   // Purely presentational tone hook (see the "Screen tone" CSS block) --
-  // lets the Hub and the per-project Dashboard read as visually distinct
-  // modes (directory vs. analytics) without branching any component's
-  // markup. Every other screen keeps the default brand-purple look.
-  const screenTone = FIELD_MODE ? '' :
-    state.view==='hub' ? 'screen-hub' :
-    (state.view==='project' && state.tab==='dashboard') ? 'screen-dashboard' : '';
+  // lets "outside a project" (Hub + every other top-level, company-wide
+  // screen) and "inside a project" (any per-project tab) read as two
+  // visually distinct modes without branching any component's markup.
+  // Set on #app itself, an ancestor of the topbar/tabbar too, so the whole
+  // shell re-skins -- not just the content pane.
+  const screenTone = FIELD_MODE ? '' : (state.view==='project' ? '' : 'screen-hub');
+  app.className = screenTone;
   app.innerHTML = `
     ${renderTopbar()}
     ${renderTabbar()}
-    <main><div class="screen ${screenTone}">${renderScreen()}</div></main>
+    <main><div class="screen">${renderScreen()}</div></main>
     ${renderModalRoot()}
   `;
   wireGlobal();
@@ -4642,15 +4686,17 @@ function projectCardHtml(pr, asOf){
       <div class="hub-stat sm"><span class="hub-stat-lbl">${tf('งบประมาณ (BOQ)','BOQ budget')}</span><span class="hub-stat-val">${fmtCurrency(totalBudget)}</span></div>
       <div class="hub-stat sm"><span class="hub-stat-lbl">${tf('ใช้จ่ายจริง','Actual spend')}</span><span class="hub-stat-val">${fmtCurrency(totalActual)}</span></div>
     </div>
-    ${summary? `<div class="progress ${st==='ok'?'ok':st==='bad'?'bad':''}" style="margin-top:14px"><i style="width:${clamp(summary.actualPct,0,100)}%"></i></div>`
+    ${summary? `<div class="proj-card-progress"><div class="progress ${st==='ok'?'ok':st==='bad'?'bad':''}"><i style="width:${clamp(summary.actualPct,0,100)}%"></i></div><span class="proj-card-progress-val">${fmtNum(summary.actualPct,1)}%</span></div>`
     : `<div class="empty" style="padding:16px;margin-top:2px">${tf('ยังไม่มีรายการงานใน BOQ','No BOQ items yet')}</div>`}
     <div class="sub" style="margin-top:10px">${pr.boq.length} ${tf('รายการงาน','work items')} · ${tf('บันทึกล่าสุด','last log')} ${lastLog? fmtDate(lastLog.date) : tf('ยังไม่มีบันทึก','none yet')}</div>
-    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:14px">
+    <div class="proj-card-actions">
       <button class="btn primary sm" data-open-project="${pr.id}">${tf('เข้าโปรเจ็ค','Open project')}</button>
-      <button class="btn ghost sm" data-edit-project="${pr.id}">${tf('แก้ไข','Edit')}</button>
-      <button class="btn ghost sm" data-copy-open="${pr.id}">${tf('คัดลอกลิงก์เข้าโปรเจ็ค','Copy project link')}</button>
-      <button class="btn ghost sm" data-copy-field="${pr.id}">${tf('คัดลอกลิงก์บันทึกประจำวัน','Copy daily-log link')}</button>
-      <button class="btn danger sm" data-del-project="${pr.id}">${tf('ลบ','Delete')}</button>
+      <div class="proj-card-actions-secondary">
+        <button data-edit-project="${pr.id}">${tf('แก้ไข','Edit')}</button>
+        <button data-copy-open="${pr.id}">${tf('คัดลอกลิงก์เข้าโปรเจ็ค','Copy project link')}</button>
+        <button data-copy-field="${pr.id}">${tf('คัดลอกลิงก์บันทึกประจำวัน','Copy daily-log link')}</button>
+        <button class="danger" data-del-project="${pr.id}">${tf('ลบ','Delete')}</button>
+      </div>
     </div>
   </div>`;
 }
@@ -4686,7 +4732,7 @@ function groupCardHtml(groupName, members, asOf){
       <div class="hub-stat sm"><span class="hub-stat-lbl">${tf('งบประมาณรวม (BOQ)','Total BOQ budget')}</span><span class="hub-stat-val">${fmtCurrency(totalBudget)}</span></div>
       <div class="hub-stat sm"><span class="hub-stat-lbl">${tf('ใช้จ่ายจริงรวม','Total actual spend')}</span><span class="hub-stat-val">${fmtCurrency(totalActual)}</span></div>
     </div>
-    ${withData.length? `<div class="progress ${st==='ok'?'ok':st==='bad'?'bad':''}" style="margin-top:14px"><i style="width:${clamp(avgActual,0,100)}%"></i></div>` : ''}
+    ${withData.length? `<div class="proj-card-progress"><div class="progress ${st==='ok'?'ok':st==='bad'?'bad':''}"><i style="width:${clamp(avgActual,0,100)}%"></i></div><span class="proj-card-progress-val">${fmtNum(avgActual,1)}%</span></div>` : ''}
     <div class="grid cols-proj" style="margin-top:16px">${memberCards}</div>
   </div>`;
 }
