@@ -236,23 +236,31 @@ main{flex:1;width:100%;max-width:1180px;margin:0 auto;padding:22px 18px 64px;}
        "outside a project" management/directory mode -- brand purple, the
        default --purple-* values, no override needed.
      - Once you're "inside a project" (any per-project tab, including the
-       Dashboard) every purple-driven component re-points to a cool blue
-       accent (--blue-*) instead, so opening a project visibly switches you
-       into that project's own active workspace.
+       Dashboard) the app switches to a navy-blue + slate-gray duotone
+       instead of a flat single hue: the STRONG accent slots (--purple-700/
+       600/500 -- solid button fills, the active tab's text/underline, the
+       progress bar, the S-Curve's planned line, links, focus rings) point
+       at --blue-*, while the LIGHT tint slots (--purple-100/50 -- table
+       header backgrounds, "idle" badges, category-row backgrounds, tint
+       cards) point at --slate-100/50 instead of a blue tint. Every one of
+       those components already pairs its light background with a strong
+       --purple-700 (or -600) foreground, so this one split automatically
+       turns each of them into a small blue-on-gray combo -- no per-
+       component change needed. The topbar and primary buttons additionally
+       get an explicit blue-to-slate gradient (see below) as the two most
+       visible places to show the duotone directly in one element.
    render() puts the 'screen-project' class on #app itself (an ancestor of
    the topbar/tabbar/main, not just the content pane) specifically so this
-   one variable re-point reskins the whole shell, not just the page content.
-   Every component already reads var(--purple-*) for its accent, so nothing
-   else has to change per-component. (--slate-* stays defined above for any
-   future tone but isn't used by either mode right now.) */
+   reskins the whole shell, not just the page content. */
 #app.screen-project{
   --purple-700:var(--blue-600);
   --purple-600:var(--blue-600);
   --purple-500:var(--blue-500);
-  --purple-100:var(--blue-100);
-  --purple-50:var(--blue-50);
+  --purple-100:var(--slate-100);
+  --purple-50:var(--slate-50);
 }
-#app.screen-project .topbar{background:linear-gradient(135deg,var(--blue-600),var(--blue-500))}
+#app.screen-project .topbar{background:linear-gradient(135deg,var(--blue-600),var(--slate-600))}
+#app.screen-project .btn.primary{background:linear-gradient(135deg,var(--blue-600),var(--slate-600))}
 /* A touch more breathing room for cards in this "report" mode -- 18px felt
    fine for a single project's working screens, but the Hub's cards are
    scanned side by side, and the extra room reads as a more deliberate,
