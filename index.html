@@ -4665,6 +4665,33 @@ function boqTotalBudget(boq){
   (boq||[]).forEach(item=>{ if(item.unitPrice!=null) total += (item.qtyTotal||0)*item.unitPrice; });
   return total;
 }
+// A project's billing/draw-schedule status, condensed to one badge for the
+// Hub card -- billed % and paid % of the BOQ contract value, summed straight
+// from each milestone's own pct (mirrors billingMilestoneAmount()'s
+// pct/100*boqTotal formula, just added across every row instead of one).
+// 'idle' with no milestones yet or no priced BOQ to bill against; once
+// billing has started, 'warn' (amber, same as an individual milestone row's
+// own badge) until every milestone is paid, then 'ok' (fully paid).
+function projectBillingStatus(pr){
+  const total = boqTotalBudget(pr.boq);
+  const milestones = pr.billingMilestones || [];
+  if(!milestones.length || total<=0){
+    return {cls:'idle', label: tf('ยังไม่เริ่มเบิกเงินงวด','Billing not started yet')};
+  }
+  let billedPct=0, paidPct=0;
+  milestones.forEach(m=>{
+    const pct = m.pct||0;
+    billedPct += pct;
+    if(m.paidDate) paidPct += pct;
+  });
+  billedPct = clamp(billedPct,0,100); paidPct = clamp(paidPct,0,100);
+  if(paidPct>=99.95){
+    return {cls:'ok', label: tf('ชำระครบแล้ว 100%','Fully paid — 100%')};
+  }
+  const cls = billedPct>0 ? 'warn' : 'idle';
+  const label = tf('เบิกแล้ว ','Billed ')+fmtNum(billedPct,0)+'% · '+tf('ชำระแล้ว ','Paid ')+fmtNum(paidPct,0)+'%';
+  return {cls, label};
+}
 // One project's card in the Hub -- factored out so a grouped sub-project
 // (rendered nested inside its group-card, see groupCardHtml below) uses the
 // exact same markup/behavior (data-open-project etc.) as a standalone one.
@@ -4679,13 +4706,17 @@ function projectCardHtml(pr, asOf){
   // the only thing that differs is there's no "N โปรเจ็คย่อย" sub-count.
   const totalBudget = boqTotalBudget(pr.boq);
   const totalActual = projectActualCostTotal(pr);
+  const billingStatus = projectBillingStatus(pr);
   return `<div class="card proj-card">
     <div class="proj-card-head">
       <div>
         <b style="font-family:var(--font-display);font-size:16px">${escapeHtml(pr.name||tf('(ไม่มีชื่อโปรเจ็ค)','(untitled project)'))}</b>
         ${pr.zone? `<div class="sub">${escapeHtml(pr.zone)}</div>` : ''}
       </div>
-      <span class="status-chip ${st}"><i class="dot"></i>${pillText}</span>
+      <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px">
+        <span class="status-chip ${st}"><i class="dot"></i>${pillText}</span>
+        <span class="badge ${billingStatus.cls}">💵 ${billingStatus.label}</span>
+      </div>
     </div>
     <div class="group-kpi-row">
       ${summary? `
@@ -7824,6 +7855,13 @@ let driveSyncState = null;
 // and loading/error state. Not persisted; reset on leaving the screen (see
 // resetTransient()) and scoped to at most one open picker at a time.
 let billingPickerRowId=null, billingPickerFiles=null, billingPickerLoading=false, billingPickerError='';
+// Progress/result of the Google Drive invoice sync on the Billing page (see
+// driveSyncBilling() below) -- same shape as driveSyncState above
+// ({running, done, total, imported, skipped, failed, log:[]}), read by
+// billingSyncPanelHtml(). Not reset in resetTransient() so, like the Cost
+// Log's own sync panel, the last result stays visible if the user navigates
+// away from Billing and back within the same session.
+let billingSyncState = null;
 // Which project the top-level "จัดซื้อ" (Procurement) hub screen is currently
 // logging costs into. Deliberately kept separate from state.currentProjectId
 // -- that one drives the "inside a project" screens/nav (P(), back button,
@@ -9294,14 +9332,7 @@ function renderBilling(proj=P()){
   const billedTotal = milestones.reduce((s,m)=> s+billingMilestoneAmount(m,boqTotal), 0);
   const paidTotal = milestones.filter(m=>m.paidDate).reduce((s,m)=> s+billingMilestoneAmount(m,boqTotal), 0);
   const remaining = boqTotal - billedTotal;
-  const driveHint = billingReady(proj)
-    ? ''
-    : `<div class="card tint" style="margin-bottom:16px">
-        <b>📂 ${tf('แนบไฟล์ใบแจ้งหนี้จาก Google Drive','Attach invoice files from Google Drive')}</b>
-        <div class="hint" style="margin-top:6px">${!state.driveApiKey
-          ? tf('ยังไม่ได้ตั้งค่า Drive API Key — ไปที่หน้า "ตั้งค่าบริษัท" เพื่อตั้งค่าก่อน','Drive API key not set yet -- set it up on the "Company Settings" page first')
-          : tf('โปรเจ็คนี้ยังไม่ได้ตั้งค่าโฟลเดอร์ Drive สำหรับใบแจ้งหนี้ — ไปที่ "แก้ไขโปรเจ็ค" เพื่อวางลิงก์โฟลเดอร์','This project has no billing Drive folder set yet -- open "Edit project" to paste the folder link')}</div>
-      </div>`;
+  const driveHint = billingSyncPanelHtml(proj);
   return `
   <div class="page-head">
     <div><h2>${tf('เบิกเงินงวด (เรียกเก็บเงินลูกค้า)','Billing Milestones (Customer Draw Schedule)')}</h2><div class="sub">${tf('แบ่งการเรียกเก็บเงินลูกค้าได้สูงสุด 6 งวด เทียบกับยอดเงิน BOQ ของโปรเจ็คนี้','Split customer billing into up to 6 installments against this project\'s BOQ value')}</div></div>
@@ -9369,7 +9400,133 @@ async function billingOpenPicker(proj, rowId){
   billingPickerLoading = false;
   render();
 }
+// ---- Billing invoice Drive sync (mirrors driveSyncPanelHtml/driveSyncCostLog
+//   above, but for invoices instead of purchase orders): proj.billingFolderId
+//   is a single flat folder (no BOQ-category subfolder walk -- see the note
+//   on billingOpenPicker/driveListFilesInFolder above), so this just looks
+//   for any file in that folder not yet attached to an existing milestone (by
+//   driveFileId), OCRs it the same way the Purchase-Order sync does, and
+//   creates a new milestone row straight from it: invoice number from
+//   parsePoNumberFromText() (falling back to the filename, same fallback the
+//   Cost Log sync uses), and the read amount converted directly into a % of
+//   the BOQ contract value -- billingMilestoneAmount()'s own pct→amount
+//   formula run in reverse -- so the row's % arrives pre-filled instead of
+//   empty. Stops adding new rows once BILLING_MAX_MILESTONES is hit (extra
+//   files are left for next time, logged as skipped) rather than erroring out
+//   or silently dropping them. */
+function billingSyncPanelHtml(proj){
+  if(billingSyncState && billingSyncState.running){
+    const pct = billingSyncState.total? Math.round(billingSyncState.done/billingSyncState.total*100) : 0;
+    return `<div class="card" style="margin-bottom:16px">
+      <b>🔄 ${tf('กำลังซิงค์ใบแจ้งหนี้จาก Google Drive...','Syncing invoices from Google Drive...')}</b>
+      <div class="progress ok" style="margin-top:8px"><i style="width:${pct}%"></i></div>
+      <div class="hint" style="margin-top:6px">${billingSyncState.done} / ${billingSyncState.total || '?'} · ✅ ${billingSyncState.imported} · ⏭️ ${billingSyncState.skipped} · ❌ ${billingSyncState.failed}</div>
+      ${billingSyncState.log.length? `<div style="max-height:140px;overflow-y:auto;margin-top:8px;font-size:12px;line-height:1.6">${billingSyncState.log.slice(-30).map(l=>escapeHtml(l)).join('<br>')}</div>` : ''}
+    </div>`;
+  }
+  if(billingSyncState && !billingSyncState.running){
+    const summary = `${tf('เสร็จสิ้น','Done')} — ✅ ${billingSyncState.imported} ${tf('นำเข้า','imported')} · ⏭️ ${billingSyncState.skipped} ${tf('ข้าม','skipped')} · ❌ ${billingSyncState.failed} ${tf('ล้มเหลว','failed')}`;
+    return `<div class="card" style="margin-bottom:16px">
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+        <b>📂 ${tf('ผลการซิงค์ล่าสุด','Last sync result')}</b>
+        <button class="btn ghost sm" id="btn-billing-sync-dismiss">${tf('ปิด','Dismiss')}</button>
+      </div>
+      <div class="hint" style="margin-top:6px">${summary}</div>
+      ${billingSyncState.log.length? `<div style="max-height:140px;overflow-y:auto;margin-top:8px;font-size:12px;line-height:1.6">${billingSyncState.log.map(l=>escapeHtml(l)).join('<br>')}</div>` : ''}
+      <button class="btn primary sm" id="btn-billing-sync" style="margin-top:10px">🔄 ${tf('ซิงค์อีกครั้ง','Sync again')}</button>
+    </div>`;
+  }
+  if(!billingReady(proj)){
+    return `<div class="card tint" style="margin-bottom:16px">
+      <b>📂 ${tf('ดึงใบแจ้งหนี้จาก Google Drive อัตโนมัติ','Auto-pull invoices from Google Drive')}</b>
+      <div class="hint" style="margin-top:6px">${!state.driveApiKey
+        ? tf('ยังไม่ได้ตั้งค่า Drive API Key — ไปที่หน้า "ตั้งค่าบริษัท" เพื่อตั้งค่าก่อน','Drive API key not set yet -- set it up on the "Company Settings" page first')
+        : tf('โปรเจ็คนี้ยังไม่ได้ตั้งค่าโฟลเดอร์ Drive สำหรับใบแจ้งหนี้ — ไปที่ "แก้ไขโปรเจ็ค" เพื่อวางลิงก์โฟลเดอร์','This project has no billing Drive folder set yet -- open "Edit project" to paste the folder link')}</div>
+    </div>`;
+  }
+  return `<div class="card" style="margin-bottom:16px">
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+      <div><b>📂 ${tf('ดึงใบแจ้งหนี้จาก Google Drive อัตโนมัติ','Auto-pull invoices from Google Drive')}</b>
+        <div class="hint" style="margin-top:4px">${tf('อ่านยอดเงินจากไฟล์ใบแจ้งหนี้ในโฟลเดอร์อัตโนมัติ แล้วสร้างงวดเบิกเงินใหม่ให้ทันที','Reads the amount off each invoice file in the folder automatically and creates a new billing installment right away')}</div>
+      </div>
+      <button class="btn primary sm" id="btn-billing-sync">🔄 ${tf('ซิงค์ตอนนี้','Sync now')}</button>
+    </div>
+  </div>`;
+}
+async function driveSyncBilling(proj){
+  const apiKey = state.driveApiKey;
+  if(!apiKey || !proj.billingFolderId){
+    toast(tf('กรุณาตั้งค่า Drive API Key (หน้าตั้งค่าบริษัท) และโฟลเดอร์ Drive สำหรับใบแจ้งหนี้ของโปรเจ็คนี้ก่อน','Please set the Drive API key (Company Settings) and this project\'s billing Drive folder first'));
+    return;
+  }
+  proj.billingMilestones = proj.billingMilestones || [];
+  const seen = new Set(proj.billingMilestones.map(m=>m.driveFileId).filter(Boolean));
+  billingSyncState = {running:true, done:0, total:0, imported:0, skipped:0, failed:0, log:[]};
+  render();
+  try{
+    const boqTotal = boqTotalBudget(proj.boq);
+    let allFiles = await driveListFilesInFolder(proj.billingFolderId, apiKey);
+    allFiles = allFiles.filter(f=> !seen.has(f.id));
+    billingSyncState.total = allFiles.length;
+    render();
+    let worker = null;
+    for(const f of allFiles){
+      billingSyncState.done++;
+      try{
+        if(proj.billingMilestones.length >= BILLING_MAX_MILESTONES){
+          billingSyncState.skipped++;
+          billingSyncState.log.push(`⏭️ ${f.name} — ${tf('ครบ 6 งวดแล้ว ข้ามไฟล์นี้','already at 6 installments, skipping')}`);
+          continue;
+        }
+        const mime = f.mimeType||'';
+        let amount=null, confident=false, invoiceNo='';
+        if(/^image\//.test(mime) || mime==='application/pdf'){
+          const blob = await driveDownloadFile(f.id, apiKey);
+          if(!worker) worker = await getTesseractWorker();
+          let text = '';
+          if(mime==='application/pdf'){
+            const canvases = await pdfBlobToCanvases(blob, 5);
+            for(const c of canvases) text += '\n' + await ocrImageSource(worker, c);
+          } else {
+            text = await ocrImageSource(worker, blob);
+          }
+          const parsed = parseAmountFromText(text);
+          amount = parsed.amount; confident = parsed.confident;
+          invoiceNo = parsePoNumberFromText(text) || f.name.replace(/\.[^.]+$/, '');
+        } else {
+          invoiceNo = f.name.replace(/\.[^.]+$/, '');
+        }
+        const pct = (amount!=null && boqTotal>0) ? clamp(Math.round((amount/boqTotal)*1000)/10, 0, 100) : null;
+        const noteParts = [tf('นำเข้าอัตโนมัติจาก Google Drive','Auto-imported from Google Drive')];
+        if(pct==null) noteParts.push(tf('อ่านยอดเงินไม่สำเร็จ กรุณากรอก % เอง','couldn\'t read an amount -- please fill in the % yourself'));
+        else if(!confident) noteParts.push(tf('โปรดตรวจสอบ %','please double-check the %'));
+        proj.billingMilestones.push({
+          id:uid(), pct, billDate: todayStr(), invoiceNo, paidDate:'', nextPlanDate:'',
+          driveFileId:f.id, driveFileUrl:f.webViewLink||'', driveFileName:f.name,
+          note: noteParts.join(' — ')
+        });
+        seen.add(f.id);
+        billingSyncState.imported++;
+        billingSyncState.log.push(`✅ ${f.name}${pct!=null? ' — '+fmtNum(pct,1)+'%' : ''}`);
+      }catch(err){
+        billingSyncState.failed++;
+        billingSyncState.log.push(`❌ ${f.name} — ${(err&&err.message)||err}`);
+      }
+      saveData();
+      render();
+    }
+    if(worker) await worker.terminate();
+  }catch(err){
+    billingSyncState.log.push(`❌ ${tf('ผิดพลาด','Error')}: ${(err&&err.message)||err}`);
+  }
+  billingSyncState.running = false;
+  render();
+}
 function wireBilling(proj=P()){
+  const billingSyncBtn = $('#btn-billing-sync');
+  if(billingSyncBtn) billingSyncBtn.onclick = ()=> driveSyncBilling(proj);
+  const billingSyncDismissBtn = $('#btn-billing-sync-dismiss');
+  if(billingSyncDismissBtn) billingSyncDismissBtn.onclick = ()=>{ billingSyncState=null; render(); };
   const addBtn = $('#btn-add-milestone');
   if(addBtn) addBtn.onclick = ()=>{
     proj.billingMilestones = proj.billingMilestones || [];
