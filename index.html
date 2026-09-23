@@ -228,31 +228,31 @@ main{flex:1;width:100%;max-width:1180px;margin:0 auto;padding:22px 18px 64px;}
 .card.tint{background:var(--purple-50);border-color:var(--purple-100)}
 
 /* ---------- Screen tone: outside a project vs. inside one -----------------
-   The app now reads as two distinct modes, chrome included (topbar, tabbar,
-   and every purple-driven component -- buttons, progress fill, tint cards,
+   The app reads as two distinct modes, chrome included (topbar, tabbar, and
+   every purple-driven component -- buttons, progress fill, tint cards,
    badges, table headers):
      - Hub and every other top-level, company-wide screen (Overview,
        Purchasing, Inspection, Company settings, Contractors) are the
-       "outside a project" management/report mode -- re-pointed from brand
-       purple to a neutral slate/graphite accent (--slate-*) so they read as
-       formal, at-a-glance reporting screens.
+       "outside a project" management/directory mode -- brand purple, the
+       default --purple-* values, no override needed.
      - Once you're "inside a project" (any per-project tab, including the
-       Dashboard) the app stays brand purple -- the default --purple-*
-       values, no override needed -- so opening a project feels like
-       switching into that project's own active workspace.
-   render() puts the 'screen-hub' class on #app itself (an ancestor of the
-   topbar/tabbar/main, not just the content pane) specifically so this one
-   variable re-point reskins the whole shell, not just the page content.
+       Dashboard) every purple-driven component re-points to a cool blue
+       accent (--blue-*) instead, so opening a project visibly switches you
+       into that project's own active workspace.
+   render() puts the 'screen-project' class on #app itself (an ancestor of
+   the topbar/tabbar/main, not just the content pane) specifically so this
+   one variable re-point reskins the whole shell, not just the page content.
    Every component already reads var(--purple-*) for its accent, so nothing
-   else has to change per-component. */
-#app.screen-hub{
-  --purple-700:var(--slate-700);
-  --purple-600:var(--slate-600);
-  --purple-500:var(--slate-500);
-  --purple-100:var(--slate-100);
-  --purple-50:var(--slate-50);
+   else has to change per-component. (--slate-* stays defined above for any
+   future tone but isn't used by either mode right now.) */
+#app.screen-project{
+  --purple-700:var(--blue-600);
+  --purple-600:var(--blue-600);
+  --purple-500:var(--blue-500);
+  --purple-100:var(--blue-100);
+  --purple-50:var(--blue-50);
 }
-#app.screen-hub .topbar{background:linear-gradient(135deg,var(--slate-700),var(--slate-600))}
+#app.screen-project .topbar{background:linear-gradient(135deg,var(--blue-600),var(--blue-500))}
 /* A touch more breathing room for cards in this "report" mode -- 18px felt
    fine for a single project's working screens, but the Hub's cards are
    scanned side by side, and the extra room reads as a more deliberate,
@@ -4473,7 +4473,7 @@ function render(){
   // visually distinct modes without branching any component's markup.
   // Set on #app itself, an ancestor of the topbar/tabbar too, so the whole
   // shell re-skins -- not just the content pane.
-  const screenTone = FIELD_MODE ? '' : (state.view==='project' ? '' : 'screen-hub');
+  const screenTone = FIELD_MODE ? '' : (state.view==='project' ? 'screen-project' : 'screen-hub');
   app.className = screenTone;
   app.innerHTML = `
     ${renderTopbar()}
