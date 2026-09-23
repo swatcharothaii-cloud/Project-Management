@@ -8584,7 +8584,7 @@ function renderPurchasePlan(proj=P()){
     const filteredItems = g.items.filter(item=> ppMatchesStatusFilter(item, ppStatusFilter));
     if(!filteredItems.length) return '';
     const label = g.cat? escapeHtml(g.cat) : tf('ไม่ระบุหมวดหมู่','Uncategorized');
-    const catHeader = `<tr class="budget-cat-row"><td colspan="17">📁 ${label}</td></tr>`;
+    const catHeader = `<tr class="budget-cat-row"><td colspan="14">📁 ${label}</td></tr>`;
     const itemRows = filteredItems.map(item=>{
       const orderStatus = item.ppOrderStatus || 'not_ordered';
       const orderStatusDef = PP_ORDER_STATUS.find(s=>s.v===orderStatus) || PP_ORDER_STATUS[0];
@@ -8594,13 +8594,6 @@ function renderPurchasePlan(proj=P()){
       const alert = ppAlertStatus(item);
       const alertHtml = alert==='overdue'? `<span class="badge pp-cancelled">🔴 ${tf('เกินกำหนด','Overdue')}</span>`
         : alert==='duesoon'? `<span class="badge pp-not-ordered">🟡 ${tf('ใกล้ถึงกำหนด','Due soon')}</span>` : '';
-      const quotationQty = (item.ppQuotationQty!=null && item.ppQuotationQty!=='') ? item.ppQuotationQty : item.qtyTotal;
-      const drawingQty = item.ppDrawingQty!=null? item.ppDrawingQty : '';
-      // Highlight the drawing-qty/variance-note cells whenever a drawing qty
-      // has been entered and disagrees with the quotation qty -- these are
-      // exactly the "numbers worth double-checking before ordering for real"
-      // cells the source spreadsheet calls out with a soft-yellow fill.
-      const qtyMismatch = drawingQty!==''&&Number(drawingQty)!==Number(quotationQty);
       const orderStatusLabel = escapeHtml(tf(orderStatusDef.th,orderStatusDef.en));
       const paymentStatusDef = PP_PAYMENT_STATUS.find(s=>s.v===paymentStatus)||PP_PAYMENT_STATUS[0];
       const paymentStatusLabel = escapeHtml(tf(paymentStatusDef.th,paymentStatusDef.en));
@@ -8610,9 +8603,6 @@ function renderPurchasePlan(proj=P()){
         <td class="tabular hint">${escapeHtml(item.itemCode||'-')}</td>
         <td title="${escapeHtml(item.name)}">${escapeHtml(item.name)}</td>
         <td>${escapeHtml(item.unit)}</td>
-        <td><input type="number" step="0.01" data-pp-field="ppQuotationQty" value="${quotationQty==null?'':quotationQty}"></td>
-        <td${qtyMismatch?' style="background:var(--amber-50)"':''}><input type="number" step="0.01" data-pp-field="ppDrawingQty" value="${drawingQty}"></td>
-        <td${qtyMismatch?' style="background:var(--amber-50)"':''}><input type="text" data-pp-field="ppVarianceNote" value="${escapeHtml(item.ppVarianceNote||'')}" placeholder="${tf('หมายเหตุ','note')}" title="${tf('หมายเหตุเปรียบเทียบ','comparison note')}"></td>
         <td class="tabular hint" title="${tf('อัตโนมัติจากวันเริ่มงานในแผนงานหลัก','Automatic from the Master Plan start date')}">${needDate? fmtDateShort(needDate) : '-'}</td>
         <td><input type="text" data-pp-field="ppSupplier" value="${escapeHtml(item.ppSupplier||'')}" placeholder="${tf('ซัพพลายเออร์','supplier')}" title="${escapeHtml(item.ppSupplier||'')}"></td>
         <td><input type="number" min="0" step="1" data-pp-field="ppLeadTimeDays" value="${item.ppLeadTimeDays==null?'':item.ppLeadTimeDays}" placeholder="${PP_DEFAULT_LEAD_DAYS}" title="${tf(`ค่าเริ่มต้น ${PP_DEFAULT_LEAD_DAYS} วัน ถ้าไม่ได้กรอก`,`Defaults to ${PP_DEFAULT_LEAD_DAYS} days if left blank`)}"></td>
@@ -8659,7 +8649,6 @@ function renderPurchasePlan(proj=P()){
   <div class="table-topscroll pp-wrap-topscroll" id="pp-topscroll"><div id="pp-topscroll-spacer"></div></div>
   <div class="table-wrap pp-wrap" id="pp-table-wrap"><table class="budget-table pp-table"><thead><tr>
     <th>${tf('No.','No.')}</th><th>${tf('รายการวัสดุ/อุปกรณ์','Item')}</th><th>${tf('หน่วย','Unit')}</th>
-    <th>${tf('จำนวนตามใบเสนอราคา','Quotation Qty')}</th><th>${tf('จำนวนตามแบบขออนุญาต','Drawing Qty')}</th><th>${tf('ส่วนต่าง/หมายเหตุ','Variance / Note')}</th>
     <th>${tf('วันที่ต้องถึงหน้างาน','Need-on-Site Date')}</th><th>${tf('ซัพพลายเออร์','Supplier')}</th><th>${tf('Lead Time (วัน)','Lead Time (days)')}</th>
     <th>${tf('วันที่ต้องสั่งซื้อ','Order-by Date')}</th><th>${tf('สถานะแจ้งเตือน','Alert')}</th>
     <th>${tf('จำนวนที่สั่งจริง','Actual Order Qty')}</th><th>${tf('เลขที่ใบสั่งซื้อ','PO No.')}</th><th>${tf('สถานะการสั่งของ','Order Status')}</th>
@@ -8704,7 +8693,7 @@ function wirePurchasePlan(proj=P()){
       // full re-render on blur to refresh those read-only cells; free-text
       // fields (supplier, PO no., notes) just save quietly so a keystroke
       // never steals focus by rebuilding the row underneath the cursor.
-      const affectsComputed = field==='ppLeadTimeDays' || field==='ppQuotationQty' || field==='ppDrawingQty';
+      const affectsComputed = field==='ppLeadTimeDays';
       inp.onblur = ()=>{ saveData(); if(affectsComputed) render(); };
     });
     row.querySelectorAll('select[data-pp-field]').forEach(sel=>{
