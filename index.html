@@ -4141,6 +4141,26 @@ function approveLinkReqIdFromHash(){
 function approveLink(projectId, reqId){
   return location.origin + location.pathname + location.search + '#approve&project=' + encodeURIComponent(projectId) + '&req=' + encodeURIComponent(reqId);
 }
+// Personal approver inbox link: opening the app with
+// #approve-inbox&project=<id>&approver=<name> jumps straight to that
+// project's Purchasing & Approval page, permanently filtered down to just
+// the material requests naming that one approver -- unlike approveLink()
+// above (a one-off link to a single request, that has to be re-copied and
+// re-sent every time a new request comes in), this link stays valid: it's
+// meant to be bookmarked/pinned by one named approver so it always shows
+// whatever of their own requests are currently pending, no matter how many
+// new ones arrive after the link was first shared. Scoped to one project at
+// a time (approvers are company-wide, but this link is generated from
+// inside a specific project's Purchasing page -- see approverRowHtml()).
+const APPROVER_INBOX_MODE = !FIELD_MODE && location.hash.replace('#','').split('&').includes('approve-inbox');
+function approverInboxNameFromHash(){
+  const parts = location.hash.replace('#','').split('&');
+  const m = parts.find(s=> s.indexOf('approver=')===0);
+  return m ? decodeURIComponent(m.slice('approver='.length)) : null;
+}
+function approverInboxLink(projectId, approverName){
+  return location.origin + location.pathname + location.search + '#approve-inbox&project=' + encodeURIComponent(projectId) + '&approver=' + encodeURIComponent(approverName);
+}
 const ROLE_LABEL = {
   site: tf('ผู้รับเหมาหน้างาน / ทีมงาน','Site contractor / crew'),
   pm: tf('ผู้จัดการโครงการ / ผู้บริหาร','Project manager / owner'),
@@ -4356,6 +4376,14 @@ function bootstrap(){
       state.currentProjectId = proj.id; state.view='project'; state.tab='procure';
       procureDetailId = approveLinkReqIdFromHash();
     }
+  } else if(APPROVER_INBOX_MODE){
+    // Personal approver inbox link: jump straight to Purchasing & Approval
+    // for this project. renderProcure() reads APPROVER_INBOX_MODE/
+    // approverInboxNameFromHash() itself to filter the list and hide the
+    // create/trash/settings controls, so nothing else needs to be set here.
+    const pid = fieldProjectIdFromHash();
+    const proj = state.projects.find(p=>p.id===pid);
+    if(proj){ state.currentProjectId = proj.id; state.view='project'; state.tab='procure'; }
   }
 }
 
@@ -7227,6 +7255,7 @@ function approverRowHtml(a){
     <div class="txt"><span class="t1">${hasPin?'🔒':'🔓'} ${escapeHtml(a.name)}</span><span class="t2">${hasPin? tf('ตั้ง PIN แล้ว','PIN set') : tf('ยังไม่ได้ตั้ง PIN -- ใครก็กดอนุมัติแทนได้','No PIN set -- anyone can approve as this person')}</span></div>
     <div style="display:flex;gap:12px;align-items:center">
       <label style="font-size:11.5px;display:flex;align-items:center;gap:4px;cursor:pointer"><input type="checkbox" data-apv-active="${a.id}" ${active?'checked':''}> ${tf('ใช้งาน','active')}</label>
+      <button class="iconbtn" data-apv-copy-link="${a.id}" title="${tf('คัดลอกลิงก์ส่วนตัวของผู้อนุมัติคนนี้ (สำหรับโปรเจ็คนี้)','Copy this approver\'s personal link (for this project)')}">🔗</button>
       <button class="iconbtn" data-apv-set-pin="${a.id}" title="${tf('ตั้ง/เปลี่ยน PIN','Set/change PIN')}">🔑</button>
       <button class="iconbtn" data-apv-remove="${a.id}">✕</button>
     </div>
@@ -7257,7 +7286,7 @@ function approverSettingsCardHtml(){
       <span class="mp-cat-chevron">${approverSettingsOpen?'▾':'▸'}</span>
     </div>
     ${approverSettingsOpen? `
-    <div class="sub" style="margin:8px 0 10px">${tf('รายชื่อผู้มีสิทธิ์อนุมัติใบสั่งของ จะปรากฏเป็นตัวเลือกในหน้าจอตอนกดอนุมัติ ถ้าตั้ง PIN ไว้ ต้องกรอก PIN ให้ถูกก่อนถึงจะกดอนุมัติ/ปฏิเสธผ่านได้ -- ป้องกันไม่ให้คนอื่นสลับมุมมองมาอนุมัติแทน','People allowed to approve requests -- shown as a choice on the approve screen. If a PIN is set, it must be entered correctly before an approve/reject goes through -- this stops someone else from switching views and approving on their behalf.')}</div>
+    <div class="sub" style="margin:8px 0 10px">${tf('รายชื่อผู้มีสิทธิ์อนุมัติใบสั่งของ จะปรากฏเป็นตัวเลือกในหน้าจอตอนกดอนุมัติ ถ้าตั้ง PIN ไว้ ต้องกรอก PIN ให้ถูกก่อนถึงจะกดอนุมัติ/ปฏิเสธผ่านได้ -- ป้องกันไม่ให้คนอื่นสลับมุมมองมาอนุมัติแทน กด 🔗 เพื่อคัดลอกลิงก์ส่วนตัวของผู้อนุมัติแต่ละคน (เฉพาะโปรเจ็คนี้) ส่งให้เขาเปิดดูเฉพาะใบสั่งของที่รอเขาอนุมัติ ไม่ต้องส่งลิงก์ใหม่ทุกครั้งที่มีใบสั่งของเพิ่ม','People allowed to approve requests -- shown as a choice on the approve screen. If a PIN is set, it must be entered correctly before an approve/reject goes through -- this stops someone else from switching views and approving on their behalf. Tap 🔗 to copy each approver\'s personal link (for this project only) -- send it to them once and it always shows just their own pending requests, no need to send a new link every time.')}</div>
     <div style="display:flex;flex-direction:column;gap:8px">
       ${approvers.length? approvers.map(approverRowHtml).join('') : `<div class="hint" style="padding:4px 2px">${tf('ยังไม่มีรายชื่อผู้อนุมัติ','No approvers configured yet')}</div>`}
     </div>
@@ -7284,9 +7313,16 @@ function trashRowHtml(r){
   </div>`;
 }
 function renderProcure(){
-  const canCreate = state.role==='site';
-  const canTrash = state.role==='pm' || state.role==='procurement';
-  const activeRequests = P().materialRequests.filter(r=>!r.trashed);
+  // Personal approver inbox link (see APPROVER_INBOX_MODE/approverInboxLink()
+  // above): when set, this whole screen becomes read-only-except-for-approval
+  // -- filtered to just this one approver's requests, with create/trash/
+  // approver-settings all hidden, the same way FIELD_MODE locks the Daily
+  // Log screen down for a site-contractor link.
+  const inboxApprover = APPROVER_INBOX_MODE ? approverInboxNameFromHash() : null;
+  const canCreate = state.role==='site' && !inboxApprover;
+  const canTrash = (state.role==='pm' || state.role==='procurement') && !inboxApprover;
+  let activeRequests = P().materialRequests.filter(r=>!r.trashed);
+  if(inboxApprover) activeRequests = activeRequests.filter(r=> r.approverName===inboxApprover);
   const trashedRequests = P().materialRequests.filter(r=>r.trashed);
   const summary = procureSummary(activeRequests);
   const dueCount = activeRequests.filter(r=> procureDueStatus(r)==='dueSoon').length;
@@ -7300,13 +7336,13 @@ function renderProcure(){
   }).join('');
   return `
   <div class="page-head">
-    <div><h2>${tf('จัดซื้อวัสดุ & อนุมัติ','Material Procurement & Approval')}</h2><div class="sub">${tf('สั่งวัสดุหน้างานรายวัน ผ่านขั้นตอนอนุมัติและนัดส่งของ พร้อมประทับเวลาอัตโนมัติทุกขั้นตอน','Request site materials day-to-day through approval and delivery scheduling, with an automatic timestamp at every step.')}</div></div>
+    <div><h2>${inboxApprover? tf('ใบสั่งของรอคุณอนุมัติ','Requests awaiting your approval') : tf('จัดซื้อวัสดุ & อนุมัติ','Material Procurement & Approval')}</h2><div class="sub">${inboxApprover? tf(`แสดงเฉพาะใบสั่งของของโปรเจ็คนี้ที่ระบุ "${inboxApprover}" เป็นผู้อนุมัติ`,`Showing only this project's requests where "${inboxApprover}" is the named approver`) : tf('สั่งวัสดุหน้างานรายวัน ผ่านขั้นตอนอนุมัติและนัดส่งของ พร้อมประทับเวลาอัตโนมัติทุกขั้นตอน','Request site materials day-to-day through approval and delivery scheduling, with an automatic timestamp at every step.')}</div></div>
     <div style="display:flex;gap:8px;flex-wrap:wrap">
       ${canTrash? `<button class="btn ghost sm" id="btn-toggle-trash">🗑️ ${tf('ถังขยะ','Trash')} (${trashedRequests.length})</button>` : ''}
       ${canCreate? `<button class="btn primary" id="btn-new-request">+ ${tf('สร้างใบสั่งของ','New request')}</button>` : ''}
     </div>
   </div>
-  ${procureTrashOpen? `
+  ${(procureTrashOpen && !inboxApprover)? `
   <div class="card">
     <div style="display:flex;justify-content:space-between;align-items:center">
       <b style="font-family:var(--font-display)">🗑️ ${tf('ถังขยะใบสั่งของ','Deleted Requests')}</b>
@@ -7319,14 +7355,14 @@ function renderProcure(){
   </div>
   ` : `
   ${(overdueCount||dueCount)? `<div class="role-note" style="background:${overdueCount?'var(--coral-50)':'var(--amber-50)'};border-color:${overdueCount?'var(--coral-500)':'var(--amber-500)'}">🔔 ${overdueCount? `${overdueCount} ${tf('ใบสั่งของเกินกำหนดส่งมอบแล้ว','request(s) past their delivery due date')}` : ''}${overdueCount&&dueCount? ' · ' : ''}${dueCount? `${dueCount} ${tf('ใบสั่งของใกล้ถึงกำหนดส่งมอบ (ภายใน 3 วัน)','request(s) due within 3 days')}` : ''}</div>` : ''}
-  ${FIELD_MODE? '' : approverSettingsCardHtml()}
+  ${(FIELD_MODE || inboxApprover)? '' : approverSettingsCardHtml()}
   ${activeRequests.length? `
   <div class="grid cols-auto" style="margin-bottom:16px">
     <div class="card kpi"><div class="stat"><span class="lbl">📅 ${tf('ใบสั่งของวันนี้','Requests today')}</span><span class="num">${summary.today.count}</span></div><div class="sub" style="margin-top:4px">${summary.today.lines} ${tf('รายการวัสดุ','material line(s)')} · ${summary.today.pending} ${tf('รอการอนุมัติ','pending')}</div></div>
     <div class="card kpi"><div class="stat"><span class="lbl">🗓️ ${tf('ใบสั่งของสัปดาห์นี้','Requests this week')}</span><span class="num">${summary.week.count}</span></div><div class="sub" style="margin-top:4px">${summary.week.lines} ${tf('รายการวัสดุ','material line(s)')} · ${summary.week.pending} ${tf('รอการอนุมัติ','pending')}</div></div>
   </div>` : ''}
-  ${FIELD_MODE? '' : `<div class="role-note">👁️ ${tf('มุมมองปัจจุบัน:','Current view:')} <b>${ROLE_LABEL[state.role]}</b> — ${tf('สลับมุมมองจากปุ่มมุมบนขวาเพื่อจำลองสิทธิ์แต่ละบทบาท (ข้อมูลทั้งหมดอยู่ในเบราว์เซอร์เครื่องนี้ ยังไม่ใช่ระบบล็อกอินผู้ใช้หลายคนจริง)','switch views from the top-right buttons to try each role’s permissions (all data lives in this browser -- this is not yet a real multi-user login system).')}</div>`}
-  ${activeRequests.length===0? `<div class="empty"><span class="ic">🛒</span>${tf('ยังไม่มีใบสั่งของ','No material requests yet')}${canCreate? tf(' กด “สร้างใบสั่งของ” เพื่อเริ่มต้น',' -- tap “New request” to get started'):''}</div>` : `<div class="card kanban-card"><div class="kanban">${cols}</div></div>`}
+  ${(FIELD_MODE || inboxApprover)? '' : `<div class="role-note">👁️ ${tf('มุมมองปัจจุบัน:','Current view:')} <b>${ROLE_LABEL[state.role]}</b> — ${tf('สลับมุมมองจากปุ่มมุมบนขวาเพื่อจำลองสิทธิ์แต่ละบทบาท (ข้อมูลทั้งหมดอยู่ในเบราว์เซอร์เครื่องนี้ ยังไม่ใช่ระบบล็อกอินผู้ใช้หลายคนจริง)','switch views from the top-right buttons to try each role’s permissions (all data lives in this browser -- this is not yet a real multi-user login system).')}</div>`}
+  ${activeRequests.length===0? `<div class="empty"><span class="ic">🛒</span>${inboxApprover? tf('ตอนนี้ไม่มีใบสั่งของที่รอคุณอนุมัติ','No requests are waiting on your approval right now') : tf('ยังไม่มีใบสั่งของ','No material requests yet')}${canCreate? tf(' กด “สร้างใบสั่งของ” เพื่อเริ่มต้น',' -- tap “New request” to get started'):''}</div>` : `<div class="card kanban-card"><div class="kanban">${cols}</div></div>`}
   `}
   `;
 }
@@ -7779,6 +7815,12 @@ function wireProcure(){
   });
   const toggleApvBtn = $('[data-toggle-approver-settings]');
   if(toggleApvBtn) toggleApvBtn.onclick = ()=>{ approverSettingsOpen=!approverSettingsOpen; render(); };
+  $$('[data-apv-copy-link]').forEach(b=> b.onclick = async ()=>{
+    const a = (state.approvers||[]).find(x=>x.id===b.dataset.apvCopyLink); if(!a) return;
+    const link = approverInboxLink(P().id, a.name);
+    try{ await navigator.clipboard.writeText(link); toast(tf(`คัดลอกลิงก์ส่วนตัวของ "${a.name}" แล้ว ส่งให้เขาเปิดดูใบสั่งของที่รอเขาอนุมัติได้เลย`,`Copied "${a.name}"'s personal link -- send it to them to see requests waiting on their approval`)); }
+    catch(err){ prompt(tf(`คัดลอกลิงก์นี้เพื่อส่งให้ "${a.name}":`,`Copy this link to share with "${a.name}":`), link); }
+  });
   const apvAddBtn = $('#apv-add');
   if(apvAddBtn) apvAddBtn.onclick = ()=>{
     const name = $('#apv-new-name').value.trim();
