@@ -4701,6 +4701,7 @@ function resetTransient(){
   editingInspectionId=null; inspectionDraft=null;
   billingPickerRowId=null; billingPickerFiles=null; billingPickerLoading=false; billingPickerError='';
   cjobDraft=null; editingCjobId=null; cjobDetailId=null; cjobHandoverPending=[]; cjobViewTrash=false;
+  cjobPoPending=[]; cjobPoDraft=null;
 }
 function goToHub(){
   resetTransient();
@@ -10202,6 +10203,13 @@ function newContractorJob(){
     status:'open_bidding',
     awardedContractorId:null, awardedPrice:null, awardedAt:'', awardedBy:'',
     costLogEntryId:null,
+    // Phase "จัดซื้อ" (Procurement) -- once awarded, staff can attach the PO
+    // (purchase order) document here and refine the actual procurement cost;
+    // saving updates the SAME cost-log entry costLogEntryId points to rather
+    // than creating a second, duplicate cost record. Older jobs saved before
+    // this field existed won't have it -- every reader guards with `job.
+    // procurement||{}`.
+    procurement:{poFileIds:[], poFileMeta:{}, poNumber:'', actualCost:null, note:'', recordedAt:'', recordedBy:''},
     inspection:{proposedDate:'', proposedAt:'', proposedBy:'', confirmedDate:'', confirmedAt:'', confirmedBy:''},
     handover:{photoIds:[], note:'', submittedAt:'', reviewPass:null, reviewNote:'', reviewedAt:'', reviewedBy:''},
     finalApproval:{approved:false, approvedBy:'', approvedAt:'', note:''},
@@ -10475,9 +10483,61 @@ function cjobBidRowHtml(proj, job, contractor){
     </div>` : ''}
   </div>`;
 }
+/* ---- Procurement (PO attach + actual cost), shown once a job is awarded ---- */
+let cjobPoPending = []; // {dataUrl,name,kind} -- staged PO files, mirrors cjobHandoverPending below
+let cjobPoDraft = null; // {jobId,cost,note,poNumber} -- kept in sync via oninput so a re-render
+                         // triggered by another action (e.g. attaching a file) doesn't lose what was typed
+function cjobPoFileGalleryHtml(job){
+  const proc = job.procurement||{};
+  const ids = proc.poFileIds||[];
+  if(!ids.length) return '';
+  return `<div class="photo-grid" style="margin-top:10px">${ids.map(id=>{
+    const meta = (proc.poFileMeta&&proc.poFileMeta[id])||{};
+    return meta.kind==='pdf'
+      ? `<div class="photo-item"><a data-po-open="${id}" href="#" target="_blank" rel="noopener" download="${escapeHtml(meta.name||'document.pdf')}" style="text-decoration:none;color:inherit"><div class="photo-pdf-icon">📄<span class="photo-pdf-name">${escapeHtml(meta.name||'PDF')}</span></div></a><button class="rm" data-cjob-rm-po="${id}">✕</button></div>`
+      : `<div class="photo-item"><img data-thumb-id="${id}" alt=""><button class="rm" data-cjob-rm-po="${id}">✕</button></div>`;
+  }).join('')}</div>`;
+}
+function cjobPoPendingGalleryHtml(){
+  if(!cjobPoPending.length) return '';
+  return `<div class="photo-grid" style="margin-top:10px">${cjobPoPending.map((p,idx)=> p.kind==='pdf'
+    ? `<div class="photo-item"><div class="photo-pdf-icon">📄<span class="photo-pdf-name">${escapeHtml(p.name||'PDF')}</span></div><button class="rm" data-cjob-rm-po-pending="${idx}">✕</button></div>`
+    : `<div class="photo-item"><img src="${p.dataUrl}" alt=""><button class="rm" data-cjob-rm-po-pending="${idx}">✕</button></div>`
+  ).join('')}</div>`;
+}
+function cjobProcurementHtml(job){
+  const proc = job.procurement||{};
+  if(!cjobPoDraft || cjobPoDraft.jobId!==job.id){
+    cjobPoDraft = {jobId:job.id,
+      cost: proc.actualCost!=null? proc.actualCost : (job.awardedPrice!=null? job.awardedPrice : ''),
+      note: proc.note||'', poNumber: proc.poNumber||''};
+  }
+  const recordedHint = proc.recordedAt? `<div class="hint" style="margin-top:8px">${tf('บันทึกล่าสุดโดย ','Last recorded by ')}${escapeHtml(proc.recordedBy||'-')} · ${fmtDateTime(proc.recordedAt)}</div>` : '';
+  return `<div class="card tint">
+    <b style="font-family:var(--font-display)">🧾 ${tf('จัดซื้อ (PO และต้นทุนจริง)','Procurement (PO & actual cost)')}</b>
+    <div class="sub" style="margin-top:4px">${tf('แนบเอกสารใบสั่งซื้อ (PO) และบันทึกต้นทุนการจัดซื้อจริง — จะอัปเดตรายการในบันทึกต้นทุนที่สร้างไว้อัตโนมัติตอนอนุมัติราคาให้เอง ไม่สร้างรายการซ้ำ','Attach the PO document and record the actual procurement cost -- this updates the same cost-log entry that was auto-created when the price was approved, not a duplicate one')}</div>
+    <div class="grid cols-2" style="margin-top:12px">
+      <div class="field"><label>${tf('ต้นทุนการจัดซื้อจริง (บาท)','Actual procurement cost (THB)')}</label><input type="number" min="0" step="1" id="cjob-po-cost" value="${cjobPoDraft.cost}"></div>
+      <div class="field"><label>${tf('ราคาที่อนุมัติไว้เดิม','Originally awarded price')}</label><input type="text" value="฿${fmtNum(job.awardedPrice,0)}" disabled></div>
+    </div>
+    <div class="grid cols-2" style="margin-top:10px">
+      <div class="field"><label>${tf('เลขที่ใบสั่งซื้อ (PO)','PO number')}</label><input type="text" id="cjob-po-number" value="${escapeHtml(cjobPoDraft.poNumber)}" placeholder="${tf('ไม่บังคับ','optional')}"></div>
+      <div class="field"><label>${tf('หมายเหตุ (ไม่บังคับ)','Note (optional)')}</label><input type="text" id="cjob-po-note" value="${escapeHtml(cjobPoDraft.note)}" placeholder="${tf('เช่น ซัพพลายเออร์','e.g. supplier')}"></div>
+    </div>
+    <div class="field" style="margin-top:12px">
+      <label>${tf('เอกสารใบสั่งซื้อ (PO) — รูปภาพหรือ PDF','PO document -- image or PDF')}</label>
+      <label class="photo-drop" for="cjob-po-file-input">📎 ${tf('แตะเพื่อแนบไฟล์','Tap to attach a file')}</label>
+      <input type="file" id="cjob-po-file-input" accept="image/*,application/pdf" multiple style="display:none">
+      ${cjobPoFileGalleryHtml(job)}${cjobPoPendingGalleryHtml()}
+    </div>
+    <button class="btn primary sm" id="cjob-po-save" style="margin-top:10px">💾 ${tf('บันทึกข้อมูลจัดซื้อ','Save procurement info')}</button>
+    ${recordedHint}
+  </div>`;
+}
 function cjobLifecycleHtml(job){
   if(job.status==='open_bidding' || job.status==='cancelled') return '';
   let html = '<div style="margin-top:18px;display:flex;flex-direction:column;gap:14px">';
+  html += cjobProcurementHtml(job);
   if(['awarded','inspection_proposed','inspection_confirmed'].includes(job.status)){
     const proposed = job.inspection.proposedDate;
     html += `<div class="card tint">
@@ -10532,7 +10592,7 @@ function cjobDetailModalHtml(){
   const sdef = cjobStatusDef(job.status);
   const alert = cjobAlertStatus(job);
   const bidsHtml = (job.invitedContractors||[]).map(c=> cjobBidRowHtml(proj, job, c)).join('') || `<div class="hint" style="padding:6px 2px">${tf('ยังไม่มีผู้รับเหมาที่เชิญ','No contractors invited yet')}</div>`;
-  return `<div class="modal-bg" id="cjob-detail-modal-bg"><div class="modal" style="max-width:820px">
+  return `<div class="modal-bg" id="cjob-detail-modal-bg"><div class="modal" style="max-width:980px">
     <div class="modal-head">
       <h3>👷 ${escapeHtml(job.title)}</h3>
       <div style="display:flex;gap:6px">
@@ -10549,7 +10609,8 @@ function cjobDetailModalHtml(){
       <div><div class="meta-lbl">${tf('จำนวนวันทำงาน','Working days')}</div><b class="tabular">${job.durationDays||'-'}</b></div>
       ${cjobDueDate(job)? `<div><div class="meta-lbl">${tf('กำหนดเสร็จ','Due')}</div><b class="tabular">${fmtDate(cjobDueDate(job))}</b></div>` : ''}
     </div>` : `<div class="hint" style="margin-top:12px">${tf('ยังไม่มีวันเริ่มงาน/จำนวนวันทำงาน — จะกำหนดจากใบเสนอราคาของผู้รับเหมาที่ได้รับเลือกโดยอัตโนมัติเมื่ออนุมัติราคา','No start date / working days yet -- these are set automatically from the awarded contractor’s quotation once a price is approved')}</div>`}
-    <div style="margin-top:18px"><b style="font-family:var(--font-display)">📋 ${tf('ใบเสนอราคาจากผู้รับเหมา (แยกแต่ละเจ้า)','Contractor quotations (one per contractor)')}</b>
+    <div class="card" style="margin-top:18px">
+      <b style="font-family:var(--font-display)">📋 ${tf('ใบเสนอราคาจากผู้รับเหมา (แยกแต่ละเจ้า)','Contractor quotations (one per contractor)')}</b>
       <div style="display:flex;flex-direction:column;gap:10px;margin-top:10px">${bidsHtml}</div>
     </div>
     ${cjobLifecycleHtml(job)}
@@ -10635,6 +10696,71 @@ function wireCjobDetailModal(){
     awardCjob(job, b.dataset.cjobAward);
     render();
   });
+  // Procurement (PO attach + actual cost) -- cost/note/PO-number inputs sync
+  // into cjobPoDraft on every keystroke so a re-render triggered by another
+  // action (attaching a file, removing one) never discards what was typed,
+  // same pattern used by the material-request draft form.
+  const poCostEl=$('#cjob-po-cost'); if(poCostEl) poCostEl.oninput=()=>{ if(cjobPoDraft) cjobPoDraft.cost=poCostEl.value; };
+  const poNoteEl=$('#cjob-po-note'); if(poNoteEl) poNoteEl.oninput=()=>{ if(cjobPoDraft) cjobPoDraft.note=poNoteEl.value; };
+  const poNumberEl=$('#cjob-po-number'); if(poNumberEl) poNumberEl.oninput=()=>{ if(cjobPoDraft) cjobPoDraft.poNumber=poNumberEl.value; };
+  const poFileInput=$('#cjob-po-file-input');
+  if(poFileInput) poFileInput.onchange = async (e)=>{
+    const files = Array.from(e.target.files||[]);
+    let skipped=0;
+    for(const f of files){
+      try{
+        if(f.type==='application/pdf'){ const dataUrl=await fileToDataUrl(f); cjobPoPending.push({dataUrl, name:f.name, kind:'pdf'}); }
+        else if(f.type.indexOf('image/')===0){ const dataUrl=await compressImage(f); cjobPoPending.push({dataUrl, name:f.name, kind:'image'}); }
+        else skipped++;
+      }catch(err){ skipped++; }
+      await new Promise(r=>setTimeout(r,0));
+    }
+    if(skipped) toast(tf('ข้าม ','Skipped ')+skipped+tf(' ไฟล์ที่ไม่รองรับ (รองรับเฉพาะรูปภาพและ PDF)',' unsupported file(s) -- only images and PDF are supported'));
+    poFileInput.value=''; render();
+  };
+  $$('[data-cjob-rm-po-pending]').forEach(b=> b.onclick=()=>{ cjobPoPending.splice(Number(b.dataset.cjobRmPoPending),1); render(); });
+  $$('[data-cjob-rm-po]').forEach(b=> b.onclick=()=>{
+    if(!job.procurement) return;
+    const id=b.dataset.cjobRmPo;
+    job.procurement.poFileIds = (job.procurement.poFileIds||[]).filter(x=>x!==id);
+    if(job.procurement.poFileMeta) delete job.procurement.poFileMeta[id];
+    saveData(); render(); toast(tf('ลบไฟล์แล้ว','File removed'));
+  });
+  const poSaveBtn=$('#cjob-po-save');
+  if(poSaveBtn) poSaveBtn.onclick = async ()=>{
+    const costEl=$('#cjob-po-cost'), noteEl=$('#cjob-po-note'), numberEl=$('#cjob-po-number');
+    const cost = costEl && costEl.value!==''? Number(costEl.value) : null;
+    if(cost==null||isNaN(cost)||cost<0){ toast(tf('กรุณาระบุต้นทุนการจัดซื้อ','Please enter the procurement cost')); return; }
+    const note = noteEl? noteEl.value.trim() : '';
+    const poNumber = numberEl? numberEl.value.trim() : '';
+    job.procurement = job.procurement || {poFileIds:[], poFileMeta:{}};
+    job.procurement.poFileIds = job.procurement.poFileIds||[];
+    job.procurement.poFileMeta = job.procurement.poFileMeta||{};
+    for(const p of cjobPoPending){
+      const id=uid(); await idbPut(id,p.dataUrl);
+      job.procurement.poFileIds.push(id);
+      job.procurement.poFileMeta[id] = {name:p.name||'', kind:p.kind||'image'};
+    }
+    cjobPoPending = [];
+    job.procurement.actualCost = cost;
+    job.procurement.note = note;
+    job.procurement.poNumber = poNumber;
+    job.procurement.recordedAt = new Date().toISOString();
+    job.procurement.recordedBy = currentActorName();
+    // The cost-log entry awardCjob() auto-created (job.costLogEntryId) stays
+    // the single source of truth for this job's cost -- update it in place
+    // rather than pushing a second, duplicate record.
+    if(job.costLogEntryId){
+      const entry = (P().costLog||[]).find(e=>e.id===job.costLogEntryId);
+      if(entry){
+        entry.unitCost = cost;
+        if(poNumber) entry.po = poNumber;
+        entry.note = tf('อัปเดตต้นทุนจัดซื้อจริงจากใบงานจ้างเหมา “','Actual procurement cost updated from contractor job “')+job.title+'”'+(note? ' — '+note : '');
+        costLogRecalcTotal(entry);
+      }
+    }
+    saveData(); render(); toast(tf('บันทึกข้อมูลจัดซื้อแล้ว','Procurement info saved'));
+  };
   const confirmInspectBtn = $('#cjob-confirm-inspect');
   if(confirmInspectBtn) confirmInspectBtn.onclick = ()=>{
     const dEl = $('#cjob-confirm-inspect-date');
@@ -10672,6 +10798,15 @@ function wireCjobDetailModal(){
     saveData(); render(); toast(tf('บันทึกว่าเบิกเงินแล้ว','Payout marked as sent'));
   };
   refreshItemModalPhotos();
+  refreshCjobPoLinks();
+}
+// PO-document links can only be given a real href once their dataUrl is
+// pulled back out of IndexedDB (only the id is kept on the job itself) --
+// same async-fill-after-render approach as refreshItemModalPhotos()/
+// refreshMasterPlanThumbs(), reusing the shared loadRefPhoto() cache.
+async function refreshCjobPoLinks(){
+  const links = $$('[data-po-open]');
+  for(const a of links){ const data = await loadRefPhoto(a.dataset.poOpen); if(data) a.href = data; }
 }
 
 /* ---- Contractor-facing side: the restricted #job-bid deep-link screen ---- */
