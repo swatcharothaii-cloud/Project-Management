@@ -4691,7 +4691,7 @@ function resetTransient(){
   costLogStatusFilter='all'; costLogView='menu'; costLogCategory='';
   editingInspectionId=null; inspectionDraft=null;
   billingPickerRowId=null; billingPickerFiles=null; billingPickerLoading=false; billingPickerError='';
-  cjobDraft=null; editingCjobId=null; cjobDetailId=null; cjobHandoverPending=[];
+  cjobDraft=null; editingCjobId=null; cjobDetailId=null; cjobHandoverPending=[]; cjobViewTrash=false;
 }
 function goToHub(){
   resetTransient();
@@ -10253,13 +10253,24 @@ function cjobPhotoGalleryHtml(photoIds){
 }
 
 /* ---- Staff side: job list (project tab "งานจ้างเหมา") ---- */
+// Cancelled jobs are kept out of the main list (they're done, no further
+// action needed on them) and collected separately in a "trash" sub-view --
+// toggled with cjobViewTrash rather than a whole new tab, since it's really
+// just a filtered view of the same contractorJobs array.
+let cjobViewTrash = false;
 function renderContractorJobs(proj=P()){
-  const jobs = (proj.contractorJobs||[]).slice().sort((a,b)=> (b.createdAt||'').localeCompare(a.createdAt||''));
-  const cards = jobs.length? jobs.map(cjobCardHtml).join('') : `<div class="empty"><span class="ic">👷</span>${tf('ยังไม่มีใบงานจ้างเหมา — กด “เปิดใบงานใหม่” เพื่อเริ่มส่งงานให้ผู้รับเหมาประมูลราคา','No contractor jobs yet -- tap “New job” to start sending work out for contractors to bid on')}</div>`;
+  const allJobs = proj.contractorJobs||[];
+  const cancelledCount = allJobs.filter(j=>j.status==='cancelled').length;
+  const jobs = allJobs.filter(j=> cjobViewTrash? j.status==='cancelled' : j.status!=='cancelled')
+    .slice().sort((a,b)=> (b.createdAt||'').localeCompare(a.createdAt||''));
+  const emptyMsg = cjobViewTrash
+    ? `<div class="empty"><span class="ic">🗑️</span>${tf('ยังไม่มีใบงานที่ถูกยกเลิก','No cancelled jobs')}</div>`
+    : `<div class="empty"><span class="ic">👷</span>${tf('ยังไม่มีใบงานจ้างเหมา — กด “เปิดใบงานใหม่” เพื่อเริ่มส่งงานให้ผู้รับเหมาประมูลราคา','No contractor jobs yet -- tap “New job” to start sending work out for contractors to bid on')}</div>`;
+  const cards = jobs.length? jobs.map(cjobCardHtml).join('') : emptyMsg;
   return `
   <div class="page-head">
-    <div><h2>👷 ${tf('งานจ้างเหมา (RFQ)','Contractor Jobs (RFQ)')}</h2><div class="sub">${tf('เปิดใบงาน ส่งให้ผู้รับเหมาหลายคนเสนอราคา ต่อรอง อนุมัติ ไปจนถึงนัดตรวจงานและเบิกเงิน','Post a job, invite several contractors to bid, negotiate, approve, then track inspection through to payout')}</div></div>
-    <button class="btn primary" id="btn-add-cjob">+ ${tf('เปิดใบงานใหม่','New job')}</button>
+    <div><h2>${cjobViewTrash? '🗑️ '+tf('ใบงานที่ยกเลิก','Cancelled jobs') : '👷 '+tf('งานจ้างเหมา (RFQ)','Contractor Jobs (RFQ)')}</h2><div class="sub">${cjobViewTrash? tf('ใบงานจ้างเหมาที่ถูกยกเลิกทั้งหมด แยกไว้ต่างหากจากรายการงานที่ใช้งานอยู่','All cancelled contractor jobs, kept separate from the active job list') : tf('เปิดใบงาน ส่งให้ผู้รับเหมาหลายคนเสนอราคา ต่อรอง อนุมัติ ไปจนถึงนัดตรวจงานและเบิกเงิน','Post a job, invite several contractors to bid, negotiate, approve, then track inspection through to payout')}</div></div>
+    ${cjobViewTrash? `<button class="btn ghost" id="btn-cjob-back-active">← ${tf('กลับไปหน้ารายการงาน','Back to job list')}</button>` : `<div style="display:flex;gap:8px">${cancelledCount? `<button class="btn ghost" id="btn-cjob-view-trash">🗑️ ${tf('ใบงานที่ยกเลิก','Cancelled')} (${cancelledCount})</button>` : ''}<button class="btn primary" id="btn-add-cjob">+ ${tf('เปิดใบงานใหม่','New job')}</button></div>`}
   </div>
   ${cards}
   `;
@@ -10288,6 +10299,8 @@ function cjobCardHtml(job){
 }
 function wireContractorJobs(){
   const addBtn=$('#btn-add-cjob'); if(addBtn) addBtn.onclick=()=>{ openCjobDraft('new'); render(); };
+  const viewTrashBtn=$('#btn-cjob-view-trash'); if(viewTrashBtn) viewTrashBtn.onclick=()=>{ cjobViewTrash=true; render(); };
+  const backBtn=$('#btn-cjob-back-active'); if(backBtn) backBtn.onclick=()=>{ cjobViewTrash=false; render(); };
   $$('[data-cjob-open]').forEach(el=> el.onclick = ()=>{ cjobDetailId = el.dataset.cjobOpen; render(); });
 }
 
