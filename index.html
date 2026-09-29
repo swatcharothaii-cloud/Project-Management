@@ -10209,7 +10209,7 @@ function newContractorJob(){
     // than creating a second, duplicate cost record. Older jobs saved before
     // this field existed won't have it -- every reader guards with `job.
     // procurement||{}`.
-    procurement:{poFileIds:[], poFileMeta:{}, poNumber:'', actualCost:null, note:'', recordedAt:'', recordedBy:''},
+    procurement:{poFileIds:[], poFileMeta:{}, poNumber:'', category:'', actualCost:null, note:'', recordedAt:'', recordedBy:''},
     inspection:{proposedDate:'', proposedAt:'', proposedBy:'', confirmedDate:'', confirmedAt:'', confirmedBy:''},
     handover:{photoIds:[], note:'', submittedAt:'', reviewPass:null, reviewNote:'', reviewedAt:'', reviewedBy:''},
     finalApproval:{approved:false, approvedBy:'', approvedAt:'', note:''},
@@ -10485,7 +10485,7 @@ function cjobBidRowHtml(proj, job, contractor){
 }
 /* ---- Procurement (PO attach + actual cost), shown once a job is awarded ---- */
 let cjobPoPending = []; // {dataUrl,name,kind} -- staged PO files, mirrors cjobHandoverPending below
-let cjobPoDraft = null; // {jobId,cost,note,poNumber} -- kept in sync via oninput so a re-render
+let cjobPoDraft = null; // {jobId,cost,note,poNumber,category} -- kept in sync via oninput/onchange so a re-render
                          // triggered by another action (e.g. attaching a file) doesn't lose what was typed
 function cjobPoFileGalleryHtml(job){
   const proc = job.procurement||{};
@@ -10510,20 +10510,28 @@ function cjobProcurementHtml(job){
   if(!cjobPoDraft || cjobPoDraft.jobId!==job.id){
     cjobPoDraft = {jobId:job.id,
       cost: proc.actualCost!=null? proc.actualCost : (job.awardedPrice!=null? job.awardedPrice : ''),
-      note: proc.note||'', poNumber: proc.poNumber||''};
+      note: proc.note||'', poNumber: proc.poNumber||'', category: proc.category||''};
   }
+  // Work category (หมวดงาน) -- the same list Cost Log itself groups by
+  // (costLogAllCategories: the standard BOQ categories plus any custom one
+  // actually used in this project's BOQ), so picking one here and saving
+  // links the auto-created cost-log entry into that category's own bucket/
+  // totals in the Cost Log hub instead of sitting in "not linked" forever.
+  const catOptions = costLogAllCategories(P());
+  const categorySelectHtml = `<select id="cjob-po-category"><option value="">${tf('— ไม่เชื่อมหมวดงาน —','— no category —')}</option>${catOptions.map(cat=>`<option value="${escapeHtml(cat)}" ${cjobPoDraft.category===cat?'selected':''}>${escapeHtml(cat)}</option>`).join('')}</select>`;
   const recordedHint = proc.recordedAt? `<div class="hint" style="margin-top:8px">${tf('บันทึกล่าสุดโดย ','Last recorded by ')}${escapeHtml(proc.recordedBy||'-')} · ${fmtDateTime(proc.recordedAt)}</div>` : '';
   return `<div class="card tint">
     <b style="font-family:var(--font-display)">🧾 ${tf('จัดซื้อ (PO และต้นทุนจริง)','Procurement (PO & actual cost)')}</b>
-    <div class="sub" style="margin-top:4px">${tf('แนบเอกสารใบสั่งซื้อ (PO) และบันทึกต้นทุนการจัดซื้อจริง — จะอัปเดตรายการในบันทึกต้นทุนที่สร้างไว้อัตโนมัติตอนอนุมัติราคาให้เอง ไม่สร้างรายการซ้ำ','Attach the PO document and record the actual procurement cost -- this updates the same cost-log entry that was auto-created when the price was approved, not a duplicate one')}</div>
+    <div class="sub" style="margin-top:4px">${tf('แนบเอกสารใบสั่งซื้อ (PO) และบันทึกต้นทุนการจัดซื้อจริง — จะอัปเดตรายการในบันทึกต้นทุนที่สร้างไว้อัตโนมัติตอนอนุมัติราคาให้เอง ไม่สร้างรายการซ้ำ เลือกหมวดงานเพื่อให้ยอดนี้ไปรวมกับบันทึกต้นทุนของหมวดงานนั้นด้วย','Attach the PO document and record the actual procurement cost -- this updates the same cost-log entry that was auto-created when the price was approved, not a duplicate one. Pick a work category so this amount rolls up together with that category’s own Cost Log total')}</div>
     <div class="grid cols-2" style="margin-top:12px">
       <div class="field"><label>${tf('ต้นทุนการจัดซื้อจริง (บาท)','Actual procurement cost (THB)')}</label><input type="number" min="0" step="1" id="cjob-po-cost" value="${cjobPoDraft.cost}"></div>
       <div class="field"><label>${tf('ราคาที่อนุมัติไว้เดิม','Originally awarded price')}</label><input type="text" value="฿${fmtNum(job.awardedPrice,0)}" disabled></div>
     </div>
     <div class="grid cols-2" style="margin-top:10px">
+      <div class="field"><label>${tf('หมวดงาน (เชื่อมกับบันทึกต้นทุนการจัดซื้อ)','Work category (linked to Cost Log)')}</label>${categorySelectHtml}</div>
       <div class="field"><label>${tf('เลขที่ใบสั่งซื้อ (PO)','PO number')}</label><input type="text" id="cjob-po-number" value="${escapeHtml(cjobPoDraft.poNumber)}" placeholder="${tf('ไม่บังคับ','optional')}"></div>
-      <div class="field"><label>${tf('หมายเหตุ (ไม่บังคับ)','Note (optional)')}</label><input type="text" id="cjob-po-note" value="${escapeHtml(cjobPoDraft.note)}" placeholder="${tf('เช่น ซัพพลายเออร์','e.g. supplier')}"></div>
     </div>
+    <div class="field" style="margin-top:10px"><label>${tf('หมายเหตุ (ไม่บังคับ)','Note (optional)')}</label><input type="text" id="cjob-po-note" value="${escapeHtml(cjobPoDraft.note)}" placeholder="${tf('เช่น ซัพพลายเออร์','e.g. supplier')}"></div>
     <div class="field" style="margin-top:12px">
       <label>${tf('เอกสารใบสั่งซื้อ (PO) — รูปภาพหรือ PDF','PO document -- image or PDF')}</label>
       <label class="photo-drop" for="cjob-po-file-input">📎 ${tf('แตะเพื่อแนบไฟล์','Tap to attach a file')}</label>
@@ -10703,6 +10711,7 @@ function wireCjobDetailModal(){
   const poCostEl=$('#cjob-po-cost'); if(poCostEl) poCostEl.oninput=()=>{ if(cjobPoDraft) cjobPoDraft.cost=poCostEl.value; };
   const poNoteEl=$('#cjob-po-note'); if(poNoteEl) poNoteEl.oninput=()=>{ if(cjobPoDraft) cjobPoDraft.note=poNoteEl.value; };
   const poNumberEl=$('#cjob-po-number'); if(poNumberEl) poNumberEl.oninput=()=>{ if(cjobPoDraft) cjobPoDraft.poNumber=poNumberEl.value; };
+  const poCategoryEl=$('#cjob-po-category'); if(poCategoryEl) poCategoryEl.onchange=()=>{ if(cjobPoDraft) cjobPoDraft.category=poCategoryEl.value; };
   const poFileInput=$('#cjob-po-file-input');
   if(poFileInput) poFileInput.onchange = async (e)=>{
     const files = Array.from(e.target.files||[]);
@@ -10728,11 +10737,12 @@ function wireCjobDetailModal(){
   });
   const poSaveBtn=$('#cjob-po-save');
   if(poSaveBtn) poSaveBtn.onclick = async ()=>{
-    const costEl=$('#cjob-po-cost'), noteEl=$('#cjob-po-note'), numberEl=$('#cjob-po-number');
+    const costEl=$('#cjob-po-cost'), noteEl=$('#cjob-po-note'), numberEl=$('#cjob-po-number'), categoryEl=$('#cjob-po-category');
     const cost = costEl && costEl.value!==''? Number(costEl.value) : null;
     if(cost==null||isNaN(cost)||cost<0){ toast(tf('กรุณาระบุต้นทุนการจัดซื้อ','Please enter the procurement cost')); return; }
     const note = noteEl? noteEl.value.trim() : '';
     const poNumber = numberEl? numberEl.value.trim() : '';
+    const category = categoryEl? categoryEl.value : '';
     job.procurement = job.procurement || {poFileIds:[], poFileMeta:{}};
     job.procurement.poFileIds = job.procurement.poFileIds||[];
     job.procurement.poFileMeta = job.procurement.poFileMeta||{};
@@ -10745,15 +10755,22 @@ function wireCjobDetailModal(){
     job.procurement.actualCost = cost;
     job.procurement.note = note;
     job.procurement.poNumber = poNumber;
+    job.procurement.category = category;
     job.procurement.recordedAt = new Date().toISOString();
     job.procurement.recordedBy = currentActorName();
     // The cost-log entry awardCjob() auto-created (job.costLogEntryId) stays
     // the single source of truth for this job's cost -- update it in place
-    // rather than pushing a second, duplicate record.
+    // rather than pushing a second, duplicate record. Setting entry.taskId
+    // to the chosen work category is what makes this amount show up inside
+    // that category's own Cost Log bucket/total (costLogAllCategories()) --
+    // otherwise it just sits in the "not linked" bucket forever, per the
+    // user's request to have contractor-job costs roll up together with the
+    // rest of the Cost Log by category.
     if(job.costLogEntryId){
       const entry = (P().costLog||[]).find(e=>e.id===job.costLogEntryId);
       if(entry){
         entry.unitCost = cost;
+        entry.taskId = category;
         if(poNumber) entry.po = poNumber;
         entry.note = tf('อัปเดตต้นทุนจัดซื้อจริงจากใบงานจ้างเหมา “','Actual procurement cost updated from contractor job “')+job.title+'”'+(note? ' — '+note : '');
         costLogRecalcTotal(entry);
