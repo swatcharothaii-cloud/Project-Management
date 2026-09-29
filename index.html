@@ -9262,13 +9262,16 @@ function renderBudget(){
       else { capItemLabel=tf('🟢 ปกติ','OK'); capItemClass='ok'; }
       const refs = a? a.refs : [];
       const refSummary = refs.length? refs.map(r=> [r.poNumber,r.vendor].filter(Boolean).join(' · ') || r.reqNo).join(', ') : '-';
-      return `<tr data-edit-item="${item.id}" style="cursor:pointer">
+      return `<tr data-bud-row="${item.id}">
         <td class="tabular">${no}</td>
-        <td>${escapeHtml(item.itemCode||'-')}</td>
-        <td>${escapeHtml(item.name)}</td>
-        <td>${escapeHtml(item.unit)}</td>
-        <td class="tabular">${fmtNum(boqQty,2)}</td>
-        <td class="tabular">${boqUnitPrice!=null? fmtCurrency(boqUnitPrice):'-'}</td>
+        <td><input type="text" data-bud-field="itemCode" data-bud-item="${item.id}" value="${escapeHtml(item.itemCode||'')}" style="width:70px"></td>
+        <td style="display:flex;gap:6px;align-items:center;min-width:160px">
+          <input type="text" data-bud-field="name" data-bud-item="${item.id}" value="${escapeHtml(item.name)}" style="flex:1;min-width:120px">
+          <button class="iconbtn" data-bud-edit-full="${item.id}" title="${tf('แก้ไขรายละเอียดอื่น (โซน ทีม วันที่ ฯลฯ)','Edit other details (zone, team, dates, etc.)')}">✏️</button>
+        </td>
+        <td><input type="text" data-bud-field="unit" data-bud-item="${item.id}" value="${escapeHtml(item.unit)}" style="width:70px"></td>
+        <td><input type="number" step="0.01" min="0" data-bud-field="qtyTotal" data-bud-item="${item.id}" value="${boqQty==null?'':boqQty}" style="width:85px"></td>
+        <td><input type="number" step="0.01" min="0" data-bud-field="unitPrice" data-bud-item="${item.id}" value="${boqUnitPrice==null?'':boqUnitPrice}" style="width:100px"></td>
         <td class="tabular">${boqTotal!=null? fmtCurrency(boqTotal):'-'}</td>
         <td class="tabular">${itemCap!=null? fmtCurrency(itemCap):'-'}</td>
         <td class="tabular">${a? fmtNum(actualQty,2):'-'}</td>
@@ -9304,7 +9307,7 @@ function renderBudget(){
     : '';
   return `
   <div class="page-head">
-    <div><h2>${tf('งบประมาณ (BOQ เทียบต้นทุนจริง)','Budget (BOQ vs. Actual)')}</h2><div class="sub">${tf('เปรียบเทียบงบประมาณตามแผน (BOQ) กับต้นทุนจ่ายจริงที่ยืนยันจากขั้นตอนจัดซื้อ · แตะแถวเพื่อตั้งราคาต่อหน่วยตามแผน','Compares the planned BOQ budget against actual costs confirmed during procurement -- tap a row to set its planned unit price')}</div></div>
+    <div><h2>${tf('งบประมาณ (BOQ เทียบต้นทุนจริง)','Budget (BOQ vs. Actual)')}</h2><div class="sub">${tf('เปรียบเทียบงบประมาณตามแผน (BOQ) กับต้นทุนจ่ายจริงที่ยืนยันจากขั้นตอนจัดซื้อ · พิมพ์แก้ไขรหัส/รายการ/หน่วย/ปริมาณ/ราคาต่อหน่วยได้โดยตรงในตาราง · กดไอคอน ✏️ เพื่อแก้ไขรายละเอียดอื่น (โซน ทีม วันที่)','Compares the planned BOQ budget against actual costs confirmed during procurement -- edit code/description/unit/quantity/unit price directly in the table; tap ✏️ to edit other details (zone, team, dates)')}</div></div>
   </div>
   ${capAlert}
   <div class="grid cols-auto" style="margin-bottom:16px">
@@ -9348,11 +9351,31 @@ function wireBudTopscroll(){
   wrap.onscroll = ()=>{ if(syncing) return; syncing=true; topScroll.scrollLeft = wrap.scrollLeft; syncing=false; };
 }
 function wireBudget(){
+  const proj = P();
   wireBudTopscroll();
-  // Reuse the Master Plan item editor -- tapping a budget row opens the same
-  // edit form (which now carries the itemCode/unitPrice fields) so setting a
-  // planned price and reviewing the schedule stay in one place.
-  $$('[data-edit-item]').forEach(row=> row.onclick = ()=>{ openItemDraft(row.dataset.editItem); render(); });
+  // Direct in-place editing: typing into a cell mutates the underlying BOQ
+  // item right away. Unlike the Cost Log's inline rows, a Budget row's
+  // qty/unit-price also drive several OTHER things on screen at once (this
+  // row's BOQ total/cap/status/variance cells, its category header's totals,
+  // and the page-level KPI cards) -- rather than hand-duplicating that whole
+  // cascade of recompute logic here, we just let a full render() do it, but
+  // only on blur (once the user leaves the cell), never on every keystroke,
+  // so typing itself never loses focus/cursor position.
+  $$('[data-bud-field]').forEach(inp=>{
+    const item = (proj.boq||[]).find(it=>it.id===inp.dataset.budItem);
+    if(!item) return;
+    const field = inp.dataset.budField;
+    inp.oninput = ()=>{
+      item[field] = (field==='qtyTotal'||field==='unitPrice')
+        ? (inp.value===''? null : parseNumLoose(inp.value))
+        : inp.value;
+    };
+    inp.onblur = ()=>{ saveData(); render(); };
+  });
+  // Everything else (category, zone, team, dates, dependencies, notes, ...)
+  // still goes through the full Master Plan item editor, reached via the
+  // small ✏️ icon next to the item name instead of tapping the whole row.
+  $$('[data-bud-edit-full]').forEach(b=> b.onclick = ()=>{ openItemDraft(b.dataset.budEditFull); render(); });
 }
 
 /* ============================= SCREEN: BILLING MILESTONES (customer draw schedule) =============================
