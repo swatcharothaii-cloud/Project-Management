@@ -10089,7 +10089,7 @@ async function refreshReportPhotos(date){
     if(!grid) return;
     if(photos.length){
       grid.innerHTML = photos.map(p=> p.kind==='pdf'?
-        `<figure class="rp-pdf-figure"><a href="${p.dataUrl}" target="_blank" rel="noopener" download="${escapeHtml(p.name||'document.pdf')}"><div class="rp-pdf-icon">📄</div></a><figcaption>${escapeHtml(p.name||'PDF')}${p.caption? ' — '+escapeHtml(p.caption) : ''}</figcaption></figure>`
+        `<figure class="rp-pdf-figure"><a href="${p.dataUrl}" target="_blank" rel="noopener"><div class="rp-pdf-icon">📄</div></a><figcaption>${escapeHtml(p.name||'PDF')}${p.caption? ' — '+escapeHtml(p.caption) : ''}</figcaption></figure>`
         : `<figure><img src="${p.dataUrl}"><figcaption>${escapeHtml(p.caption||tf('ภาพหน้างาน','site photo'))}</figcaption></figure>`
       ).join('');
     } else {
@@ -10610,9 +10610,12 @@ function cjobPoFileGalleryHtml(job){
   if(!ids.length) return '';
   return `<div class="photo-grid" style="margin-top:10px">${ids.map(id=>{
     const meta = (proc.poFileMeta&&proc.poFileMeta[id])||{};
+    // No `download` attribute -- target="_blank" alone opens the PO doc for
+    // viewing in a new tab (browsers show a PDF inline), instead of forcing
+    // a save-to-disk dialog before the person can even look at it.
     return meta.kind==='pdf'
-      ? `<div class="photo-item"><a data-po-open="${id}" href="#" target="_blank" rel="noopener" download="${escapeHtml(meta.name||'document.pdf')}" style="text-decoration:none;color:inherit"><div class="photo-pdf-icon">📄<span class="photo-pdf-name">${escapeHtml(meta.name||'PDF')}</span></div></a><button class="rm" data-cjob-rm-po="${id}">✕</button></div>`
-      : `<div class="photo-item"><img data-thumb-id="${id}" alt=""><button class="rm" data-cjob-rm-po="${id}">✕</button></div>`;
+      ? `<div class="photo-item"><a data-po-open="${id}" href="#" target="_blank" rel="noopener" style="text-decoration:none;color:inherit"><div class="photo-pdf-icon">📄<span class="photo-pdf-name">${escapeHtml(meta.name||'PDF')}</span></div></a><button class="rm" data-cjob-rm-po="${id}">✕</button></div>`
+      : `<div class="photo-item"><a data-po-open="${id}" href="#" target="_blank" rel="noopener"><img data-thumb-id="${id}" alt="" style="cursor:zoom-in"></a><button class="rm" data-cjob-rm-po="${id}">✕</button></div>`;
   }).join('')}</div>`;
 }
 function cjobPoPendingGalleryHtml(){
