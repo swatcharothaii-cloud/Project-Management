@@ -10199,8 +10199,16 @@ function newContractorJob(){
     payout:{sent:false, sentAt:'', sentBy:'', note:''},
   };
 }
+// Each invited contractor's bid is its own full, separate quotation --
+// price, proposed start date and proposed number of working days -- not
+// just a price against one job-level schedule the staff picked. Different
+// contractors can (and normally will) propose different timelines, so the
+// job itself has no fixed startDate/durationDays until one bid is awarded;
+// see awardCjob() below, which copies the winning bid's own startDate/
+// durationDays onto the job at that point (for cjobDueDate()/
+// cjobAlertStatus()'s Phase-2 deadline tracking).
 function newCjobBid(contractorId){
-  return {contractorId, price:null, note:'', status:'pending', thread:[]};
+  return {contractorId, price:null, startDate:'', durationDays:'', note:'', status:'pending', thread:[]};
 }
 function cjobBidFor(job, contractorId){ return (job.bids||[]).find(b=>b.contractorId===contractorId); }
 function cjobInvited(job, contractorId){ return (job.invitedContractors||[]).find(c=>c.id===contractorId); }
@@ -10261,7 +10269,7 @@ function cjobCardHtml(job){
       <div><div class="meta-lbl">${tf('ผู้รับเหมาที่เชิญ','Invited')}</div><b class="tabular">${bidCount}</b></div>
       <div><div class="meta-lbl">${tf('ราคาต่ำสุดที่เสนอ','Lowest bid')}</div><b class="tabular">${lowest!=null? '฿'+fmtNum(lowest,0) : '-'}</b></div>
       ${job.awardedPrice!=null? `<div><div class="meta-lbl">${tf('ราคาที่อนุมัติ','Awarded price')}</div><b class="tabular">฿${fmtNum(job.awardedPrice,0)}</b></div>` : ''}
-      <div><div class="meta-lbl">${tf('วันเริ่มงาน','Start date')}</div><b class="tabular">${job.startDate? fmtDate(job.startDate) : '-'}</b></div>
+      ${job.startDate? `<div><div class="meta-lbl">${tf('วันเริ่มงาน','Start date')}</div><b class="tabular">${fmtDate(job.startDate)}</b></div>` : `<div><div class="meta-lbl">${tf('กำหนดการ','Schedule')}</div><b class="tabular">${tf('รอผู้รับเหมาเสนอ','Awaiting contractor proposal')}</b></div>`}
       ${due? `<div><div class="meta-lbl">${tf('กำหนดเสร็จ','Due')}</div><b class="tabular">${fmtDate(due)}</b></div>` : ''}
     </div>
     ${alert? `<div style="margin-top:8px"><span class="badge ${alert==='overdue'?'bad':'warn'}">⏰ ${alert==='overdue'? tf('เลยกำหนดจำนวนวันทำงานแล้ว','Past the working-day deadline') : tf('ใกล้ครบกำหนดจำนวนวันทำงาน','Nearing the working-day deadline')}</span></div>` : ''}
@@ -10276,13 +10284,13 @@ function wireContractorJobs(){
 let cjobDraft=null, editingCjobId=null;
 function openCjobDraft(id){
   if(id==='new'){
-    cjobDraft = {title:'', description:'', startDate:todayStr(), durationDays:'',
+    cjobDraft = {title:'', description:'',
       invitedContractors:[{id:uid(),name:'',phone:''}],
       existingPhotoIds:[], pendingPhotos:[], removedPhotoIds:[]};
   } else {
     const job = P().contractorJobs.find(j=>j.id===id);
     if(!job) return;
-    cjobDraft = {title:job.title, description:job.description||'', startDate:job.startDate||todayStr(), durationDays:job.durationDays==null?'':job.durationDays,
+    cjobDraft = {title:job.title, description:job.description||'',
       invitedContractors: (job.invitedContractors||[]).map(c=>({id:c.id,name:c.name,phone:c.phone||''})),
       existingPhotoIds:(job.photoIds||[]).slice(), pendingPhotos:[], removedPhotoIds:[]};
   }
@@ -10293,8 +10301,6 @@ function syncCjobDraftFromDom(){
   const g=(sel)=>{ const el=$(sel); return el?el.value:undefined; };
   const title=g('#cjob-title'); if(title!==undefined) cjobDraft.title=title;
   const desc=g('#cjob-desc'); if(desc!==undefined) cjobDraft.description=desc;
-  const sd=g('#cjob-start'); if(sd!==undefined) cjobDraft.startDate=sd;
-  const dur=g('#cjob-duration'); if(dur!==undefined) cjobDraft.durationDays=dur;
   $$('[data-cjob-row]').forEach(row=>{
     const idx = Number(row.dataset.cjobRow);
     const nameEl = row.querySelector('[data-cjob-field="name"]');
@@ -10324,10 +10330,7 @@ function cjobModalHtml(){
     <div class="modal-head"><h3>${editingCjobId==='new'?tf('เปิดใบงานจ้างเหมาใหม่','New contractor job'):tf('แก้ไขใบงานจ้างเหมา','Edit contractor job')}</h3><button class="iconbtn" id="cjob-modal-close">✕</button></div>
     <div class="field"><label>${tf('ชื่องาน','Job title')}</label><input type="text" id="cjob-title" value="${escapeHtml(d.title)}" placeholder="${tf('เช่น งานปูกระเบื้องห้องน้ำ','e.g. Bathroom tiling work')}"></div>
     <div class="field" style="margin-top:12px"><label>${tf('รายละเอียดงาน (ไม่บังคับ)','Job description (optional)')}</label><textarea id="cjob-desc" rows="3" placeholder="${tf('อธิบายขอบเขตงาน วัสดุ ข้อกำหนดต่างๆ','Describe scope, materials, requirements')}">${escapeHtml(d.description)}</textarea></div>
-    <div class="grid cols-2" style="margin-top:12px">
-      <div class="field"><label>${tf('วันที่เริ่มงาน','Start date')}</label><input type="date" id="cjob-start" value="${d.startDate}"></div>
-      <div class="field"><label>${tf('จำนวนวันทำงาน','Working days')}</label><input type="number" min="1" step="1" id="cjob-duration" value="${d.durationDays}"></div>
-    </div>
+    <div class="hint" style="margin-top:10px">${tf('ไม่ต้องระบุวันเริ่มงาน/จำนวนวันทำงานที่นี่ — ผู้รับเหมาแต่ละคนจะเสนอราคาพร้อมวันที่เริ่มและจำนวนวันทำงานของตัวเองผ่านลิงก์ส่วนตัว (ใบเสนอราคาแยกกันแต่ละเจ้า)','No need to set a start date / working days here -- each contractor proposes their own price, start date and duration through their personal link (a separate quotation per contractor)')}</div>
     <div class="field" style="margin-top:14px">
       <label>${tf('รูปภาพหน้างาน/แบบแปลน (ไม่บังคับ)','Site photos / drawings (optional)')}</label>
       <label class="photo-drop" for="cjob-photo-input">📷 ${tf('แตะเพื่อเลือกรูปภาพ','Tap to choose photos')}</label>
@@ -10369,15 +10372,12 @@ function wireCjobModal(){
     const invited = d.invitedContractors.map(c=>({id:c.id, name:c.name.trim(), phone:c.phone.trim()})).filter(c=>c.name);
     if(!title){ toast(tf('กรุณาระบุชื่องาน','Please enter a job title')); return; }
     if(!invited.length){ toast(tf('กรุณาระบุผู้รับเหมาอย่างน้อย 1 ราย','Please add at least one contractor')); return; }
-    if(!d.startDate){ toast(tf('กรุณาระบุวันเริ่มงาน','Please choose a start date')); return; }
-    const duration = d.durationDays===''? NaN : parseInt(d.durationDays,10);
-    if(isNaN(duration) || duration<=0){ toast(tf('กรุณาระบุจำนวนวันทำงานที่ถูกต้อง','Please enter a valid number of working days')); return; }
     const keptExisting = d.existingPhotoIds.filter(id=>!d.removedPhotoIds.includes(id));
     const newIds=[]; for(const p of d.pendingPhotos){ const id=uid(); await idbPut(id,p.dataUrl); newIds.push(id); }
     const photoIds = keptExisting.concat(newIds);
     if(editingCjobId==='new'){
       const job = newContractorJob();
-      Object.assign(job, {title, description:d.description.trim(), photoIds, startDate:d.startDate, durationDays:duration, invitedContractors:invited});
+      Object.assign(job, {title, description:d.description.trim(), photoIds, invitedContractors:invited});
       job.bids = invited.map(c=>newCjobBid(c.id));
       P().contractorJobs = P().contractorJobs||[];
       P().contractorJobs.push(job);
@@ -10387,7 +10387,7 @@ function wireCjobModal(){
     } else {
       const job = P().contractorJobs.find(j=>j.id===editingCjobId);
       if(!job) return;
-      Object.assign(job, {title, description:d.description.trim(), photoIds, startDate:d.startDate, durationDays:duration});
+      Object.assign(job, {title, description:d.description.trim(), photoIds});
       const existingIds2 = new Set((job.invitedContractors||[]).map(c=>c.id));
       invited.forEach(c=>{
         if(existingIds2.has(c.id)){ const ex=job.invitedContractors.find(x=>x.id===c.id); ex.name=c.name; ex.phone=c.phone; }
@@ -10402,12 +10402,22 @@ function wireCjobModal(){
 /* ---- Staff side: job detail modal (bids, negotiation, award, inspection,
    handover review, final approval, payout) ---- */
 let cjobDetailId=null;
+// One row = one contractor's full, separate quotation (price + their own
+// proposed start date + working days), not just a bare price -- per the
+// user's explicit request that each invited contractor's link collects
+// price, start date and duration as one distinct quotation.
+function cjobQuoteLineHtml(t){
+  const parts = ['฿'+fmtNum(t.price,0)];
+  if(t.startDate) parts.push(tf('เริ่ม ','start ')+fmtDate(t.startDate));
+  if(t.durationDays!=null && t.durationDays!=='') parts.push(t.durationDays+' '+tf('วัน','days'));
+  return parts.join(' · ');
+}
 function cjobBidRowHtml(proj, job, contractor){
   const bid = cjobBidFor(job, contractor.id) || newCjobBid(contractor.id);
   const isAwarded = job.awardedContractorId === contractor.id;
   const isOpen = job.status==='open_bidding';
   const statusLabel = isAwarded? cjobBidStatusLabel('awarded') : cjobBidStatusLabel(bid.status);
-  const threadHtml = (bid.thread||[]).length? `<div class="hint" style="margin-top:6px;display:flex;flex-direction:column;gap:3px">${bid.thread.map(t=>`<div>${t.by==='contractor'?'👷':'🏢'} ฿${fmtNum(t.price,0)} ${t.note?'— '+escapeHtml(t.note):''} <span style="color:var(--ink-400)">(${fmtDateTime(t.at)})</span></div>`).join('')}</div>` : '';
+  const threadHtml = (bid.thread||[]).length? `<div class="hint" style="margin-top:6px;display:flex;flex-direction:column;gap:3px">${bid.thread.map(t=>`<div>${t.by==='contractor'?'👷':'🏢'} ${cjobQuoteLineHtml(t)} ${t.note?'— '+escapeHtml(t.note):''} <span style="color:var(--ink-400)">(${fmtDateTime(t.at)})</span></div>`).join('')}</div>` : '';
   return `<div class="mini-row" style="align-items:flex-start;flex-direction:column;gap:8px">
     <div style="display:flex;justify-content:space-between;width:100%;gap:10px;flex-wrap:wrap">
       <div class="txt">
@@ -10415,17 +10425,19 @@ function cjobBidRowHtml(proj, job, contractor){
         <span class="t2">${contractor.phone?'📞 '+escapeHtml(contractor.phone)+' · ':''}${statusLabel}</span>
       </div>
       <div style="display:flex;gap:10px;align-items:center">
-        <b class="tabular">${bid.price!=null?'฿'+fmtNum(bid.price,0):tf('ยังไม่เสนอราคา','No bid yet')}</b>
+        <b class="tabular">${bid.price!=null? cjobQuoteLineHtml(bid) : tf('ยังไม่เสนอราคา','No bid yet')}</b>
         <button class="iconbtn" data-cjob-copy-bidlink="${contractor.id}" title="${tf('คัดลอกลิงก์ของผู้รับเหมาคนนี้','Copy this contractor’s link')}">🔗</button>
       </div>
     </div>
     ${bid.note? `<div class="sub">${escapeHtml(bid.note)}</div>` : ''}
     ${threadHtml}
-    ${isOpen? `<div style="display:flex;gap:8px;flex-wrap:wrap;width:100%;margin-top:2px">
-      <input type="number" min="0" step="1" data-cjob-counter-price="${contractor.id}" placeholder="${tf('ราคาต่อรอง','Counter price')}" style="width:130px">
-      <input type="text" data-cjob-counter-note="${contractor.id}" placeholder="${tf('หมายเหตุ (ไม่บังคับ)','Note (optional)')}" style="flex:1;min-width:120px">
-      <button class="btn ghost sm" data-cjob-counter="${contractor.id}">${tf('ต่อรองราคา','Send counter')}</button>
-      <button class="btn primary sm" data-cjob-award="${contractor.id}" ${bid.price==null?'disabled':''}>✅ ${tf('อนุมัติราคานี้','Approve this price')}</button>
+    ${isOpen? `<div style="display:flex;gap:8px;flex-wrap:wrap;width:100%;margin-top:2px;align-items:flex-end">
+      <div class="field" style="width:120px"><label class="hint">${tf('ราคาต่อรอง','Counter price')}</label><input type="number" min="0" step="1" data-cjob-counter-price="${contractor.id}" value="${bid.price!=null?bid.price:''}"></div>
+      <div class="field" style="width:150px"><label class="hint">${tf('วันที่เริ่มงาน','Start date')}</label><input type="date" data-cjob-counter-start="${contractor.id}" value="${bid.startDate||''}"></div>
+      <div class="field" style="width:100px"><label class="hint">${tf('จำนวนวัน','Days')}</label><input type="number" min="1" step="1" data-cjob-counter-duration="${contractor.id}" value="${bid.durationDays!=null?bid.durationDays:''}"></div>
+      <div class="field" style="flex:1;min-width:120px"><label class="hint">${tf('หมายเหตุ','Note')}</label><input type="text" data-cjob-counter-note="${contractor.id}" placeholder="${tf('ไม่บังคับ','optional')}" value="${escapeHtml(bid.note||'')}"></div>
+      <button class="btn ghost sm" data-cjob-counter="${contractor.id}">${tf('ต่อรอง','Send counter')}</button>
+      <button class="btn primary sm" data-cjob-award="${contractor.id}" ${bid.price==null?'disabled':''}>✅ ${tf('อนุมัติ','Approve')}</button>
     </div>` : ''}
   </div>`;
 }
@@ -10498,12 +10510,12 @@ function cjobDetailModalHtml(){
     ${alert? `<span class="badge ${alert==='overdue'?'bad':'warn'}" style="margin-left:8px">⏰ ${alert==='overdue'?tf('เลยกำหนด','Overdue'):tf('ใกล้ครบกำหนด','Due soon')}</span>` : ''}
     ${job.description? `<div class="sub" style="margin-top:10px;white-space:pre-wrap">${escapeHtml(job.description)}</div>` : ''}
     ${cjobPhotoGalleryHtml(job.photoIds)}
-    <div style="display:flex;flex-wrap:wrap;gap:10px 22px;margin-top:14px">
-      <div><div class="meta-lbl">${tf('วันเริ่มงาน','Start date')}</div><b class="tabular">${job.startDate?fmtDate(job.startDate):'-'}</b></div>
+    ${job.startDate? `<div style="display:flex;flex-wrap:wrap;gap:10px 22px;margin-top:14px">
+      <div><div class="meta-lbl">${tf('วันเริ่มงาน (ตามใบเสนอราคาที่อนุมัติ)','Start date (from awarded quotation)')}</div><b class="tabular">${fmtDate(job.startDate)}</b></div>
       <div><div class="meta-lbl">${tf('จำนวนวันทำงาน','Working days')}</div><b class="tabular">${job.durationDays||'-'}</b></div>
       ${cjobDueDate(job)? `<div><div class="meta-lbl">${tf('กำหนดเสร็จ','Due')}</div><b class="tabular">${fmtDate(cjobDueDate(job))}</b></div>` : ''}
-    </div>
-    <div style="margin-top:18px"><b style="font-family:var(--font-display)">📋 ${tf('ใบเสนอราคาจากผู้รับเหมา','Contractor bids')}</b>
+    </div>` : `<div class="hint" style="margin-top:12px">${tf('ยังไม่มีวันเริ่มงาน/จำนวนวันทำงาน — จะกำหนดจากใบเสนอราคาของผู้รับเหมาที่ได้รับเลือกโดยอัตโนมัติเมื่ออนุมัติราคา','No start date / working days yet -- these are set automatically from the awarded contractor’s quotation once a price is approved')}</div>`}
+    <div style="margin-top:18px"><b style="font-family:var(--font-display)">📋 ${tf('ใบเสนอราคาจากผู้รับเหมา (แยกแต่ละเจ้า)','Contractor quotations (one per contractor)')}</b>
       <div style="display:flex;flex-direction:column;gap:10px;margin-top:10px">${bidsHtml}</div>
     </div>
     ${cjobLifecycleHtml(job)}
@@ -10525,6 +10537,11 @@ function awardCjob(job, contractorId){
   job.status='awarded';
   job.awardedContractorId=contractorId;
   job.awardedPrice=Number(bid.price);
+  // The job's own schedule is adopted from this winning quotation -- each
+  // contractor may have proposed a different start date/duration, so there
+  // is no job-level schedule until one bid is actually awarded.
+  job.startDate = bid.startDate||'';
+  job.durationDays = (bid.durationDays!=null && bid.durationDays!=='')? Number(bid.durationDays) : '';
   job.awardedAt=new Date().toISOString();
   job.awardedBy=currentActorName();
   bid.status='awarded';
@@ -10569,12 +10586,14 @@ function wireCjobDetailModal(){
   });
   $$('[data-cjob-counter]').forEach(b=> b.onclick = ()=>{
     const cid=b.dataset.cjobCounter;
-    const priceEl=$(`[data-cjob-counter-price="${cid}"]`), noteEl=$(`[data-cjob-counter-note="${cid}"]`);
+    const priceEl=$(`[data-cjob-counter-price="${cid}"]`), startEl=$(`[data-cjob-counter-start="${cid}"]`), durEl=$(`[data-cjob-counter-duration="${cid}"]`), noteEl=$(`[data-cjob-counter-note="${cid}"]`);
     const price = priceEl && priceEl.value!==''? Number(priceEl.value) : null;
     if(price==null||isNaN(price)||price<0){ toast(tf('กรุณาระบุราคาต่อรอง','Please enter a counter price')); return; }
+    const startDate = startEl? startEl.value : '';
+    const durationDays = durEl && durEl.value!==''? Number(durEl.value) : null;
     let bid = cjobBidFor(job, cid); if(!bid){ bid=newCjobBid(cid); job.bids.push(bid); }
-    bid.price=price; bid.note = noteEl?noteEl.value.trim():''; bid.status='countered';
-    bid.thread.push({by:'staff', price, note:bid.note, at:new Date().toISOString()});
+    bid.price=price; bid.startDate=startDate; bid.durationDays=durationDays; bid.note = noteEl?noteEl.value.trim():''; bid.status='countered';
+    bid.thread.push({by:'staff', price, startDate, durationDays, note:bid.note, at:new Date().toISOString()});
     saveData(); render(); toast(tf('ส่งข้อเสนอต่อรองแล้ว','Counter-offer sent'));
   });
   $$('[data-cjob-award]').forEach(b=> b.onclick = ()=>{
@@ -10654,28 +10673,32 @@ function renderJobBid(){
     </div>
     ${job.description? `<div class="sub" style="margin-top:8px;white-space:pre-wrap">${escapeHtml(job.description)}</div>` : ''}
     ${cjobPhotoGalleryHtml(job.photoIds)}
-    <div style="display:flex;flex-wrap:wrap;gap:10px 22px;margin-top:14px">
-      <div><div class="meta-lbl">${tf('วันเริ่มงาน','Start date')}</div><b class="tabular">${job.startDate? fmtDate(job.startDate):'-'}</b></div>
+    ${job.startDate? `<div style="display:flex;flex-wrap:wrap;gap:10px 22px;margin-top:14px">
+      <div><div class="meta-lbl">${tf('วันเริ่มงาน (อนุมัติแล้ว)','Start date (awarded)')}</div><b class="tabular">${fmtDate(job.startDate)}</b></div>
       <div><div class="meta-lbl">${tf('จำนวนวันทำงาน','Working days')}</div><b class="tabular">${job.durationDays||'-'}</b></div>
-    </div>
+    </div>` : `<div class="hint" style="margin-top:10px">${tf('เสนอวันที่เริ่มงานและจำนวนวันทำงานของคุณเองได้ด้านล่าง','Propose your own start date and number of working days below')}</div>`}
   </div>`;
   if(job.status==='open_bidding'){
     if(bid.thread.length){
       sections += `<div class="card"><b style="font-family:var(--font-display)">💬 ${tf('ประวัติการเสนอ/ต่อรองราคา','Bid / negotiation history')}</b>
         <div class="hint" style="margin-top:8px;display:flex;flex-direction:column;gap:4px">
-          ${bid.thread.map(t=>`<div>${t.by==='contractor'? '👷 '+tf('คุณ','You'):'🏢 '+tf('ผู้ว่าจ้าง','Requester')}: ฿${fmtNum(t.price,0)} ${t.note?'— '+escapeHtml(t.note):''} <span style="color:var(--ink-400)">(${fmtDateTime(t.at)})</span></div>`).join('')}
+          ${bid.thread.map(t=>`<div>${t.by==='contractor'? '👷 '+tf('คุณ','You'):'🏢 '+tf('ผู้ว่าจ้าง','Requester')}: ${cjobQuoteLineHtml(t)} ${t.note?'— '+escapeHtml(t.note):''} <span style="color:var(--ink-400)">(${fmtDateTime(t.at)})</span></div>`).join('')}
         </div></div>`;
     }
     const isCountered = bid.status==='countered';
     sections += `<div class="card">
-      <b style="font-family:var(--font-display)">💰 ${isCountered? tf('ผู้ว่าจ้างเสนอราคาต่อรองกลับมา','The requester sent a counter-offer'):tf('เสนอราคาของคุณ','Submit your price')}</b>
-      ${isCountered? `<div class="sub" style="margin-top:6px">${tf('ราคาที่เสนอ','Offered price')}: <b>฿${fmtNum(bid.price,0)}</b>${bid.note?' — '+escapeHtml(bid.note):''}</div>
+      <b style="font-family:var(--font-display)">💰 ${isCountered? tf('ผู้ว่าจ้างเสนอราคาต่อรองกลับมา','The requester sent a counter-offer'):tf('ใบเสนอราคาของคุณ','Your quotation')}</b>
+      ${isCountered? `<div class="sub" style="margin-top:6px">${tf('ข้อเสนอ','Offer')}: <b>${cjobQuoteLineHtml(bid)}</b>${bid.note?' — '+escapeHtml(bid.note):''}</div>
         <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
-          <button class="btn primary sm" id="jb-accept-counter">✅ ${tf('ยอมรับราคานี้','Accept this price')}</button>
+          <button class="btn primary sm" id="jb-accept-counter">✅ ${tf('ยอมรับข้อเสนอนี้','Accept this offer')}</button>
         </div>` : ''}
-      <div class="field" style="margin-top:12px"><label>${tf('เสนอราคาใหม่ (บาท)','New price (THB)')}</label><input type="number" min="0" step="1" id="jb-price" value="${bid.price!=null?bid.price:''}"></div>
-      <div class="field"><label>${tf('หมายเหตุ (ไม่บังคับ)','Note (optional)')}</label><input type="text" id="jb-note" value=""></div>
-      <button class="btn primary block" id="jb-submit-bid" style="margin-top:6px">${tf('ส่งราคา','Submit price')}</button>
+      <div class="grid cols-2" style="margin-top:12px">
+        <div class="field"><label>${tf('เสนอราคา (บาท)','Price (THB)')}</label><input type="number" min="0" step="1" id="jb-price" value="${bid.price!=null?bid.price:''}"></div>
+        <div class="field"><label>${tf('วันที่เริ่มงาน','Start date')}</label><input type="date" id="jb-bid-start" value="${bid.startDate||''}"></div>
+      </div>
+      <div class="field" style="margin-top:12px"><label>${tf('จำนวนวันที่ทำ','Number of working days')}</label><input type="number" min="1" step="1" id="jb-bid-duration" value="${bid.durationDays!=null?bid.durationDays:''}"></div>
+      <div class="field" style="margin-top:12px"><label>${tf('หมายเหตุ (ไม่บังคับ)','Note (optional)')}</label><input type="text" id="jb-note" value=""></div>
+      <button class="btn primary block" id="jb-submit-bid" style="margin-top:6px">${tf('ส่งใบเสนอราคา','Submit quotation')}</button>
     </div>`;
   } else if(isLoser){
     sections += `<div class="card"><div class="sub">${tf('ขออภัย งานนี้ได้มอบหมายให้ผู้รับเหมาท่านอื่นแล้ว ขอบคุณที่เสนอราคาเข้ามาครับ','This job has been awarded to another contractor. Thank you for your bid.')}</div></div>`;
@@ -10716,22 +10739,25 @@ function wireJobBid(){
   if(!job) return;
   const submitBtn = $('#jb-submit-bid');
   if(submitBtn) submitBtn.onclick = ()=>{
-    const priceEl = $('#jb-price');
+    const priceEl = $('#jb-price'), startEl = $('#jb-bid-start'), durEl = $('#jb-bid-duration');
     const price = priceEl && priceEl.value!==''? Number(priceEl.value) : null;
     if(price==null || isNaN(price) || price<0){ toast(tf('กรุณาระบุราคา','Please enter a price')); return; }
+    if(!startEl || !startEl.value){ toast(tf('กรุณาระบุวันที่เริ่มงาน','Please choose a start date')); return; }
+    const durationDays = durEl && durEl.value!==''? parseInt(durEl.value,10) : NaN;
+    if(isNaN(durationDays) || durationDays<=0){ toast(tf('กรุณาระบุจำนวนวันที่ทำที่ถูกต้อง','Please enter a valid number of working days')); return; }
     const noteEl=$('#jb-note');
     let bid = cjobBidFor(job, cid);
     if(!bid){ bid=newCjobBid(cid); job.bids.push(bid); }
-    bid.price=price; bid.note=noteEl?noteEl.value.trim():''; bid.status='pending';
-    bid.thread.push({by:'contractor', price, note:bid.note, at:new Date().toISOString()});
-    saveData(); render(); toast(tf('ส่งราคาแล้ว','Price submitted'));
+    bid.price=price; bid.startDate=startEl.value; bid.durationDays=durationDays; bid.note=noteEl?noteEl.value.trim():''; bid.status='pending';
+    bid.thread.push({by:'contractor', price, startDate:bid.startDate, durationDays, note:bid.note, at:new Date().toISOString()});
+    saveData(); render(); toast(tf('ส่งใบเสนอราคาแล้ว','Quotation submitted'));
   };
   const acceptBtn = $('#jb-accept-counter');
   if(acceptBtn) acceptBtn.onclick = ()=>{
     const bid = cjobBidFor(job, cid); if(!bid) return;
     bid.status='accepted';
-    bid.thread.push({by:'contractor', price:bid.price, note:tf('ยอมรับราคาที่เสนอ','Accepted the offered price'), at:new Date().toISOString()});
-    saveData(); render(); toast(tf('ยอมรับราคาแล้ว รอผู้ว่าจ้างยืนยัน','Price accepted -- awaiting requester confirmation'));
+    bid.thread.push({by:'contractor', price:bid.price, startDate:bid.startDate, durationDays:bid.durationDays, note:tf('ยอมรับข้อเสนอนี้','Accepted this offer'), at:new Date().toISOString()});
+    saveData(); render(); toast(tf('ยอมรับข้อเสนอแล้ว รอผู้ว่าจ้างยืนยัน','Offer accepted -- awaiting requester confirmation'));
   };
   const inspectBtn = $('#jb-propose-inspect');
   if(inspectBtn) inspectBtn.onclick = ()=>{
