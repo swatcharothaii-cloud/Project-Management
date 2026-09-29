@@ -4506,25 +4506,34 @@ function projectSummary(asOf, boq, logs){
 }
 
 /* ============================= RENDER: SHELL ============================= */
+// th/en are resolved live via tf() at render time (same convention as
+// MP_PROCURE_STATUS_DEFS above) rather than baked into a const with tf()
+// called once at parse time -- that older pattern (still used by PSTATUS/
+// NECESSITY_TYPES/etc. above) silently freezes every tab label in whatever
+// language was active on first load, and only updates on a language switch
+// if someone remembers to also add a line to rebuildLangConstants(); a
+// contractorjobs-style new tab added later is an easy way to forget that.
+// Resolving live here means a language switch (or any newly-added tab)
+// just works, with nothing else to keep in sync.
 const TOP_TABS = [
-  {id:'hub', label:tf('โปรเจ็คทั้งหมด','All Projects'), ic:'🏠'},
-  {id:'overview', label:tf('ภาพรวมทุกโปรเจ็ค','Overview'), ic:'📈'},
-  {id:'purchasing', label:tf('จัดซื้อ','Procurement'), ic:'🧾'},
-  {id:'inspection', label:tf('ใบตรวจงาน','Inspection'), ic:'🔍'},
-  {id:'profile', label:tf('ตั้งค่าบริษัท','Company'), ic:'🏢'},
-  {id:'contractors', label:tf('ข้อมูลผู้รับเหมา','Contractors'), ic:'👷'},
+  {id:'hub', th:'โปรเจ็คทั้งหมด', en:'All Projects', ic:'🏠'},
+  {id:'overview', th:'ภาพรวมทุกโปรเจ็ค', en:'Overview', ic:'📈'},
+  {id:'purchasing', th:'จัดซื้อ', en:'Procurement', ic:'🧾'},
+  {id:'inspection', th:'ใบตรวจงาน', en:'Inspection', ic:'🔍'},
+  {id:'profile', th:'ตั้งค่าบริษัท', en:'Company', ic:'🏢'},
+  {id:'contractors', th:'ข้อมูลผู้รับเหมา', en:'Contractors', ic:'👷'},
 ];
 const TABS = [
-  {id:'dashboard',label:tf('แดชบอร์ด','Dashboard'),ic:'📊'},
-  {id:'masterplan',label:tf('แผนงานหลัก','Master Plan'),ic:'📋'},
-  {id:'procure',label:tf('จัดซื้อวัสดุ','Procurement'),ic:'🛒'},
-  {id:'purchaseplan',label:tf('แผนสั่งของ','Purchasing Plan'),ic:'📦'},
-  {id:'contractorjobs',label:tf('งานจ้างเหมา','Contractor Jobs'),ic:'👷'},
-  {id:'costlog',label:tf('บันทึกต้นทุนจัดซื้อ','Cost Log'),ic:'🧾'},
-  {id:'budget',label:tf('งบประมาณ','Budget'),ic:'💰'},
-  {id:'billing',label:tf('เบิกเงินงวด','Billing'),ic:'💵'},
-  {id:'dailylog',label:tf('บันทึกประจำวัน','Daily Log'),ic:'📝'},
-  {id:'report',label:tf('รายงาน','Report'),ic:'🖨️'},
+  {id:'dashboard',th:'แดชบอร์ด',en:'Dashboard',ic:'📊'},
+  {id:'masterplan',th:'แผนงานหลัก',en:'Master Plan',ic:'📋'},
+  {id:'procure',th:'จัดซื้อวัสดุ',en:'Procurement',ic:'🛒'},
+  {id:'purchaseplan',th:'แผนสั่งของ',en:'Purchasing Plan',ic:'📦'},
+  {id:'contractorjobs',th:'งานจ้างเหมา',en:'Contractor Jobs',ic:'👷'},
+  {id:'costlog',th:'บันทึกต้นทุนจัดซื้อ',en:'Cost Log',ic:'🧾'},
+  {id:'budget',th:'งบประมาณ',en:'Budget',ic:'💰'},
+  {id:'billing',th:'เบิกเงินงวด',en:'Billing',ic:'💵'},
+  {id:'dailylog',th:'บันทึกประจำวัน',en:'Daily Log',ic:'📝'},
+  {id:'report',th:'รายงาน',en:'Report',ic:'🖨️'},
 ];
 
 // Panels with their own internal scroll (overflow-y:auto + a capped
@@ -4641,11 +4650,11 @@ function renderTabbar(){
   if(state.view==='project'){
     return `<nav class="tabbar">
       <button class="tabbtn back" data-back-hub><span class="ic">←</span>${tf('โปรเจ็คทั้งหมด','All projects')}</button>
-      ${TABS.map(t=>`<button class="tabbtn ${state.tab===t.id?'active':''}" data-nav="${t.id}"><span class="ic">${t.ic}</span>${t.label}</button>`).join('')}
+      ${TABS.map(t=>`<button class="tabbtn ${state.tab===t.id?'active':''}" data-nav="${t.id}"><span class="ic">${t.ic}</span>${tf(t.th,t.en)}</button>`).join('')}
     </nav>`;
   }
   return `<nav class="tabbar">${TOP_TABS.map(t=>`
-    <button class="tabbtn ${state.view===t.id?'active':''}" data-view="${t.id}"><span class="ic">${t.ic}</span>${t.label}</button>
+    <button class="tabbtn ${state.view===t.id?'active':''}" data-view="${t.id}"><span class="ic">${t.ic}</span>${tf(t.th,t.en)}</button>
   `).join('')}</nav>`;
 }
 
