@@ -6652,6 +6652,7 @@ function ensureDailyDraft(){
   const date = state.selectedLogDate;
   if(dailyDraft && dailyDraft.date===date) return;
   const existing = P().logs.find(l=>l.date===date);
+  const c = state.contractor||{};
   dailyDraft = {
     date,
     weather: existing ? (existing.weather||'') : '',
@@ -6659,6 +6660,12 @@ function ensureDailyDraft(){
     entries: existing ? (existing.entries||[]).map(e=>({...e})) : [],
     issues: existing ? (existing.issues && existing.issues.length ? existing.issues.map(i=>({...i})) : (existing.note ? [{type:tf('อื่นๆ','Other'),detail:existing.note,severity:'amber'}] : [])) : [],
     deliveryNote: existing ? (existing.deliveryNote||'') : '',
+    // "Who actually filed today's report" -- separate from the logged-in
+    // contractor account (ผู้บันทึก, shown read-only above) since the person
+    // typing on-site that day isn't always the account holder. Pre-filled
+    // from the account's own name as a convenience default on a brand-new
+    // log, but stays editable and is saved per-log so it acts like a signature.
+    reporterName: existing ? (existing.reporterName||'') : (c.nickname||c.fullname||''),
   };
   dailyEntryDraft = {itemSearch:'', itemId:'', qty:'', note:'', customText:''};
 }
@@ -6666,6 +6673,7 @@ function syncDailyDraftFromDom(){
   if(!dailyDraft) return;
   const g = (sel)=>{ const el=$(sel); return el?el.value:undefined; };
   const w=g('#log-weather'); if(w!==undefined) dailyDraft.weather=w;
+  const rn=g('#log-reporter'); if(rn!==undefined) dailyDraft.reporterName=rn;
   const dn=g('#log-delivery'); if(dn!==undefined) dailyDraft.deliveryNote=dn;
   $$('[data-wf]').forEach(inp=>{ const row=dailyDraft.workforce[Number(inp.dataset.idx)]; if(row) row[inp.dataset.wf]=inp.value; });
   $$('[data-issue]').forEach(inp=>{ const row=dailyDraft.issues[Number(inp.dataset.idx)]; if(row) row[inp.dataset.issue]=inp.value; });
@@ -6741,9 +6749,13 @@ function renderDailyLog(){
 
   /* ---- Section 1: project metadata (auto) ---- */
   const metaCard = `
-  <div class="card tint" style="display:flex;flex-wrap:wrap;gap:14px 30px">
+  <div class="card tint" style="display:flex;flex-wrap:wrap;gap:14px 30px;align-items:flex-end">
     <div><div class="meta-lbl">${tf('โครงการ','Project')}</div><b>${escapeHtml(proj.name||'-')}</b></div>
-    <div><div class="meta-lbl">${tf('ผู้บันทึก','Recorded by')}</div><b>${escapeHtml(c.nickname||c.fullname||'-')}</b>${c.phone?' · '+escapeHtml(c.phone):''}</div>
+    <div><div class="meta-lbl">${tf('ผู้บันทึก (บัญชีที่ล็อกอิน)','Recorded by (logged-in account)')}</div><b>${escapeHtml(c.nickname||c.fullname||'-')}</b>${c.phone?' · '+escapeHtml(c.phone):''}</div>
+    <div class="field" style="min-width:200px;margin:0">
+      <label>✍️ ${tf('ลงชื่อผู้รายงานวันนี้','Sign today’s reporter')}</label>
+      <input type="text" id="log-reporter" value="${escapeHtml(d.reporterName||'')}" placeholder="${tf('ชื่อผู้รายงาน','Reporter name')}">
+    </div>
     ${existing&&existing.recordedAt? `<div><div class="meta-lbl">${tf('บันทึกล่าสุด','Last saved')}</div><b class="tabular">${fmtDateTime(existing.recordedAt)}</b></div>` : ''}
   </div>`;
 
@@ -7038,6 +7050,7 @@ async function saveDailyLogAndReturnDate(){
   }
   if(!log){ log = {id:uid(),date,entries:[],photoIds:[]}; P().logs.push(log); }
   log.weather = dailyDraft.weather;
+  log.reporterName = dailyDraft.reporterName||'';
   log.workforce = dailyDraft.workforce.filter(w=> (w.team||'').trim()).map(w=>({team:w.team,count:w.count,workType:w.workType}));
   log.entries = dailyDraft.entries.slice();
   log.issues = dailyDraft.issues.filter(i=> (i.detail||'').trim());
@@ -9871,24 +9884,26 @@ function renderDashboard(){
   if(!proj.boq.length){
     return `<div class="page-head"><div><h2>${tf('แดชบอร์ดวิเคราะห์โปรเจกต์','Project Analytics Dashboard')}</h2></div></div><div class="empty"><span class="ic">📊</span>${tf('เพิ่มรายการงานในแผนงานหลักก่อน เพื่อเริ่มวิเคราะห์','Add work items in the Master Plan first to start the analysis')}</div>`;
   }
-  const itemCards = proj.boq.map(item=>{
-    const planned = plannedCumAt(item,asOf), actual = actualCumAt(item,asOf,proj.logs);
-    const st = itemStatus(item,asOf,proj.logs);
-    const pct = clamp((actual/item.qtyTotal)*100,0,100);
-    const diff = actual-planned;
-    const pred = itemPrediction(item,asOf,proj.logs);
-    return `<div class="card">
-      <div style="display:flex;justify-content:space-between;gap:8px;align-items:flex-start">
-        <b style="font-family:var(--font-display);font-size:14.5px">${escapeHtml(item.name)}</b>
-        <span class="badge ${st==='ok'?'ok':st==='bad'?'bad':'idle'}">${st==='ok'?'🟢 '+tf('เร็วกว่าแผน','Ahead of plan'):st==='bad'?'🔴 '+tf('ล่าช้ากว่าแผน','Behind plan'):'⏳ '+tf('ยังไม่เริ่ม','Not started')}</span>
+  // Item-level status, grouped first by status bucket (ahead/behind/not
+  // started -- matching itemStatus()'s 'ok'/'bad'/'idle') and within each
+  // bucket by work category (reusing boqCategoryGroups(), same as the
+  // Budget page's table), rather than one flat list of cards -- makes it
+  // possible to see at a glance, e.g., which whole categories are lagging.
+  const statusBuckets = {ok:[], bad:[], idle:[]};
+  proj.boq.forEach(item=> statusBuckets[itemStatus(item,asOf,proj.logs)].push(item));
+  const STATUS_SECTIONS = [
+    {key:'ok', icon:'🟢', cls:'ok', label: tf('เร็วกว่าแผน','Ahead of plan')},
+    {key:'bad', icon:'🔴', cls:'bad', label: tf('ล่าช้ากว่าแผน','Behind plan')},
+    {key:'idle', icon:'⏳', cls:'idle', label: tf('ยังไม่เริ่ม','Not started')},
+  ];
+  const statusSectionsHtml = STATUS_SECTIONS.map(s=>{
+    const items = statusBuckets[s.key];
+    return `<div class="card" style="margin-top:14px">
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+        <b style="font-family:var(--font-display)">${s.icon} ${s.label}</b>
+        <span class="badge ${s.cls}">${items.length} ${tf('รายการ','items')}</span>
       </div>
-      <div class="sub" style="margin:8px 0 6px">${tf('สะสมจริง','Actual to date')} <b class="tabular" style="color:var(--ink-900)">${fmtNum(actual,2)}</b> / ${tf('แผน','planned')} <span class="tabular">${fmtNum(planned,2)}</span> ${escapeHtml(item.unit)}</div>
-      <div class="progress ${st==='ok'?'ok':st==='bad'?'bad':''}"><i style="width:${pct}%"></i></div>
-      <div style="display:flex;justify-content:space-between;margin-top:8px;font-size:12px;color:var(--ink-500)">
-        <span>${diff>=0?tf('เร็วกว่าแผน','ahead of plan'):tf('ล่าช้ากว่าแผน','behind plan')} <b class="tabular" style="color:var(--ink-700)">${fmtNum(Math.abs(diff),2)}</b> ${escapeHtml(item.unit)}</span>
-        <span class="tabular">${fmtNum(pct,0)}%</span>
-      </div>
-      <div class="sub" style="margin-top:8px">${tf('คาดเสร็จ:','Est. finish:')} <b class="tabular" style="color:var(--ink-700)">${pred.finishDate? fmtDate(pred.finishDate) : tf('ยังประเมินไม่ได้','not enough data')}</b></div>
+      <div style="margin-top:10px">${dashboardItemStatusTableHtml(items, asOf, proj.logs)}</div>
     </div>`;
   }).join('');
 
@@ -9917,9 +9932,45 @@ function renderDashboard(){
     <div class="legend" style="margin:10px 0 6px"><span><i style="background:var(--purple-600)"></i>${tf('แผนงาน (Planned)','Planned')}</span><span><i style="background:var(--mint-500)"></i>${tf('ผลงานจริง (Actual)','Actual')}</span></div>
     ${curve.svg}
   </div>
-  <div class="page-head"><div><h3 style="font-size:16px">${tf('สถานะรายรายการ','Item-level status')}</h3></div></div>
-  <div style="display:flex;flex-direction:column;gap:10px">${itemCards}</div>
+  <div class="page-head"><div><h3 style="font-size:16px">${tf('สถานะรายรายการ','Item-level status')}</h3><div class="sub">${tf('แบ่งเป็น 3 สถานะ แล้วจัดกลุ่มย่อยตามหมวดงานในแต่ละสถานะ','Split into 3 status groups, each grouped by work category')}</div></div></div>
+  ${statusSectionsHtml}
   `;
+}
+// Renders one status bucket's items (already filtered by the caller) as a
+// table grouped by work category -- mirrors Budget's boqCategoryGroups() +
+// per-category header-row pattern so the two pages read consistently.
+function dashboardItemStatusTableHtml(items, asOf, logs){
+  if(!items.length) return `<div class="empty" style="padding:14px 0"><span class="ic">–</span>${tf('ไม่มีรายการในกลุ่มนี้','No items in this group')}</div>`;
+  const groups = boqCategoryGroups(items);
+  let no=0;
+  const rows = groups.map(g=>{
+    const label = g.cat? escapeHtml(g.cat) : tf('ไม่ระบุหมวดหมู่','Uncategorized');
+    const catHeader = `<tr class="budget-cat-row"><td colspan="9">📁 ${label}</td></tr>`;
+    const itemRows = g.items.map(item=>{
+      no++;
+      const planned = plannedCumAt(item,asOf), actual = actualCumAt(item,asOf,logs);
+      const pct = clamp((actual/(item.qtyTotal||1))*100,0,100);
+      const diff = actual-planned;
+      const pred = itemPrediction(item,asOf,logs);
+      return `<tr>
+        <td class="tabular">${no}</td>
+        <td>${escapeHtml(item.itemCode||'-')}</td>
+        <td>${escapeHtml(item.name)}</td>
+        <td>${escapeHtml(item.unit)}</td>
+        <td class="tabular">${fmtNum(planned,2)}</td>
+        <td class="tabular">${fmtNum(actual,2)}</td>
+        <td class="tabular" style="color:${diff<0?'var(--coral-600)':'inherit'}">${diff>=0?'+':''}${fmtNum(diff,2)}</td>
+        <td class="tabular">${fmtNum(pct,0)}%</td>
+        <td class="tabular">${pred.finishDate? fmtDate(pred.finishDate) : '-'}</td>
+      </tr>`;
+    }).join('');
+    return catHeader + itemRows;
+  }).join('');
+  return `<div class="table-wrap"><table class="budget-table"><thead><tr>
+    <th>${tf('No.','No.')}</th><th>${tf('รหัส','Code')}</th><th>${tf('รายการ','Description')}</th><th>${tf('หน่วย','Unit')}</th>
+    <th>${tf('แผนสะสม','Planned to date')}</th><th>${tf('จริงสะสม','Actual to date')}</th><th>${tf('ส่วนต่าง','Diff')}</th>
+    <th>${tf('% คืบหน้า','% Progress')}</th><th>${tf('คาดเสร็จ','Est. finish')}</th>
+  </tr></thead><tbody>${rows}</tbody></table></div>`;
 }
 function buildSCurve(asOf){
   const proj = P();
@@ -10060,6 +10111,7 @@ function reportBodyHtml(date){
       <div><b>${tf('โครงการ','Project')}</b>${escapeHtml(proj.name||'-')}${proj.zone?' ('+escapeHtml(proj.zone)+')':''}</div>
       <div><b>${tf('ประจำวันที่','Report date')}</b>${fmtDate(date)}</div>
       <div><b>${tf('ผู้รับเหมาดูแลหน้างาน','Site contractor')}</b>${escapeHtml(c.nickname||c.fullname||'-')}${c.phone?' | '+escapeHtml(c.phone):''}</div>
+      ${log&&log.reporterName? `<div><b>✍️ ${tf('ผู้รายงานวันนี้','Today’s reporter')}</b>${escapeHtml(log.reporterName)}</div>` : ''}
     </div>
     ${log && (log.weather || (log.workforce&&log.workforce.length)) ? `<div class="rp-section"><h3>🌦️ ${tf('สภาพหน้างานและกำลังพล','Site Condition & Workforce')}</h3>
       ${log.weather? `<p style="font-size:13px;line-height:1.7"><b>${tf('สภาพหน้างาน:','Condition:')}</b> ${escapeHtml(log.weather)}</p>` : ''}
