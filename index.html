@@ -862,6 +862,29 @@ select.pp-status-select.pp-noneed{background:var(--surface-2);color:var(--ink-50
 .bud-table .badge{white-space:normal;text-align:center;line-height:1.25;padding:3px 7px;font-size:10.5px}
 .bud-table .budget-cat-row td{white-space:normal}
 
+/* ---------- Dashboard: item-status tables, full-bleed landscape ----------
+   Same full-bleed breakout as .bud-wrap/.pp-wrap above -- these tables sit
+   inside the Dashboard's normal .card, but the table itself escapes main's
+   centered max-width:1180px column so all 9 columns are visible on a wide
+   screen without needing a horizontal scrollbar. Each status bucket table
+   also gets its own bounded height + sticky header (like .bud-wrap), since
+   the "not started" bucket in particular can run to 50+ rows. */
+.dash-wrap{width:100vw;margin-left:calc(50% - 50vw);margin-right:calc(50% - 50vw);box-sizing:border-box;padding-left:18px;padding-right:18px;max-height:calc(100vh - 260px);overflow-y:auto}
+.dash-table{table-layout:fixed;width:100%}
+.dash-table thead th{position:sticky;top:0;z-index:5}
+.dash-table th,.dash-table td{padding:7px 8px;font-size:12px}
+.dash-table th{white-space:normal;overflow-wrap:anywhere;line-height:1.3;vertical-align:bottom;font-size:11px}
+.dash-table td:nth-child(1),.dash-table th:nth-child(1){width:3%}
+.dash-table td:nth-child(2),.dash-table th:nth-child(2){width:6%}
+.dash-table td:nth-child(3),.dash-table th:nth-child(3){white-space:normal;overflow-wrap:anywhere;width:30%}
+.dash-table td:nth-child(4),.dash-table th:nth-child(4){width:6%}
+.dash-table td:nth-child(5),.dash-table th:nth-child(5){width:12%}
+.dash-table td:nth-child(6),.dash-table th:nth-child(6){width:12%}
+.dash-table td:nth-child(7),.dash-table th:nth-child(7){width:12%}
+.dash-table td:nth-child(8),.dash-table th:nth-child(8){width:8%}
+.dash-table td:nth-child(9),.dash-table th:nth-child(9){width:11%}
+.dash-table .budget-cat-row td{white-space:normal}
+
 /* ---------- Kanban ----------
    The 4 status columns are a fixed set (not a variable-length list), so they
    sit inside one shared .card -- like every other page in the app -- and
@@ -9966,7 +9989,7 @@ function dashboardItemStatusTableHtml(items, asOf, logs){
     }).join('');
     return catHeader + itemRows;
   }).join('');
-  return `<div class="table-wrap"><table class="budget-table"><thead><tr>
+  return `<div class="table-wrap dash-wrap"><table class="budget-table dash-table"><thead><tr>
     <th>${tf('No.','No.')}</th><th>${tf('รหัส','Code')}</th><th>${tf('รายการ','Description')}</th><th>${tf('หน่วย','Unit')}</th>
     <th>${tf('แผนสะสม','Planned to date')}</th><th>${tf('จริงสะสม','Actual to date')}</th><th>${tf('ส่วนต่าง','Diff')}</th>
     <th>${tf('% คืบหน้า','% Progress')}</th><th>${tf('คาดเสร็จ','Est. finish')}</th>
