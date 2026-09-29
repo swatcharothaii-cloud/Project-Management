@@ -4589,6 +4589,7 @@ function renderModalRoot(){
   if(projectDraft) return projectModalHtml();
   if(contractorDraft) return contractorModalHtml();
   if(contractorHistoryId) return contractorHistoryModalHtml();
+  if(cjobShareImageUrl) return cjobShareImageModalHtml();
   if(cjobDraft) return cjobModalHtml();
   if(cjobDetailId) return cjobDetailModalHtml();
   if(historyModalOpen) return historyModalHtml();
@@ -4701,7 +4702,7 @@ function resetTransient(){
   editingInspectionId=null; inspectionDraft=null;
   billingPickerRowId=null; billingPickerFiles=null; billingPickerLoading=false; billingPickerError='';
   cjobDraft=null; editingCjobId=null; cjobDetailId=null; cjobHandoverPending=[]; cjobViewTrash=false;
-  cjobPoPending=[]; cjobPoDraft=null;
+  cjobPoPending=[]; cjobPoDraft=null; cjobShareImageUrl=null;
 }
 function goToHub(){
   resetTransient();
@@ -4742,6 +4743,7 @@ function wireGlobal(){
   wireInspectionEditorModal();
   wireCjobModal();
   wireCjobDetailModal();
+  wireCjobShareImageModal();
 }
 
 /* ============================= SCREEN: HUB (ALL PROJECTS) ============================= */
@@ -10469,6 +10471,7 @@ function cjobBidRowHtml(proj, job, contractor){
       <div style="display:flex;gap:10px;align-items:center">
         <b class="tabular">${bid.price!=null? cjobQuoteLineHtml(bid) : tf('ยังไม่เสนอราคา','No bid yet')}</b>
         <button class="iconbtn" data-cjob-copy-bidlink="${contractor.id}" title="${tf('คัดลอกลิงก์ของผู้รับเหมาคนนี้','Copy this contractor’s link')}">🔗</button>
+        ${bid.price!=null? `<button class="iconbtn" data-cjob-export-img="${contractor.id}" title="${isAwarded? tf('ส่งออกใบอนุมัติราคาเป็นรูปภาพ (ส่งแทนลิงก์)','Export the approval as an image (send instead of the link)') : tf('ส่งออกใบเสนอราคาเป็นรูปภาพ (ส่งแทนลิงก์)','Export the quotation as an image (send instead of the link)')}">🖼️</button>` : ''}
       </div>
     </div>
     ${bid.note? `<div class="sub">${escapeHtml(bid.note)}</div>` : ''}
@@ -10482,6 +10485,97 @@ function cjobBidRowHtml(proj, job, contractor){
       <button class="btn primary sm" data-cjob-award="${contractor.id}" ${bid.price==null?'disabled':''}>✅ ${tf('อนุมัติ','Approve')}</button>
     </div>` : ''}
   </div>`;
+}
+/* ---- Export a single contractor's quotation/approval as a shareable image --
+   staff currently hand contractors a personal link (cjobBidLink()) to view
+   their own status, but a link sent cold over LINE can look like spam/phishing
+   to a contractor who doesn't recognise the domain, and some staff would
+   rather just forward a picture of the numbers. This renders a small,
+   self-contained "slip" off-screen, rasterises it with the same vendored
+   html2canvas already used by the Report tab's "ส่งออกรูปภาพ" feature, and
+   shows the PNG in a tiny preview overlay the user can long-press/right-click
+   to save -- no server round-trip, since this whole app is a static site. */
+let cjobShareImageUrl = null; // data: URL of the most recently generated slip, shown in cjobShareImageModalHtml()
+function cjobShareCardHtml(proj, job, contractor, bid, mode){
+  const approved = mode==='approved';
+  const price = approved? job.awardedPrice : bid.price;
+  const startDate = approved? job.startDate : bid.startDate;
+  const durationDays = approved? job.durationDays : bid.durationDays;
+  const due = (startDate && durationDays!=null && durationDays!=='')? addDays(startDate, Math.max(Number(durationDays)||0,0)) : null;
+  const headerLabel = approved? tf('ใบอนุมัติราคา','Price Approval') : tf('ใบเสนอราคา','Quotation');
+  const headerColor = approved? 'linear-gradient(135deg,#0D9668,#10B981)' : 'linear-gradient(135deg,#4F46E5,#6366F1)';
+  const statusLine = approved
+    ? tf('✅ อนุมัติราคาแล้ว','✅ Price approved')+(job.awardedAt? ' · '+fmtDateTime(job.awardedAt) : '')
+    : tf('🧾 เสนอราคาแล้ว รอพิจารณา','🧾 Quotation submitted, pending review');
+  return `<div style="width:420px;font-family:'Noto Sans Thai',system-ui,sans-serif;background:#ffffff;border-radius:16px;overflow:hidden;border:1px solid #E5E3F2">
+    <div style="background:${headerColor};color:#fff;padding:18px 22px">
+      <div style="font-size:12.5px;opacity:.9;letter-spacing:.03em">${escapeHtml((state.contractor&&state.contractor.company)||'Project Management')}</div>
+      <div style="font-family:'Kanit',sans-serif;font-weight:700;font-size:20px;margin-top:4px">${headerLabel}</div>
+    </div>
+    <div style="padding:20px 22px">
+      <div style="font-size:11.5px;color:#6B6784;letter-spacing:.02em">${tf('โครงการ','Project')}</div>
+      <div style="font-weight:600;font-size:14.5px;color:#1E1B31;margin-top:2px">${escapeHtml(proj.name||'-')}</div>
+      <div style="font-size:11.5px;color:#6B6784;letter-spacing:.02em;margin-top:12px">${tf('งาน','Job')}</div>
+      <div style="font-weight:600;font-size:14.5px;color:#1E1B31;margin-top:2px">${escapeHtml(job.title||'-')}</div>
+      <div style="font-size:11.5px;color:#6B6784;letter-spacing:.02em;margin-top:12px">${tf('ผู้รับเหมา','Contractor')}</div>
+      <div style="font-weight:600;font-size:14.5px;color:#1E1B31;margin-top:2px">${escapeHtml(cjobContractorLabel(contractor))}${contractor.phone? ' · 📞 '+escapeHtml(contractor.phone) : ''}</div>
+      <div style="margin-top:16px;padding:14px 16px;background:#F7F8FE;border-radius:12px">
+        <div style="font-size:11.5px;color:#6B6784">${tf('ราคา','Price')}</div>
+        <div style="font-family:'Kanit',sans-serif;font-weight:700;font-size:28px;color:#1E1B31;margin-top:2px">฿${fmtNum(price,0)}</div>
+        <div style="display:flex;gap:18px;margin-top:10px;font-size:12.5px;color:#3E3A57">
+          ${startDate? `<div><div style="color:#6B6784;font-size:11px">${tf('เริ่มงาน','Start')}</div><b>${fmtDate(startDate)}</b></div>` : ''}
+          ${durationDays!=null && durationDays!==''? `<div><div style="color:#6B6784;font-size:11px">${tf('จำนวนวัน','Days')}</div><b>${durationDays} ${tf('วัน','days')}</b></div>` : ''}
+          ${due? `<div><div style="color:#6B6784;font-size:11px">${tf('กำหนดเสร็จ','Due')}</div><b>${fmtDate(due)}</b></div>` : ''}
+        </div>
+      </div>
+      ${bid.note? `<div style="margin-top:12px;font-size:12.5px;color:#3E3A57"><b>${tf('หมายเหตุ','Note')}:</b> ${escapeHtml(bid.note)}</div>` : ''}
+      <div style="margin-top:16px;font-size:12.5px;font-weight:600;color:${approved?'#0D9668':'#4F46E5'}">${statusLine}</div>
+    </div>
+    <div style="padding:10px 22px;background:#F7F8FE;font-size:10.5px;color:#A6A2BF;text-align:right">${tf('สร้างเมื่อ','Generated')} ${fmtDateTime(new Date().toISOString())}</div>
+  </div>`;
+}
+function cjobImgFallbackMsg(){
+  return tf('สร้างรูปภาพอัตโนมัติไม่สำเร็จในเบราว์เซอร์นี้ ลองใช้ปุ่ม "คัดลอกลิงก์" แทน หรือจับภาพหน้าจอ (Screenshot) หน้ารายละเอียดนี้เอง','Automatic image generation failed in this browser -- try "Copy link" instead, or take a screenshot of this detail page yourself');
+}
+async function exportCjobShareImage(job, contractorId){
+  const proj = P();
+  const contractor = cjobInvited(job, contractorId);
+  const bid = cjobBidFor(job, contractorId);
+  if(!contractor || !bid || bid.price==null){ toast(tf('ยังไม่มีราคาจากผู้รับเหมารายนี้ ยังส่งออกรูปภาพไม่ได้','This contractor has no price yet -- nothing to export')); return; }
+  const mode = job.awardedContractorId===contractorId? 'approved' : 'quoted';
+  if(typeof html2canvas !== 'function'){ toast(cjobImgFallbackMsg()); return; }
+  toast(tf('กำลังสร้างรูปภาพ...','Generating image...'));
+  // html2canvas needs the node actually laid out in the document to read
+  // computed styles/fonts -- rendered off-screen (not display:none, which
+  // reports zero size) so nothing visible flashes on screen while it works.
+  const holder = document.createElement('div');
+  holder.style.cssText = 'position:fixed;left:-9999px;top:0;';
+  holder.innerHTML = cjobShareCardHtml(proj, job, contractor, bid, mode);
+  document.body.appendChild(holder);
+  try{
+    const canvas = await html2canvas(holder.firstElementChild, {backgroundColor:'#ffffff', scale:2, useCORS:true});
+    cjobShareImageUrl = canvas.toDataURL('image/png');
+    render();
+  }catch(err){
+    console.error('Export contractor-job image failed', err);
+    toast(cjobImgFallbackMsg());
+  }finally{
+    document.body.removeChild(holder);
+  }
+}
+function cjobShareImageModalHtml(){
+  if(!cjobShareImageUrl) return '';
+  return `<div class="modal-bg" id="cjob-share-img-modal-bg"><div class="modal" style="max-width:460px;text-align:center">
+    <div class="modal-head"><h3>🖼️ ${tf('รูปภาพสำหรับส่งกลับ','Image to send back')}</h3><button class="iconbtn" id="cjob-share-img-close">✕</button></div>
+    <img src="${cjobShareImageUrl}" alt="" style="width:100%;border-radius:12px;border:1px solid var(--purple-100)">
+    <p class="hint" style="margin-top:10px">${tf('กดค้างที่รูป (มือถือ) หรือคลิกขวา → บันทึกรูปภาพ (คอมพิวเตอร์) แล้วส่งเข้าแชท LINE ได้ทันที แทนการส่งลิงก์','Press and hold the image (mobile) or right-click → save image (desktop), then send it straight into a LINE chat instead of the link')}</p>
+  </div></div>`;
+}
+function wireCjobShareImageModal(){
+  const bg = $('#cjob-share-img-modal-bg'); if(!bg) return;
+  const close = ()=>{ cjobShareImageUrl=null; render(); };
+  $('#cjob-share-img-close').onclick = close;
+  bg.addEventListener('click', e=>{ if(e.target===bg) close(); });
 }
 /* ---- Procurement (PO attach + actual cost), shown once a job is awarded ---- */
 let cjobPoPending = []; // {dataUrl,name,kind} -- staged PO files, mirrors cjobHandoverPending below
@@ -10687,6 +10781,7 @@ function wireCjobDetailModal(){
     try{ await navigator.clipboard.writeText(link); toast(tf(`คัดลอกลิงก์ของ "${cjobContractorLabel(contractor)}" แล้ว`,`Copied "${cjobContractorLabel(contractor)}"'s link`)); }
     catch(err){ prompt(tf('คัดลอกลิงก์นี้เพื่อส่งให้ผู้รับเหมา:','Copy this link to share with the contractor:'), link); }
   });
+  $$('[data-cjob-export-img]').forEach(b=> b.onclick = ()=> exportCjobShareImage(job, b.dataset.cjobExportImg));
   $$('[data-cjob-counter]').forEach(b=> b.onclick = ()=>{
     const cid=b.dataset.cjobCounter;
     const priceEl=$(`[data-cjob-counter-price="${cid}"]`), startEl=$(`[data-cjob-counter-start="${cid}"]`), durEl=$(`[data-cjob-counter-duration="${cid}"]`), noteEl=$(`[data-cjob-counter-note="${cid}"]`);
