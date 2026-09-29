@@ -10212,6 +10212,17 @@ function newCjobBid(contractorId){
 }
 function cjobBidFor(job, contractorId){ return (job.bids||[]).find(b=>b.contractorId===contractorId); }
 function cjobInvited(job, contractorId){ return (job.invitedContractors||[]).find(c=>c.id===contractorId); }
+// The staff member creating the job may not always know the contractor's
+// exact name up front (e.g. inviting by phone number only, or sending a
+// generic slot link) -- the contractor fills in / confirms their own name
+// when they actually submit their quotation (see the "jb-name" field in
+// renderJobBid()/wireJobBid() below), which overwrites this record. Until
+// then, show a clear placeholder rather than a blank label.
+function cjobContractorLabel(c){
+  if(!c) return '';
+  const name = (c.name||'').trim();
+  return name || tf('(ผู้รับเหมายังไม่กรอกชื่อ)','(contractor hasn’t entered their name yet)');
+}
 // Lowest currently-standing price across all bids that have a number in them
 // yet -- shown on the job-list card as a quick at-a-glance figure while
 // bidding is still open.
@@ -10321,7 +10332,7 @@ function cjobModalHtml(){
   const rowsHtml = d.invitedContractors.map((c,idx)=>`
     <div class="mini-row" data-cjob-row="${idx}">
       <div class="txt" style="display:flex;gap:8px;flex:1">
-        <input type="text" data-cjob-field="name" value="${escapeHtml(c.name)}" placeholder="${tf('ชื่อผู้รับเหมา','Contractor name')}" style="flex:1">
+        <input type="text" data-cjob-field="name" value="${escapeHtml(c.name)}" placeholder="${tf('ชื่อผู้รับเหมา (ไม่ทราบก็ปล่อยว่างได้)','Contractor name (leave blank if unknown)')}" style="flex:1">
         <input type="tel" data-cjob-field="phone" value="${escapeHtml(c.phone)}" placeholder="${tf('เบอร์โทร (ไม่บังคับ)','Phone (optional)')}" style="width:140px">
       </div>
       ${editingCjobId==='new'? `<button class="iconbtn" data-cjob-rm-row="${idx}">✕</button>` : ''}
@@ -10340,6 +10351,7 @@ function cjobModalHtml(){
     <div class="field" style="margin-top:16px">
       <label>${tf('ผู้รับเหมาที่จะเชิญ (ส่ง RFQ ให้เสนอราคา)','Contractors to invite (RFQ)')}</label>
       <div style="display:flex;flex-direction:column;gap:8px;margin-top:6px">${rowsHtml}</div>
+      <div class="hint" style="margin-top:6px">${tf('ถ้ายังไม่ทราบชื่อผู้รับเหมา ใส่แค่เบอร์โทรแล้วส่งลิงก์ไปได้เลย — ผู้รับเหมาจะกรอกชื่อของตัวเองตอนเสนอราคาผ่านลิงก์','If you don’t know the contractor’s name yet, just enter a phone number and send the link -- they’ll fill in their own name when they submit their quotation')}</div>
       ${editingCjobId!=='new'? `<div class="hint" style="margin-top:6px">${tf('เพิ่มผู้รับเหมาใหม่ได้ที่นี่ แต่ไม่สามารถลบรายชื่อที่เชิญไปแล้วได้','You can invite new contractors here, but already-invited ones can’t be removed')}</div>` : ''}
       <button class="btn ghost sm" id="cjob-add-row" style="margin-top:8px">+ ${tf('เพิ่มผู้รับเหมา','Add contractor')}</button>
     </div>
@@ -10369,9 +10381,9 @@ function wireCjobModal(){
     syncCjobDraftFromDom();
     const d = cjobDraft;
     const title = d.title.trim();
-    const invited = d.invitedContractors.map(c=>({id:c.id, name:c.name.trim(), phone:c.phone.trim()})).filter(c=>c.name);
+    const invited = d.invitedContractors.map(c=>({id:c.id, name:c.name.trim(), phone:c.phone.trim()})).filter(c=>c.name || c.phone);
     if(!title){ toast(tf('กรุณาระบุชื่องาน','Please enter a job title')); return; }
-    if(!invited.length){ toast(tf('กรุณาระบุผู้รับเหมาอย่างน้อย 1 ราย','Please add at least one contractor')); return; }
+    if(!invited.length){ toast(tf('กรุณาระบุผู้รับเหมาอย่างน้อย 1 ราย (ชื่อ หรือ เบอร์โทร)','Please add at least one contractor (name or phone)')); return; }
     const keptExisting = d.existingPhotoIds.filter(id=>!d.removedPhotoIds.includes(id));
     const newIds=[]; for(const p of d.pendingPhotos){ const id=uid(); await idbPut(id,p.dataUrl); newIds.push(id); }
     const photoIds = keptExisting.concat(newIds);
@@ -10421,7 +10433,7 @@ function cjobBidRowHtml(proj, job, contractor){
   return `<div class="mini-row" style="align-items:flex-start;flex-direction:column;gap:8px">
     <div style="display:flex;justify-content:space-between;width:100%;gap:10px;flex-wrap:wrap">
       <div class="txt">
-        <span class="t1">${escapeHtml(contractor.name)}${isAwarded?' ✅':''}</span>
+        <span class="t1">${escapeHtml(cjobContractorLabel(contractor))}${isAwarded?' ✅':''}</span>
         <span class="t2">${contractor.phone?'📞 '+escapeHtml(contractor.phone)+' · ':''}${statusLabel}</span>
       </div>
       <div style="display:flex;gap:10px;align-items:center">
@@ -10556,7 +10568,7 @@ function awardCjob(job, contractorId){
     unitCost: job.awardedPrice,
     orderedBy: currentActorName(),
     status: 'ordered',
-    note: tf('สร้างอัตโนมัติจากการอนุมัติราคาใบงานจ้างเหมา “','Auto-created from contractor-job price approval “')+job.title+tf('” — ผู้รับเหมา: ','” -- contractor: ')+(contractor?contractor.name:''),
+    note: tf('สร้างอัตโนมัติจากการอนุมัติราคาใบงานจ้างเหมา “','Auto-created from contractor-job price approval “')+job.title+tf('” — ผู้รับเหมา: ','” -- contractor: ')+cjobContractorLabel(contractor),
   });
   costLogRecalcTotal(entry);
   P().costLog = P().costLog||[];
@@ -10581,7 +10593,7 @@ function wireCjobDetailModal(){
     const cid=b.dataset.cjobCopyBidlink;
     const contractor = cjobInvited(job,cid);
     const link = cjobBidLink(proj.id, job.id, cid);
-    try{ await navigator.clipboard.writeText(link); toast(tf(`คัดลอกลิงก์ของ "${contractor?contractor.name:''}" แล้ว`,`Copied "${contractor?contractor.name:''}"'s link`)); }
+    try{ await navigator.clipboard.writeText(link); toast(tf(`คัดลอกลิงก์ของ "${cjobContractorLabel(contractor)}" แล้ว`,`Copied "${cjobContractorLabel(contractor)}"'s link`)); }
     catch(err){ prompt(tf('คัดลอกลิงก์นี้เพื่อส่งให้ผู้รับเหมา:','Copy this link to share with the contractor:'), link); }
   });
   $$('[data-cjob-counter]').forEach(b=> b.onclick = ()=>{
@@ -10692,6 +10704,7 @@ function renderJobBid(){
         <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
           <button class="btn primary sm" id="jb-accept-counter">✅ ${tf('ยอมรับข้อเสนอนี้','Accept this offer')}</button>
         </div>` : ''}
+      <div class="field" style="margin-top:12px"><label>${tf('ชื่อผู้รับเหมา / บริษัทของคุณ','Your name / company')}</label><input type="text" id="jb-name" value="${escapeHtml(contractor.name||'')}" placeholder="${tf('เช่น ช่างสมชาย หรือ ชื่อร้าน/บริษัท','e.g. your name, or your shop/company name')}"></div>
       <div class="grid cols-2" style="margin-top:12px">
         <div class="field"><label>${tf('เสนอราคา (บาท)','Price (THB)')}</label><input type="number" min="0" step="1" id="jb-price" value="${bid.price!=null?bid.price:''}"></div>
         <div class="field"><label>${tf('วันที่เริ่มงาน','Start date')}</label><input type="date" id="jb-bid-start" value="${bid.startDate||''}"></div>
@@ -10739,13 +10752,21 @@ function wireJobBid(){
   if(!job) return;
   const submitBtn = $('#jb-submit-bid');
   if(submitBtn) submitBtn.onclick = ()=>{
-    const priceEl = $('#jb-price'), startEl = $('#jb-bid-start'), durEl = $('#jb-bid-duration');
+    const nameEl = $('#jb-name'), priceEl = $('#jb-price'), startEl = $('#jb-bid-start'), durEl = $('#jb-bid-duration');
+    const name = nameEl? nameEl.value.trim() : '';
+    if(!name){ toast(tf('กรุณาระบุชื่อผู้รับเหมา/บริษัทของคุณ','Please enter your name / company')); return; }
     const price = priceEl && priceEl.value!==''? Number(priceEl.value) : null;
     if(price==null || isNaN(price) || price<0){ toast(tf('กรุณาระบุราคา','Please enter a price')); return; }
     if(!startEl || !startEl.value){ toast(tf('กรุณาระบุวันที่เริ่มงาน','Please choose a start date')); return; }
     const durationDays = durEl && durEl.value!==''? parseInt(durEl.value,10) : NaN;
     if(isNaN(durationDays) || durationDays<=0){ toast(tf('กรุณาระบุจำนวนวันที่ทำที่ถูกต้อง','Please enter a valid number of working days')); return; }
     const noteEl=$('#jb-note');
+    // The contractor's own name/company, typed here at submission time, is
+    // what actually identifies them on the staff side -- it overwrites
+    // whatever placeholder (or nothing) the staff typed when inviting them,
+    // since the staff may only have had a phone number to go on.
+    const invitedRecord = cjobInvited(job, cid);
+    if(invitedRecord) invitedRecord.name = name;
     let bid = cjobBidFor(job, cid);
     if(!bid){ bid=newCjobBid(cid); job.bids.push(bid); }
     bid.price=price; bid.startDate=startEl.value; bid.durationDays=durationDays; bid.note=noteEl?noteEl.value.trim():''; bid.status='pending';
