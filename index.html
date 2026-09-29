@@ -321,6 +321,16 @@ main{flex:1;width:100%;max-width:1180px;margin:0 auto;padding:22px 18px 64px;}
 .grid.cols-auto{grid-template-columns:repeat(auto-fit,minmax(240px,1fr))}
 .grid.cols-2{grid-template-columns:repeat(auto-fit,minmax(300px,1fr))}
 .grid.cols-proj{grid-template-columns:repeat(auto-fit,minmax(290px,1fr))}
+/* Dashboard top section: the 4 KPI cards as a 2x2 block on the left, the
+   forecast + S-Curve cards stacked on the right, side by side instead of
+   everything stacked full-width top to bottom. Below ~900px there usually
+   isn't room for two side-by-side columns without squeezing either the KPI
+   grid or the S-Curve too narrow to read, so it drops back to one column
+   (KPIs first, then forecast/S-Curve) same as every other two-column layout
+   in this app. */
+.dash-top-grid{display:grid;grid-template-columns:1fr 1.3fr;gap:16px;align-items:stretch}
+.dash-top-grid>div{display:flex;flex-direction:column;gap:16px}
+@media(max-width:900px){.dash-top-grid{grid-template-columns:1fr}}
 .field{display:flex;flex-direction:column;gap:6px}
 .field label{font-size:12.5px;font-weight:600;color:var(--ink-700)}
 .field .hint{font-size:11.5px;color:var(--ink-300);font-weight:400}
@@ -9920,26 +9930,32 @@ function renderDashboard(){
 
   return `
   <div class="page-head"><div><h2>${tf('แดชบอร์ดวิเคราะห์โปรเจกต์','Project Analytics Dashboard')}</h2><div class="sub">${tf('อัปเดตล่าสุด','Last updated')} ${fmtDate(asOf)}</div></div></div>
-  <div class="grid cols-auto">
-    <div class="card kpi"><div class="stat"><span class="lbl">${tf('ความคืบหน้าตามแผน','Planned progress')}</span><span class="num">${fmtNum(summary.plannedPct,1)}%</span></div></div>
-    <div class="card kpi"><div class="stat"><span class="lbl">${tf('ความคืบหน้าจริง','Actual progress')}</span><span class="num" style="color:${summary.delta>=0?'var(--mint-600)':'var(--coral-600)'}">${fmtNum(summary.actualPct,1)}%</span></div></div>
-    <div class="card kpi"><div class="stat"><span class="lbl">${tf('ส่วนต่างสะสม','Cumulative delta')}</span><span class="num" style="color:${summary.delta>=0?'var(--mint-600)':'var(--coral-600)'}">${summary.delta>=0?'+':''}${fmtNum(summary.delta,1)}%</span></div></div>
-    <div class="card kpi"><div class="stat"><span class="lbl">${tf('กำหนดส่งมอบตามสัญญา','Contract deadline')}</span><span class="num" style="font-size:16px">${fmtDate(summary.contractEnd)}</span></div></div>
-  </div>
-  <div class="card" style="border-color:${summary.delayDays>0?'var(--coral-500)':summary.delayDays<0?'var(--mint-500)':'var(--line)'};background:${summary.delayDays>0?'var(--coral-50)':summary.delayDays<0?'var(--mint-50)':'var(--surface)'}">
-    <b style="font-family:var(--font-display)">🔮 ${tf('ระบบคาดการณ์วันเสร็จสิ้น','Completion date forecast')}</b>
-    <p style="margin-top:8px;font-size:14px">
-    ${!summary.anyPrediction ? tf('ยังไม่มีข้อมูลเพียงพอสำหรับคาดการณ์','Not enough data yet to forecast') :
-      summary.delayDays>0 ? tf('โปรเจกต์นี้มีแนวโน้ม','This project trends')+`<b style="color:var(--coral-600)">`+tf('ล่าช้ากว่าสัญญา ','behind contract by ')+summary.delayDays+tf(' วัน',' day(s)')+`</b> `+tf('คาดว่าจะเสร็จจริงวันที่','estimated finish date')+` <b class="tabular">${fmtDate(summary.predictedEnd)}</b>` :
-      summary.delayDays<0 ? tf('โปรเจกต์นี้มีแนวโน้ม','This project trends')+`<b style="color:var(--mint-600)">`+tf('เร็วกว่าสัญญา ','ahead of contract by ')+Math.abs(summary.delayDays)+tf(' วัน',' day(s)')+`</b> `+tf('คาดว่าจะเสร็จจริงวันที่','estimated finish date')+` <b class="tabular">${fmtDate(summary.predictedEnd)}</b>` :
-      tf('โปรเจกต์นี้มีแนวโน้ม','This project trends')+`<b>`+tf('ตรงตามสัญญา','on schedule')+`</b> `+tf('คาดว่าจะเสร็จจริงวันที่','estimated finish date')+` <b class="tabular">${fmtDate(summary.predictedEnd)}</b>`}
-    </p>
-    <p class="sub" style="margin-top:4px">${tf('คำนวณจากความเร็วเฉลี่ยการทำงานจริง (Actual Burn Rate) ของแต่ละรายการ เทียบกับปริมาณงานคงเหลือ','Calculated from each item’s actual average burn rate compared with its remaining quantity.')}</p>
-  </div>
-  <div class="card">
-    <b style="font-family:var(--font-display)">${tf('S-Curve เปรียบเทียบแผนกับความจริง','S-Curve: Planned vs. Actual')}</b>
-    <div class="legend" style="margin:10px 0 6px"><span><i style="background:var(--purple-600)"></i>${tf('แผนงาน (Planned)','Planned')}</span><span><i style="background:var(--mint-500)"></i>${tf('ผลงานจริง (Actual)','Actual')}</span></div>
-    ${curve.svg}
+  <div class="dash-top-grid">
+    <div>
+      <div class="grid cols-2">
+        <div class="card kpi"><div class="stat"><span class="lbl">${tf('ความคืบหน้าตามแผน','Planned progress')}</span><span class="num">${fmtNum(summary.plannedPct,1)}%</span></div></div>
+        <div class="card kpi"><div class="stat"><span class="lbl">${tf('ความคืบหน้าจริง','Actual progress')}</span><span class="num" style="color:${summary.delta>=0?'var(--mint-600)':'var(--coral-600)'}">${fmtNum(summary.actualPct,1)}%</span></div></div>
+        <div class="card kpi"><div class="stat"><span class="lbl">${tf('ส่วนต่างสะสม','Cumulative delta')}</span><span class="num" style="color:${summary.delta>=0?'var(--mint-600)':'var(--coral-600)'}">${summary.delta>=0?'+':''}${fmtNum(summary.delta,1)}%</span></div></div>
+        <div class="card kpi"><div class="stat"><span class="lbl">${tf('กำหนดส่งมอบตามสัญญา','Contract deadline')}</span><span class="num" style="font-size:16px">${fmtDate(summary.contractEnd)}</span></div></div>
+      </div>
+    </div>
+    <div>
+      <div class="card" style="border-color:${summary.delayDays>0?'var(--coral-500)':summary.delayDays<0?'var(--mint-500)':'var(--line)'};background:${summary.delayDays>0?'var(--coral-50)':summary.delayDays<0?'var(--mint-50)':'var(--surface)'}">
+        <b style="font-family:var(--font-display)">🔮 ${tf('ระบบคาดการณ์วันเสร็จสิ้น','Completion date forecast')}</b>
+        <p style="margin-top:8px;font-size:14px">
+        ${!summary.anyPrediction ? tf('ยังไม่มีข้อมูลเพียงพอสำหรับคาดการณ์','Not enough data yet to forecast') :
+          summary.delayDays>0 ? tf('โปรเจกต์นี้มีแนวโน้ม','This project trends')+`<b style="color:var(--coral-600)">`+tf('ล่าช้ากว่าสัญญา ','behind contract by ')+summary.delayDays+tf(' วัน',' day(s)')+`</b> `+tf('คาดว่าจะเสร็จจริงวันที่','estimated finish date')+` <b class="tabular">${fmtDate(summary.predictedEnd)}</b>` :
+          summary.delayDays<0 ? tf('โปรเจกต์นี้มีแนวโน้ม','This project trends')+`<b style="color:var(--mint-600)">`+tf('เร็วกว่าสัญญา ','ahead of contract by ')+Math.abs(summary.delayDays)+tf(' วัน',' day(s)')+`</b> `+tf('คาดว่าจะเสร็จจริงวันที่','estimated finish date')+` <b class="tabular">${fmtDate(summary.predictedEnd)}</b>` :
+          tf('โปรเจกต์นี้มีแนวโน้ม','This project trends')+`<b>`+tf('ตรงตามสัญญา','on schedule')+`</b> `+tf('คาดว่าจะเสร็จจริงวันที่','estimated finish date')+` <b class="tabular">${fmtDate(summary.predictedEnd)}</b>`}
+        </p>
+        <p class="sub" style="margin-top:4px">${tf('คำนวณจากความเร็วเฉลี่ยการทำงานจริง (Actual Burn Rate) ของแต่ละรายการ เทียบกับปริมาณงานคงเหลือ','Calculated from each item’s actual average burn rate compared with its remaining quantity.')}</p>
+      </div>
+      <div class="card">
+        <b style="font-family:var(--font-display)">${tf('S-Curve เปรียบเทียบแผนกับความจริง','S-Curve: Planned vs. Actual')}</b>
+        <div class="legend" style="margin:10px 0 6px"><span><i style="background:var(--purple-600)"></i>${tf('แผนงาน (Planned)','Planned')}</span><span><i style="background:var(--mint-500)"></i>${tf('ผลงานจริง (Actual)','Actual')}</span></div>
+        ${curve.svg}
+      </div>
+    </div>
   </div>
   <div class="page-head"><div><h3 style="font-size:16px">${tf('สถานะรายรายการ','Item-level status')}</h3><div class="sub">${tf('แบ่งเป็น 3 สถานะ แล้วจัดกลุ่มย่อยตามหมวดงานในแต่ละสถานะ · กดที่รายการเพื่อแก้ไข','Split into 3 status columns, each grouped by work category -- tap an item to edit it')}</div></div></div>
   <div class="card kanban-card"><div class="kanban kanban-3col">${kanbanColsHtml}</div></div>
