@@ -869,7 +869,7 @@ select.pp-status-select.pp-noneed{background:var(--surface-2);color:var(--ink-50
    screen without needing a horizontal scrollbar. Each status bucket table
    also gets its own bounded height + sticky header (like .bud-wrap), since
    the "not started" bucket in particular can run to 50+ rows. */
-.dash-wrap{width:100vw;margin-left:calc(50% - 50vw);margin-right:calc(50% - 50vw);box-sizing:border-box;padding-left:18px;padding-right:18px;max-height:calc(100vh - 260px);overflow-y:auto}
+.dash-wrap{width:100vw;margin-left:calc(50% - 50vw);margin-right:calc(50% - 50vw);margin-top:0;margin-bottom:14px;box-sizing:border-box;padding-left:18px;padding-right:18px;max-height:calc(100vh - 260px);overflow-y:auto}
 .dash-table{table-layout:fixed;width:100%}
 .dash-table thead th{position:sticky;top:0;z-index:5}
 .dash-table th,.dash-table td{padding:7px 8px;font-size:12px}
@@ -9919,6 +9919,12 @@ function renderDashboard(){
     {key:'bad', icon:'🔴', cls:'bad', label: tf('ล่าช้ากว่าแผน','Behind plan')},
     {key:'idle', icon:'⏳', cls:'idle', label: tf('ยังไม่เริ่ม','Not started')},
   ];
+  // The section header lives in its own .card (normal, centered width), but
+  // the table itself is a TOP-LEVEL sibling right after it, never nested
+  // inside a .card -- a .card's own padding breaks the full-bleed
+  // calc(50% - 50vw) breakout trick used by .dash-wrap (it only measures out
+  // correctly from a direct child of main), exactly like .bud-wrap/.pp-wrap
+  // are never nested inside a card either.
   const statusSectionsHtml = STATUS_SECTIONS.map(s=>{
     const items = statusBuckets[s.key];
     return `<div class="card" style="margin-top:14px">
@@ -9926,8 +9932,8 @@ function renderDashboard(){
         <b style="font-family:var(--font-display)">${s.icon} ${s.label}</b>
         <span class="badge ${s.cls}">${items.length} ${tf('รายการ','items')}</span>
       </div>
-      <div style="margin-top:10px">${dashboardItemStatusTableHtml(items, asOf, proj.logs)}</div>
-    </div>`;
+    </div>
+    ${dashboardItemStatusTableHtml(items, asOf, proj.logs)}`;
   }).join('');
 
   const curve = buildSCurve(asOf);
