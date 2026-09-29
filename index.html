@@ -10679,7 +10679,9 @@ function renderJobBid(){
   const isWinner = job.awardedContractorId === cid;
   const isLoser = job.status!=='open_bidding' && job.awardedContractorId && job.awardedContractorId!==cid;
   let sections = `<div class="card">
-    <div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start">
+    <div class="meta-lbl">${tf('โครงการ','Project')}</div>
+    <div style="font-family:var(--font-display);font-weight:700;font-size:21px;line-height:1.25;margin-top:2px">${escapeHtml(proj.name||tf('(ไม่มีชื่อโปรเจ็ค)','(untitled project)'))}</div>
+    <div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start;margin-top:12px">
       <b style="font-family:var(--font-display);font-size:16px">${escapeHtml(job.title)}</b>
       <span class="badge ${cjobStatusDef(job.status).cls}">${cjobStatusLabel(job.status)}</span>
     </div>
