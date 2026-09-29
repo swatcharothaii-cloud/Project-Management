@@ -4098,7 +4098,7 @@ let state = {
 // P() = the project currently open (state.view==='project'). Falls back to an
 // empty stub so calls made outside a project context never throw.
 function P(){
-  return state.projects.find(p=>p.id===state.currentProjectId) || {id:null,name:'',zone:'',boq:[],logs:[],materialRequests:[],costLog:[]};
+  return state.projects.find(p=>p.id===state.currentProjectId) || {id:null,name:'',zone:'',boq:[],logs:[],materialRequests:[],costLog:[],contractorJobs:[]};
 }
 
 // Field-worker restricted link: opening the app with #field&project=<id> in the
@@ -4160,6 +4160,29 @@ function approverInboxNameFromHash(){
 }
 function approverInboxLink(projectId, approverName){
   return location.origin + location.pathname + location.search + '#approve-inbox&project=' + encodeURIComponent(projectId) + '&approver=' + encodeURIComponent(approverName);
+}
+// Contractor job (RFQ) bid link: opening the app with
+// #job-bid&project=<id>&job=<jobId>&contractor=<contractorId> locks the
+// whole UI to a single job card for one invited contractor -- no other tab,
+// no other job, no other project reachable, and none of the staff-side
+// chrome (lang/role switches, other nav) shows up. This is the no-login
+// "personal link per job" access mechanism for the Contractor Job (RFQ)
+// workflow (see CONTRACTOR JOB (RFQ) WORKFLOW below): each invited
+// contractor gets their own link (copy-link button on the job detail
+// screen) instead of a shared login, mirroring how FIELD_MODE/
+// APPROVER_INBOX_MODE hand external or single-purpose access to people who
+// never sign into the app. Unlike APPROVER_INBOX_MODE (which just filters
+// an otherwise-normal Purchasing screen), this is a fully restricted mode
+// like FIELD_MODE, since a job can be sent to *multiple* contractors at
+// once and each of them must only ever see/act on their own bid.
+const JOB_BID_MODE = !FIELD_MODE && location.hash.replace('#','').split('&').includes('job-bid');
+function jobBidParamsFromHash(){
+  const parts = location.hash.replace('#','').split('&');
+  const get = (key)=>{ const m = parts.find(s=> s.indexOf(key+'=')===0); return m ? decodeURIComponent(m.slice(key.length+1)) : null; };
+  return { project:get('project'), job:get('job'), contractor:get('contractor') };
+}
+function cjobBidLink(projectId, jobId, contractorId){
+  return location.origin + location.pathname + location.search + '#job-bid&project=' + encodeURIComponent(projectId) + '&job=' + encodeURIComponent(jobId) + '&contractor=' + encodeURIComponent(contractorId);
 }
 const ROLE_LABEL = {
   site: tf('ผู้รับเหมาหน้างาน / ทีมงาน','Site contractor / crew'),
@@ -4290,6 +4313,14 @@ function bootstrap(){
     state.projects.forEach(p=>{ if(!Array.isArray(p.costLog)){ p.costLog=[]; addedCostLog=true; } });
     if(addedCostLog) saveData();
   }
+  // migration: contractorJobs (the Contractor Job / RFQ workflow) shipped
+  // after some installs already had saved projects -- same backfill pattern
+  // as costLog above, so every P().contractorJobs read/push is always safe.
+  {
+    let addedCjobs=false;
+    state.projects.forEach(p=>{ if(!Array.isArray(p.contractorJobs)){ p.contractorJobs=[]; addedCjobs=true; } });
+    if(addedCjobs) saveData();
+  }
   // price backfill: BOQ items for the Richmond project were originally
   // seeded before itemCode/unitPrice existed as fields, so installs with
   // data saved before those fields shipped are missing them on every item.
@@ -4384,6 +4415,15 @@ function bootstrap(){
     const pid = fieldProjectIdFromHash();
     const proj = state.projects.find(p=>p.id===pid);
     if(proj){ state.currentProjectId = proj.id; state.view='project'; state.tab='procure'; }
+  } else if(JOB_BID_MODE){
+    // Contractor job bid link: jump straight into the single-job restricted
+    // view. renderJobBid() (see CONTRACTOR JOB (RFQ) WORKFLOW below) reads
+    // JOB_BID_MODE/jobBidParamsFromHash() itself to resolve exactly which
+    // job+contractor this link is for, so nothing else needs to be set here
+    // beyond opening the right project.
+    const {project:pid} = jobBidParamsFromHash();
+    const proj = state.projects.find(p=>p.id===pid);
+    if(proj){ state.currentProjectId = proj.id; state.view='project'; state.tab='contractorjobs'; }
   }
 }
 
@@ -4479,6 +4519,7 @@ const TABS = [
   {id:'masterplan',label:tf('แผนงานหลัก','Master Plan'),ic:'📋'},
   {id:'procure',label:tf('จัดซื้อวัสดุ','Procurement'),ic:'🛒'},
   {id:'purchaseplan',label:tf('แผนสั่งของ','Purchasing Plan'),ic:'📦'},
+  {id:'contractorjobs',label:tf('งานจ้างเหมา','Contractor Jobs'),ic:'👷'},
   {id:'costlog',label:tf('บันทึกต้นทุนจัดซื้อ','Cost Log'),ic:'🧾'},
   {id:'budget',label:tf('งบประมาณ','Budget'),ic:'💰'},
   {id:'billing',label:tf('เบิกเงินงวด','Billing'),ic:'💵'},
@@ -4539,6 +4580,8 @@ function renderModalRoot(){
   if(projectDraft) return projectModalHtml();
   if(contractorDraft) return contractorModalHtml();
   if(contractorHistoryId) return contractorHistoryModalHtml();
+  if(cjobDraft) return cjobModalHtml();
+  if(cjobDetailId) return cjobDetailModalHtml();
   if(historyModalOpen) return historyModalHtml();
   if(editingInspectionId){
     const proj = state.projects.find(p=>p.id===inspectionProjectId);
@@ -4548,7 +4591,7 @@ function renderModalRoot(){
 }
 
 function renderTopbar(){
-  const inProject = state.view==='project' && !FIELD_MODE;
+  const inProject = state.view==='project' && !FIELD_MODE && !JOB_BID_MODE;
   let pillHtml='';
   if(inProject){
     const proj = P();
@@ -4572,11 +4615,11 @@ function renderTopbar(){
       </div>
     </div>
     <div class="spacer"></div>
-    ${FIELD_MODE? '' : `<div class="lang-switch">
+    ${(FIELD_MODE||JOB_BID_MODE)? '' : `<div class="lang-switch">
       <button data-lang="th" class="${state.lang==='th'?'active':''}">ไทย</button>
       <button data-lang="en" class="${state.lang==='en'?'active':''}">EN</button>
     </div>`}
-    ${FIELD_MODE? '' : `<div class="role-switch">
+    ${(FIELD_MODE||JOB_BID_MODE)? '' : `<div class="role-switch">
       <button data-role="site" class="${state.role==='site'?'active':''}">${tf('หน้างาน','Site')}</button>
       <button data-role="pm" class="${state.role==='pm'?'active':''}">PM</button>
       <button data-role="procurement" class="${state.role==='procurement'?'active':''}">${tf('จัดซื้อ','Buy')}</button>
@@ -4592,6 +4635,9 @@ function renderTabbar(){
       <button class="tabbtn ${state.tab==='procure'?'active':''}" data-nav="procure"><span class="ic">🛒</span>${tf('สั่งของ','Order materials')}</button>
     </nav>`;
   }
+  if(JOB_BID_MODE){
+    return `<nav class="tabbar"><button class="tabbtn active" data-nav="contractorjobs"><span class="ic">👷</span>${tf('ใบงานของฉัน','My job')}</button></nav>`;
+  }
   if(state.view==='project'){
     return `<nav class="tabbar">
       <button class="tabbtn back" data-back-hub><span class="ic">←</span>${tf('โปรเจ็คทั้งหมด','All projects')}</button>
@@ -4604,6 +4650,7 @@ function renderTabbar(){
 }
 
 function renderScreen(){
+  if(JOB_BID_MODE) return renderJobBid();
   if(FIELD_MODE){
     if(!state.currentProjectId) return `<div class="empty"><span class="ic">🔗</span>${tf('ไม่พบโปรเจ็คสำหรับลิงก์นี้ กรุณาขอลิงก์ใหม่จากผู้ดูแลโปรเจ็ค','This link is not linked to any project. Please ask the project owner for a new link.')}</div>`;
     if(state.tab==='procure') return renderProcure();
@@ -4620,6 +4667,7 @@ function renderScreen(){
     case 'dailylog': return renderDailyLog();
     case 'procure': return renderProcure();
     case 'purchaseplan': return renderPurchasePlan();
+    case 'contractorjobs': return renderContractorJobs();
     case 'costlog': return renderCostLog();
     case 'budget': return renderBudget();
     case 'billing': return renderBilling();
@@ -4643,6 +4691,7 @@ function resetTransient(){
   costLogStatusFilter='all'; costLogView='menu'; costLogCategory='';
   editingInspectionId=null; inspectionDraft=null;
   billingPickerRowId=null; billingPickerFiles=null; billingPickerLoading=false; billingPickerError='';
+  cjobDraft=null; editingCjobId=null; cjobDetailId=null; cjobHandoverPending=[];
 }
 function goToHub(){
   resetTransient();
@@ -4681,6 +4730,8 @@ function wireGlobal(){
   wireContractorHistoryModal();
   wireHistoryModal();
   wireInspectionEditorModal();
+  wireCjobModal();
+  wireCjobDetailModal();
 }
 
 /* ============================= SCREEN: HUB (ALL PROJECTS) ============================= */
@@ -5215,7 +5266,7 @@ function wireProjectModal(){
     if(!name){ toast(tf('กรุณาระบุชื่อโครงการ','Please enter a project name')); return; }
     if(editingProjectId==='new'){
       const importedBoq = buildBoqFromImport();
-      state.projects.push({id:uid(), name, zone, groupName, driveFolderId, driveSyncedFileIds:[], billingFolderId, paymentFolderId, billingMilestones:[], boq:importedBoq, logs:[], materialRequests:[], costLog:[], inspectionReports:[], createdAt:new Date().toISOString()});
+      state.projects.push({id:uid(), name, zone, groupName, driveFolderId, driveSyncedFileIds:[], billingFolderId, paymentFolderId, billingMilestones:[], boq:importedBoq, logs:[], materialRequests:[], costLog:[], inspectionReports:[], contractorJobs:[], createdAt:new Date().toISOString()});
       saveData(); closeProjectModal();
       toast(importedBoq.length? tf('สร้างโปรเจ็คใหม่แล้ว พร้อม BOQ ','Project created with a BOQ of ')+importedBoq.length+tf(' รายการ',' items') : tf('สร้างโปรเจ็คใหม่แล้ว','Project created'));
     } else {
@@ -10072,8 +10123,651 @@ async function exportReportAsImage(){
   }
 }
 
+/* ============================= CONTRACTOR JOB (RFQ) WORKFLOW ============================= */
+// A brand-new, fully independent system for hiring outside contractors on a
+// per-job, competitive-bid basis -- deliberately NOT built on top of the
+// existing "ข้อมูลผู้รับเหมา" (Contractor Roster, state.contractors) or
+// "ใบตรวจงาน" (Inspection Report, proj.inspectionReports) modules, per an
+// explicit choice to keep this a separate tool rather than extend those:
+// each job's invited contractors are typed fresh on that job (name+phone),
+// not drawn from the shared roster, and the pass/fail handover check here is
+// its own lightweight step rather than the roster's full sign-off document.
+// It still reuses the app's existing photo-attach pattern (compressImage/
+// idbPut, the same existingPhotoIds/pendingPhotos/removedPhotoIds shape used
+// by itemDraft above) and, on price award, auto-creates a proj.costLog entry
+// via newCostLogEntry() so the cost shows up in Budget/Cost Log immediately.
+//
+// Lifecycle (proj.contractorJobs[] item, one per job card), matching the
+// user's 5-phase spec:
+//   open_bidding          Phase 1: invited contractors are bidding/negotiating
+//   awarded                Phase 1 done -> Phase 2: price approved + cost
+//                           logged; contractor is expected on site from
+//                           startDate. cjobAlertStatus() below flags
+//                           overdue/due-soon against startDate+durationDays
+//                           the whole time the job sits in this state.
+//   inspection_proposed    Phase 3 step 1: contractor proposed a date
+//   inspection_confirmed   Phase 3 step 2: staff locked the date
+//   handover_submitted     Phase 4 step 1: contractor submitted handover photos
+//   handover_failed        Phase 4 step 2 (fail path): sent back -- contractor
+//                           can resubmit, which returns to handover_submitted
+//   handover_passed        Phase 4 step 2 (pass path): forwarded to management
+//   final_approved         Phase 5 step 2: management signed off
+//   paid                   Phase 5 step 3: accounting marked payout sent -- done
+//   cancelled               job called off at any point before paid
+//
+// External access: each invited contractor gets their own no-login link
+// (#job-bid&project=<id>&job=<jobId>&contractor=<contractorId>, see
+// JOB_BID_MODE/cjobBidLink() near the top of the file) -- the same kind of
+// personal, bookmarkable, restricted link as APPROVER_INBOX_MODE/FIELD_MODE,
+// but locked to one job for one contractor rather than filtered to one
+// approver's inbox, since a job can be sent to *multiple* contractors at
+// once (RFQ) and each of them must only ever see/act on their own bid.
+const CJOB_STATUS = [
+  {v:'open_bidding', th:'เปิดรับใบเสนอราคา', en:'Open for bidding', cls:'idle'},
+  {v:'awarded', th:'อนุมัติราคาแล้ว / กำลังดำเนินงาน', en:'Price approved / in progress', cls:'ok'},
+  {v:'inspection_proposed', th:'ผู้รับเหมาเสนอวันนัดตรวจงาน', en:'Contractor proposed inspection date', cls:'warn'},
+  {v:'inspection_confirmed', th:'ยืนยันวันนัดตรวจงานแล้ว', en:'Inspection date confirmed', cls:'ok'},
+  {v:'handover_submitted', th:'ส่งมอบงานแล้ว รอตรวจหน้างาน', en:'Handed over, awaiting on-site check', cls:'warn'},
+  {v:'handover_failed', th:'ตรวจไม่ผ่าน ส่งกลับให้แก้ไข', en:'Failed inspection, sent back', cls:'bad'},
+  {v:'handover_passed', th:'ตรวจผ่าน รอผู้บริหารอนุมัติ', en:'Passed, awaiting final approval', cls:'ok'},
+  {v:'final_approved', th:'อนุมัติสุดท้ายแล้ว รอเบิกเงิน', en:'Final approved, awaiting payout', cls:'ok'},
+  {v:'paid', th:'เบิกเงินเรียบร้อย ✅', en:'Paid ✅', cls:'ok'},
+  {v:'cancelled', th:'ยกเลิก', en:'Cancelled', cls:'bad'},
+];
+function cjobStatusDef(v){ return CJOB_STATUS.find(s=>s.v===v) || CJOB_STATUS[0]; }
+function cjobStatusLabel(v){ const s=cjobStatusDef(v); return tf(s.th,s.en); }
+const CJOB_BID_STATUS = {
+  pending: {th:'รอพิจารณา', en:'Pending review'},
+  countered: {th:'ต่อรองราคา (รอผู้รับเหมาตอบ)', en:'Countered (awaiting contractor)'},
+  accepted: {th:'ตกลงราคาแล้ว', en:'Price agreed'},
+  awarded: {th:'ได้รับเลือก', en:'Awarded'},
+  rejected: {th:'ไม่ได้รับเลือก', en:'Not selected'},
+};
+function cjobBidStatusLabel(v){ const s=CJOB_BID_STATUS[v]||CJOB_BID_STATUS.pending; return tf(s.th,s.en); }
+function newContractorJob(){
+  return {id:uid(), createdAt:new Date().toISOString(), createdBy:currentActorName(),
+    title:'', description:'', photoIds:[],
+    startDate:'', durationDays:'',
+    invitedContractors:[], // [{id,name,phone}] -- typed fresh per job, not the shared roster
+    bids:[], // one entry per invited contractor, see newCjobBid()
+    status:'open_bidding',
+    awardedContractorId:null, awardedPrice:null, awardedAt:'', awardedBy:'',
+    costLogEntryId:null,
+    inspection:{proposedDate:'', proposedAt:'', proposedBy:'', confirmedDate:'', confirmedAt:'', confirmedBy:''},
+    handover:{photoIds:[], note:'', submittedAt:'', reviewPass:null, reviewNote:'', reviewedAt:'', reviewedBy:''},
+    finalApproval:{approved:false, approvedBy:'', approvedAt:'', note:''},
+    payout:{sent:false, sentAt:'', sentBy:'', note:''},
+  };
+}
+function newCjobBid(contractorId){
+  return {contractorId, price:null, note:'', status:'pending', thread:[]};
+}
+function cjobBidFor(job, contractorId){ return (job.bids||[]).find(b=>b.contractorId===contractorId); }
+function cjobInvited(job, contractorId){ return (job.invitedContractors||[]).find(c=>c.id===contractorId); }
+// Lowest currently-standing price across all bids that have a number in them
+// yet -- shown on the job-list card as a quick at-a-glance figure while
+// bidding is still open.
+function cjobLowestBid(job){
+  const prices = (job.bids||[]).map(b=>b.price).filter(p=>p!=null && p!=='' && !isNaN(p)).map(Number);
+  return prices.length? Math.min(...prices) : null;
+}
+function cjobDueDate(job){
+  if(!job.startDate || job.durationDays==null || job.durationDays==='') return null;
+  return addDays(job.startDate, Math.max(Number(job.durationDays)||0,0));
+}
+// "ระบบติดตามสถานะและแจ้งเตือนเมื่อใกล้ครบกำหนดจำนวนวันทำงาน" (Phase 2) --
+// same overdue/due-soon convention as ppAlertStatus() above (3-day window),
+// only meaningful once work is actually supposed to be underway and before
+// the contractor has handed anything over yet.
+function cjobAlertStatus(job){
+  if(!['awarded','inspection_proposed','inspection_confirmed'].includes(job.status)) return '';
+  const due = cjobDueDate(job);
+  if(!due) return '';
+  const today = todayStr();
+  if(due<today) return 'overdue';
+  if(daysBetween(today,due)<=3) return 'duesoon';
+  return '';
+}
+function cjobPhotoGalleryHtml(photoIds){
+  if(!photoIds || !photoIds.length) return '';
+  return `<div class="photo-grid" style="margin-top:10px">${photoIds.map(id=>`<div class="photo-item"><img data-thumb-id="${id}" alt=""></div>`).join('')}</div>`;
+}
+
+/* ---- Staff side: job list (project tab "งานจ้างเหมา") ---- */
+function renderContractorJobs(proj=P()){
+  const jobs = (proj.contractorJobs||[]).slice().sort((a,b)=> (b.createdAt||'').localeCompare(a.createdAt||''));
+  const cards = jobs.length? jobs.map(cjobCardHtml).join('') : `<div class="empty"><span class="ic">👷</span>${tf('ยังไม่มีใบงานจ้างเหมา — กด “เปิดใบงานใหม่” เพื่อเริ่มส่งงานให้ผู้รับเหมาประมูลราคา','No contractor jobs yet -- tap “New job” to start sending work out for contractors to bid on')}</div>`;
+  return `
+  <div class="page-head">
+    <div><h2>👷 ${tf('งานจ้างเหมา (RFQ)','Contractor Jobs (RFQ)')}</h2><div class="sub">${tf('เปิดใบงาน ส่งให้ผู้รับเหมาหลายคนเสนอราคา ต่อรอง อนุมัติ ไปจนถึงนัดตรวจงานและเบิกเงิน','Post a job, invite several contractors to bid, negotiate, approve, then track inspection through to payout')}</div></div>
+    <button class="btn primary" id="btn-add-cjob">+ ${tf('เปิดใบงานใหม่','New job')}</button>
+  </div>
+  ${cards}
+  `;
+}
+function cjobCardHtml(job){
+  const alert = cjobAlertStatus(job);
+  const sdef = cjobStatusDef(job.status);
+  const lowest = cjobLowestBid(job);
+  const bidCount = (job.invitedContractors||[]).length;
+  const due = cjobDueDate(job);
+  return `<div class="card" data-cjob-open="${job.id}" style="cursor:pointer">
+    <div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start">
+      <b style="font-family:var(--font-display);font-size:15px">${escapeHtml(job.title||tf('(ไม่มีชื่องาน)','(untitled job)'))}</b>
+      <span class="badge ${sdef.cls}">${cjobStatusLabel(job.status)}</span>
+    </div>
+    ${job.description? `<div class="sub" style="margin-top:6px">${escapeHtml(job.description.slice(0,120))}${job.description.length>120?'…':''}</div>` : ''}
+    <div style="display:flex;flex-wrap:wrap;gap:10px 22px;margin-top:12px">
+      <div><div class="meta-lbl">${tf('ผู้รับเหมาที่เชิญ','Invited')}</div><b class="tabular">${bidCount}</b></div>
+      <div><div class="meta-lbl">${tf('ราคาต่ำสุดที่เสนอ','Lowest bid')}</div><b class="tabular">${lowest!=null? '฿'+fmtNum(lowest,0) : '-'}</b></div>
+      ${job.awardedPrice!=null? `<div><div class="meta-lbl">${tf('ราคาที่อนุมัติ','Awarded price')}</div><b class="tabular">฿${fmtNum(job.awardedPrice,0)}</b></div>` : ''}
+      <div><div class="meta-lbl">${tf('วันเริ่มงาน','Start date')}</div><b class="tabular">${job.startDate? fmtDate(job.startDate) : '-'}</b></div>
+      ${due? `<div><div class="meta-lbl">${tf('กำหนดเสร็จ','Due')}</div><b class="tabular">${fmtDate(due)}</b></div>` : ''}
+    </div>
+    ${alert? `<div style="margin-top:8px"><span class="badge ${alert==='overdue'?'bad':'warn'}">⏰ ${alert==='overdue'? tf('เลยกำหนดจำนวนวันทำงานแล้ว','Past the working-day deadline') : tf('ใกล้ครบกำหนดจำนวนวันทำงาน','Nearing the working-day deadline')}</span></div>` : ''}
+  </div>`;
+}
+function wireContractorJobs(){
+  const addBtn=$('#btn-add-cjob'); if(addBtn) addBtn.onclick=()=>{ openCjobDraft('new'); render(); };
+  $$('[data-cjob-open]').forEach(el=> el.onclick = ()=>{ cjobDetailId = el.dataset.cjobOpen; render(); });
+}
+
+/* ---- Staff side: create/edit job modal ---- */
+let cjobDraft=null, editingCjobId=null;
+function openCjobDraft(id){
+  if(id==='new'){
+    cjobDraft = {title:'', description:'', startDate:todayStr(), durationDays:'',
+      invitedContractors:[{id:uid(),name:'',phone:''}],
+      existingPhotoIds:[], pendingPhotos:[], removedPhotoIds:[]};
+  } else {
+    const job = P().contractorJobs.find(j=>j.id===id);
+    if(!job) return;
+    cjobDraft = {title:job.title, description:job.description||'', startDate:job.startDate||todayStr(), durationDays:job.durationDays==null?'':job.durationDays,
+      invitedContractors: (job.invitedContractors||[]).map(c=>({id:c.id,name:c.name,phone:c.phone||''})),
+      existingPhotoIds:(job.photoIds||[]).slice(), pendingPhotos:[], removedPhotoIds:[]};
+  }
+  editingCjobId = id;
+}
+function syncCjobDraftFromDom(){
+  if(!cjobDraft) return;
+  const g=(sel)=>{ const el=$(sel); return el?el.value:undefined; };
+  const title=g('#cjob-title'); if(title!==undefined) cjobDraft.title=title;
+  const desc=g('#cjob-desc'); if(desc!==undefined) cjobDraft.description=desc;
+  const sd=g('#cjob-start'); if(sd!==undefined) cjobDraft.startDate=sd;
+  const dur=g('#cjob-duration'); if(dur!==undefined) cjobDraft.durationDays=dur;
+  $$('[data-cjob-row]').forEach(row=>{
+    const idx = Number(row.dataset.cjobRow);
+    const nameEl = row.querySelector('[data-cjob-field="name"]');
+    const phoneEl = row.querySelector('[data-cjob-field="phone"]');
+    if(cjobDraft.invitedContractors[idx]){
+      if(nameEl) cjobDraft.invitedContractors[idx].name = nameEl.value;
+      if(phoneEl) cjobDraft.invitedContractors[idx].phone = phoneEl.value;
+    }
+  });
+}
+function cjobModalHtml(){
+  if(!cjobDraft) return '';
+  const d = cjobDraft;
+  const existingIds = d.existingPhotoIds.filter(id=>!d.removedPhotoIds.includes(id));
+  const existingThumbs = existingIds.map(id=>`<div class="photo-item"><img data-thumb-id="${id}" alt=""><button class="rm" data-cjob-rm-existing-photo="${id}">✕</button></div>`).join('');
+  const pendingThumbs = d.pendingPhotos.map((p,idx)=>`<div class="photo-item"><img src="${p.dataUrl}" alt=""><button class="rm" data-cjob-rm-pending-photo="${idx}">✕</button></div>`).join('');
+  const hasPhotos = existingIds.length || d.pendingPhotos.length;
+  const rowsHtml = d.invitedContractors.map((c,idx)=>`
+    <div class="mini-row" data-cjob-row="${idx}">
+      <div class="txt" style="display:flex;gap:8px;flex:1">
+        <input type="text" data-cjob-field="name" value="${escapeHtml(c.name)}" placeholder="${tf('ชื่อผู้รับเหมา','Contractor name')}" style="flex:1">
+        <input type="tel" data-cjob-field="phone" value="${escapeHtml(c.phone)}" placeholder="${tf('เบอร์โทร (ไม่บังคับ)','Phone (optional)')}" style="width:140px">
+      </div>
+      ${editingCjobId==='new'? `<button class="iconbtn" data-cjob-rm-row="${idx}">✕</button>` : ''}
+    </div>`).join('');
+  return `<div class="modal-bg" id="cjob-modal-bg"><div class="modal" style="max-width:720px">
+    <div class="modal-head"><h3>${editingCjobId==='new'?tf('เปิดใบงานจ้างเหมาใหม่','New contractor job'):tf('แก้ไขใบงานจ้างเหมา','Edit contractor job')}</h3><button class="iconbtn" id="cjob-modal-close">✕</button></div>
+    <div class="field"><label>${tf('ชื่องาน','Job title')}</label><input type="text" id="cjob-title" value="${escapeHtml(d.title)}" placeholder="${tf('เช่น งานปูกระเบื้องห้องน้ำ','e.g. Bathroom tiling work')}"></div>
+    <div class="field" style="margin-top:12px"><label>${tf('รายละเอียดงาน (ไม่บังคับ)','Job description (optional)')}</label><textarea id="cjob-desc" rows="3" placeholder="${tf('อธิบายขอบเขตงาน วัสดุ ข้อกำหนดต่างๆ','Describe scope, materials, requirements')}">${escapeHtml(d.description)}</textarea></div>
+    <div class="grid cols-2" style="margin-top:12px">
+      <div class="field"><label>${tf('วันที่เริ่มงาน','Start date')}</label><input type="date" id="cjob-start" value="${d.startDate}"></div>
+      <div class="field"><label>${tf('จำนวนวันทำงาน','Working days')}</label><input type="number" min="1" step="1" id="cjob-duration" value="${d.durationDays}"></div>
+    </div>
+    <div class="field" style="margin-top:14px">
+      <label>${tf('รูปภาพหน้างาน/แบบแปลน (ไม่บังคับ)','Site photos / drawings (optional)')}</label>
+      <label class="photo-drop" for="cjob-photo-input">📷 ${tf('แตะเพื่อเลือกรูปภาพ','Tap to choose photos')}</label>
+      <input type="file" id="cjob-photo-input" accept="image/*" multiple style="display:none">
+      ${hasPhotos? `<div class="photo-grid" style="margin-top:10px">${existingThumbs}${pendingThumbs}</div>` : ''}
+    </div>
+    <div class="field" style="margin-top:16px">
+      <label>${tf('ผู้รับเหมาที่จะเชิญ (ส่ง RFQ ให้เสนอราคา)','Contractors to invite (RFQ)')}</label>
+      <div style="display:flex;flex-direction:column;gap:8px;margin-top:6px">${rowsHtml}</div>
+      ${editingCjobId!=='new'? `<div class="hint" style="margin-top:6px">${tf('เพิ่มผู้รับเหมาใหม่ได้ที่นี่ แต่ไม่สามารถลบรายชื่อที่เชิญไปแล้วได้','You can invite new contractors here, but already-invited ones can’t be removed')}</div>` : ''}
+      <button class="btn ghost sm" id="cjob-add-row" style="margin-top:8px">+ ${tf('เพิ่มผู้รับเหมา','Add contractor')}</button>
+    </div>
+    <button class="btn primary block" id="cjob-save" style="margin-top:18px">${tf('บันทึกใบงาน','Save job')}</button>
+  </div></div>`;
+}
+function closeCjobModal(){ cjobDraft=null; editingCjobId=null; render(); }
+function wireCjobModal(){
+  const bg=$('#cjob-modal-bg'); if(!bg) return;
+  $('#cjob-modal-close').onclick = closeCjobModal;
+  bg.addEventListener('click', e=>{ if(e.target===bg) closeCjobModal(); });
+  const addRowBtn=$('#cjob-add-row'); if(addRowBtn) addRowBtn.onclick=()=>{ syncCjobDraftFromDom(); cjobDraft.invitedContractors.push({id:uid(),name:'',phone:''}); render(); };
+  $$('[data-cjob-rm-row]').forEach(b=> b.onclick=()=>{ syncCjobDraftFromDom(); cjobDraft.invitedContractors.splice(Number(b.dataset.cjobRmRow),1); render(); });
+  const photoInput = $('#cjob-photo-input');
+  if(photoInput) photoInput.onchange = async (e)=>{
+    const files = Array.from(e.target.files||[]);
+    const newPhotos=[];
+    for(const f of files){ try{ const dataUrl = await compressImage(f); newPhotos.push({dataUrl}); }catch(err){} await new Promise(r=>setTimeout(r,0)); }
+    syncCjobDraftFromDom();
+    cjobDraft.pendingPhotos.push(...newPhotos);
+    photoInput.value=''; render();
+  };
+  $$('[data-cjob-rm-existing-photo]').forEach(b=> b.onclick=()=>{ syncCjobDraftFromDom(); cjobDraft.removedPhotoIds.push(b.dataset.cjobRmExistingPhoto); render(); });
+  $$('[data-cjob-rm-pending-photo]').forEach(b=> b.onclick=()=>{ syncCjobDraftFromDom(); cjobDraft.pendingPhotos.splice(Number(b.dataset.cjobRmPendingPhoto),1); render(); });
+  const saveBtn = $('#cjob-save');
+  if(saveBtn) saveBtn.onclick = async ()=>{
+    syncCjobDraftFromDom();
+    const d = cjobDraft;
+    const title = d.title.trim();
+    const invited = d.invitedContractors.map(c=>({id:c.id, name:c.name.trim(), phone:c.phone.trim()})).filter(c=>c.name);
+    if(!title){ toast(tf('กรุณาระบุชื่องาน','Please enter a job title')); return; }
+    if(!invited.length){ toast(tf('กรุณาระบุผู้รับเหมาอย่างน้อย 1 ราย','Please add at least one contractor')); return; }
+    if(!d.startDate){ toast(tf('กรุณาระบุวันเริ่มงาน','Please choose a start date')); return; }
+    const duration = d.durationDays===''? NaN : parseInt(d.durationDays,10);
+    if(isNaN(duration) || duration<=0){ toast(tf('กรุณาระบุจำนวนวันทำงานที่ถูกต้อง','Please enter a valid number of working days')); return; }
+    const keptExisting = d.existingPhotoIds.filter(id=>!d.removedPhotoIds.includes(id));
+    const newIds=[]; for(const p of d.pendingPhotos){ const id=uid(); await idbPut(id,p.dataUrl); newIds.push(id); }
+    const photoIds = keptExisting.concat(newIds);
+    if(editingCjobId==='new'){
+      const job = newContractorJob();
+      Object.assign(job, {title, description:d.description.trim(), photoIds, startDate:d.startDate, durationDays:duration, invitedContractors:invited});
+      job.bids = invited.map(c=>newCjobBid(c.id));
+      P().contractorJobs = P().contractorJobs||[];
+      P().contractorJobs.push(job);
+      saveData();
+      cjobDraft=null; editingCjobId=null; cjobDetailId=job.id;
+      render(); toast(tf('เปิดใบงานแล้ว — คัดลอกลิงก์ส่งให้ผู้รับเหมาแต่ละคนได้จากหน้ารายละเอียด','Job posted -- copy each contractor’s link from the detail view'));
+    } else {
+      const job = P().contractorJobs.find(j=>j.id===editingCjobId);
+      if(!job) return;
+      Object.assign(job, {title, description:d.description.trim(), photoIds, startDate:d.startDate, durationDays:duration});
+      const existingIds2 = new Set((job.invitedContractors||[]).map(c=>c.id));
+      invited.forEach(c=>{
+        if(existingIds2.has(c.id)){ const ex=job.invitedContractors.find(x=>x.id===c.id); ex.name=c.name; ex.phone=c.phone; }
+        else { job.invitedContractors.push(c); job.bids.push(newCjobBid(c.id)); }
+      });
+      saveData(); closeCjobModal(); toast(tf('บันทึกใบงานแล้ว','Job saved'));
+    }
+  };
+  refreshItemModalPhotos();
+}
+
+/* ---- Staff side: job detail modal (bids, negotiation, award, inspection,
+   handover review, final approval, payout) ---- */
+let cjobDetailId=null;
+function cjobBidRowHtml(proj, job, contractor){
+  const bid = cjobBidFor(job, contractor.id) || newCjobBid(contractor.id);
+  const isAwarded = job.awardedContractorId === contractor.id;
+  const isOpen = job.status==='open_bidding';
+  const statusLabel = isAwarded? cjobBidStatusLabel('awarded') : cjobBidStatusLabel(bid.status);
+  const threadHtml = (bid.thread||[]).length? `<div class="hint" style="margin-top:6px;display:flex;flex-direction:column;gap:3px">${bid.thread.map(t=>`<div>${t.by==='contractor'?'👷':'🏢'} ฿${fmtNum(t.price,0)} ${t.note?'— '+escapeHtml(t.note):''} <span style="color:var(--ink-400)">(${fmtDateTime(t.at)})</span></div>`).join('')}</div>` : '';
+  return `<div class="mini-row" style="align-items:flex-start;flex-direction:column;gap:8px">
+    <div style="display:flex;justify-content:space-between;width:100%;gap:10px;flex-wrap:wrap">
+      <div class="txt">
+        <span class="t1">${escapeHtml(contractor.name)}${isAwarded?' ✅':''}</span>
+        <span class="t2">${contractor.phone?'📞 '+escapeHtml(contractor.phone)+' · ':''}${statusLabel}</span>
+      </div>
+      <div style="display:flex;gap:10px;align-items:center">
+        <b class="tabular">${bid.price!=null?'฿'+fmtNum(bid.price,0):tf('ยังไม่เสนอราคา','No bid yet')}</b>
+        <button class="iconbtn" data-cjob-copy-bidlink="${contractor.id}" title="${tf('คัดลอกลิงก์ของผู้รับเหมาคนนี้','Copy this contractor’s link')}">🔗</button>
+      </div>
+    </div>
+    ${bid.note? `<div class="sub">${escapeHtml(bid.note)}</div>` : ''}
+    ${threadHtml}
+    ${isOpen? `<div style="display:flex;gap:8px;flex-wrap:wrap;width:100%;margin-top:2px">
+      <input type="number" min="0" step="1" data-cjob-counter-price="${contractor.id}" placeholder="${tf('ราคาต่อรอง','Counter price')}" style="width:130px">
+      <input type="text" data-cjob-counter-note="${contractor.id}" placeholder="${tf('หมายเหตุ (ไม่บังคับ)','Note (optional)')}" style="flex:1;min-width:120px">
+      <button class="btn ghost sm" data-cjob-counter="${contractor.id}">${tf('ต่อรองราคา','Send counter')}</button>
+      <button class="btn primary sm" data-cjob-award="${contractor.id}" ${bid.price==null?'disabled':''}>✅ ${tf('อนุมัติราคานี้','Approve this price')}</button>
+    </div>` : ''}
+  </div>`;
+}
+function cjobLifecycleHtml(job){
+  if(job.status==='open_bidding' || job.status==='cancelled') return '';
+  let html = '<div style="margin-top:18px;display:flex;flex-direction:column;gap:14px">';
+  if(['awarded','inspection_proposed','inspection_confirmed'].includes(job.status)){
+    const proposed = job.inspection.proposedDate;
+    html += `<div class="card tint">
+      <b style="font-family:var(--font-display)">📅 ${tf('นัดหมายตรวจงาน','Inspection scheduling')}</b>
+      ${proposed? `<div class="sub" style="margin-top:6px">${tf('ผู้รับเหมาเสนอวันที่: ','Contractor proposed: ')}<b>${fmtDate(proposed)}</b></div>` : `<div class="sub" style="margin-top:6px">${tf('ยังไม่มีข้อเสนอวันนัดตรวจงานจากผู้รับเหมา','No inspection date proposed by the contractor yet')}</div>`}
+      <div class="field" style="margin-top:10px"><label>${tf('ยืนยัน/กำหนดวันนัดตรวจงาน','Confirm / set inspection date')}</label><input type="date" id="cjob-confirm-inspect-date" value="${job.inspection.confirmedDate||proposed||''}"></div>
+      <button class="btn primary sm" id="cjob-confirm-inspect" style="margin-top:6px">✅ ${tf('ยืนยันวันนัดตรวจงาน','Confirm inspection date')}</button>
+    </div>`;
+  } else if(['handover_submitted','handover_failed','handover_passed','final_approved','paid'].includes(job.status) && job.inspection.confirmedDate){
+    html += `<div class="card"><div class="sub">📅 ${tf('วันนัดตรวจงานที่ยืนยันแล้ว: ','Confirmed inspection date: ')}<b>${fmtDate(job.inspection.confirmedDate)}</b></div></div>`;
+  }
+  if(job.status==='handover_submitted'){
+    html += `<div class="card tint">
+      <b style="font-family:var(--font-display)">📦 ${tf('ตรวจสอบงานที่ส่งมอบ','Review submitted handover')}</b>
+      ${job.handover.note? `<div class="sub" style="margin-top:6px">${escapeHtml(job.handover.note)}</div>` : ''}
+      ${cjobPhotoGalleryHtml(job.handover.photoIds)}
+      <div class="field" style="margin-top:10px"><label>${tf('หมายเหตุการตรวจ (ไม่บังคับ)','Review note (optional)')}</label><input type="text" id="cjob-review-note" value=""></div>
+      <div class="action-row" style="margin-top:6px">
+        <button class="btn approve" id="cjob-review-pass">✅ ${tf('ตรวจผ่าน — ส่งต่อผู้บริหาร','Pass -- forward to management')}</button>
+        <button class="btn reject" id="cjob-review-fail">🚫 ${tf('ตรวจไม่ผ่าน — ส่งกลับแก้ไข','Fail -- send back')}</button>
+      </div>
+    </div>`;
+  } else if(job.status==='handover_failed' || ['handover_passed','final_approved','paid'].includes(job.status)){
+    html += `<div class="card"><div class="sub">📦 ${tf('ผลตรวจงานล่าสุด: ','Last inspection result: ')}<b>${job.handover.reviewPass===true?tf('ผ่าน ✅','Passed ✅'):job.handover.reviewPass===false?tf('ไม่ผ่าน 🚫','Failed 🚫'):'-'}</b>${job.handover.reviewNote?' — '+escapeHtml(job.handover.reviewNote):''}</div>${cjobPhotoGalleryHtml(job.handover.photoIds)}</div>`;
+  }
+  if(job.status==='handover_passed'){
+    html += `<div class="card tint">
+      <b style="font-family:var(--font-display)">✅ ${tf('อนุมัติสุดท้าย (ผู้บริหาร)','Final approval (management)')}</b>
+      <div class="field" style="margin-top:10px"><label>${tf('หมายเหตุ (ไม่บังคับ)','Note (optional)')}</label><input type="text" id="cjob-final-note" value=""></div>
+      <button class="btn primary sm" id="cjob-final-approve" style="margin-top:6px">✅ ${tf('อนุมัติสุดท้าย','Give final approval')}</button>
+    </div>`;
+  } else if(['final_approved','paid'].includes(job.status)){
+    html += `<div class="card"><div class="sub">✅ ${tf('อนุมัติสุดท้ายโดย ','Final approved by ')}${escapeHtml(job.finalApproval.approvedBy||'-')} · ${job.finalApproval.approvedAt?fmtDateTime(job.finalApproval.approvedAt):''}${job.finalApproval.note?' — '+escapeHtml(job.finalApproval.note):''}</div></div>`;
+  }
+  if(job.status==='final_approved'){
+    html += `<div class="card tint">
+      <b style="font-family:var(--font-display)">💰 ${tf('ส่งเบิกเงินให้ผู้รับเหมา (ฝ่ายบัญชี)','Send payout to contractor (accounting)')}</b>
+      <div class="field" style="margin-top:10px"><label>${tf('หมายเหตุ (ไม่บังคับ)','Note (optional)')}</label><input type="text" id="cjob-payout-note" value=""></div>
+      <button class="btn primary sm" id="cjob-mark-payout" style="margin-top:6px">💰 ${tf('บันทึกว่าเบิกเงินแล้ว','Mark payout sent')}</button>
+    </div>`;
+  } else if(job.status==='paid'){
+    html += `<div class="card"><div class="sub">💰 ${tf('เบิกเงินแล้วโดย ','Payout sent by ')}${escapeHtml(job.payout.sentBy||'-')} · ${job.payout.sentAt?fmtDateTime(job.payout.sentAt):''}${job.payout.note?' — '+escapeHtml(job.payout.note):''}</div></div>`;
+  }
+  html += '</div>';
+  return html;
+}
+function cjobDetailModalHtml(){
+  if(!cjobDetailId) return '';
+  const proj = P();
+  const job = (proj.contractorJobs||[]).find(j=>j.id===cjobDetailId);
+  if(!job) return '';
+  const sdef = cjobStatusDef(job.status);
+  const alert = cjobAlertStatus(job);
+  const bidsHtml = (job.invitedContractors||[]).map(c=> cjobBidRowHtml(proj, job, c)).join('') || `<div class="hint" style="padding:6px 2px">${tf('ยังไม่มีผู้รับเหมาที่เชิญ','No contractors invited yet')}</div>`;
+  return `<div class="modal-bg" id="cjob-detail-modal-bg"><div class="modal" style="max-width:820px">
+    <div class="modal-head">
+      <h3>👷 ${escapeHtml(job.title)}</h3>
+      <div style="display:flex;gap:6px">
+        <button class="iconbtn" id="cjob-detail-edit" title="${tf('แก้ไข','Edit')}">✏️</button>
+        <button class="iconbtn" id="cjob-detail-close">✕</button>
+      </div>
+    </div>
+    <span class="badge ${sdef.cls}">${cjobStatusLabel(job.status)}</span>
+    ${alert? `<span class="badge ${alert==='overdue'?'bad':'warn'}" style="margin-left:8px">⏰ ${alert==='overdue'?tf('เลยกำหนด','Overdue'):tf('ใกล้ครบกำหนด','Due soon')}</span>` : ''}
+    ${job.description? `<div class="sub" style="margin-top:10px;white-space:pre-wrap">${escapeHtml(job.description)}</div>` : ''}
+    ${cjobPhotoGalleryHtml(job.photoIds)}
+    <div style="display:flex;flex-wrap:wrap;gap:10px 22px;margin-top:14px">
+      <div><div class="meta-lbl">${tf('วันเริ่มงาน','Start date')}</div><b class="tabular">${job.startDate?fmtDate(job.startDate):'-'}</b></div>
+      <div><div class="meta-lbl">${tf('จำนวนวันทำงาน','Working days')}</div><b class="tabular">${job.durationDays||'-'}</b></div>
+      ${cjobDueDate(job)? `<div><div class="meta-lbl">${tf('กำหนดเสร็จ','Due')}</div><b class="tabular">${fmtDate(cjobDueDate(job))}</b></div>` : ''}
+    </div>
+    <div style="margin-top:18px"><b style="font-family:var(--font-display)">📋 ${tf('ใบเสนอราคาจากผู้รับเหมา','Contractor bids')}</b>
+      <div style="display:flex;flex-direction:column;gap:10px;margin-top:10px">${bidsHtml}</div>
+    </div>
+    ${cjobLifecycleHtml(job)}
+    ${job.status!=='cancelled' && job.status!=='paid'? `<div class="action-row" style="margin-top:16px">
+      <button class="btn danger sm" id="cjob-detail-cancel">🗑️ ${tf('ยกเลิกใบงานนี้','Cancel this job')}</button>
+    </div>` : ''}
+  </div></div>`;
+}
+function closeCjobDetail(){ cjobDetailId=null; render(); }
+// Phase 1 step 6: "ระบบ ทำการ ลงบันทึกต้นทุน (Cost Record) เข้าสู่ระบบบัญชี
+// ของโครงการโดยอัตโนมัติทันที" -- the moment a price is approved, push a
+// proj.costLog entry (same shape newCostLogEntry() produces everywhere else)
+// so it shows up immediately in the Cost Log / Budget tabs, no separate
+// manual entry needed.
+function awardCjob(job, contractorId){
+  const bid = cjobBidFor(job, contractorId);
+  if(!bid || bid.price==null){ toast(tf('ยังไม่มีราคาจากผู้รับเหมารายนี้','This contractor has not submitted a price yet')); return; }
+  const contractor = cjobInvited(job, contractorId);
+  job.status='awarded';
+  job.awardedContractorId=contractorId;
+  job.awardedPrice=Number(bid.price);
+  job.awardedAt=new Date().toISOString();
+  job.awardedBy=currentActorName();
+  bid.status='awarded';
+  (job.bids||[]).forEach(b=>{ if(b.contractorId!==contractorId) b.status='rejected'; });
+  const entry = newCostLogEntry();
+  Object.assign(entry, {
+    workType: tf('งานจ้างเหมา','Contractor job'),
+    workNature: 'main',
+    itemName: job.title,
+    unit: tf('งาน','job'),
+    qty: 1,
+    unitCost: job.awardedPrice,
+    orderedBy: currentActorName(),
+    status: 'ordered',
+    note: tf('สร้างอัตโนมัติจากการอนุมัติราคาใบงานจ้างเหมา “','Auto-created from contractor-job price approval “')+job.title+tf('” — ผู้รับเหมา: ','” -- contractor: ')+(contractor?contractor.name:''),
+  });
+  costLogRecalcTotal(entry);
+  P().costLog = P().costLog||[];
+  P().costLog.push(entry);
+  job.costLogEntryId = entry.id;
+  saveData();
+  toast(tf('อนุมัติราคาแล้ว และบันทึกต้นทุนอัตโนมัติเรียบร้อย','Price approved -- cost record created automatically'));
+}
+function wireCjobDetailModal(){
+  const bg=$('#cjob-detail-modal-bg'); if(!bg) return;
+  const proj = P();
+  const job = (proj.contractorJobs||[]).find(j=>j.id===cjobDetailId);
+  if(!job){ cjobDetailId=null; return; }
+  $('#cjob-detail-close').onclick = closeCjobDetail;
+  bg.addEventListener('click', e=>{ if(e.target===bg) closeCjobDetail(); });
+  const editBtn=$('#cjob-detail-edit'); if(editBtn) editBtn.onclick = ()=>{ openCjobDraft(job.id); render(); };
+  const cancelBtn=$('#cjob-detail-cancel'); if(cancelBtn) cancelBtn.onclick = ()=>{
+    if(!confirm(tf('ยืนยันยกเลิกใบงานนี้?','Cancel this job?'))) return;
+    job.status='cancelled'; saveData(); closeCjobDetail(); toast(tf('ยกเลิกใบงานแล้ว','Job cancelled'));
+  };
+  $$('[data-cjob-copy-bidlink]').forEach(b=> b.onclick = async ()=>{
+    const cid=b.dataset.cjobCopyBidlink;
+    const contractor = cjobInvited(job,cid);
+    const link = cjobBidLink(proj.id, job.id, cid);
+    try{ await navigator.clipboard.writeText(link); toast(tf(`คัดลอกลิงก์ของ "${contractor?contractor.name:''}" แล้ว`,`Copied "${contractor?contractor.name:''}"'s link`)); }
+    catch(err){ prompt(tf('คัดลอกลิงก์นี้เพื่อส่งให้ผู้รับเหมา:','Copy this link to share with the contractor:'), link); }
+  });
+  $$('[data-cjob-counter]').forEach(b=> b.onclick = ()=>{
+    const cid=b.dataset.cjobCounter;
+    const priceEl=$(`[data-cjob-counter-price="${cid}"]`), noteEl=$(`[data-cjob-counter-note="${cid}"]`);
+    const price = priceEl && priceEl.value!==''? Number(priceEl.value) : null;
+    if(price==null||isNaN(price)||price<0){ toast(tf('กรุณาระบุราคาต่อรอง','Please enter a counter price')); return; }
+    let bid = cjobBidFor(job, cid); if(!bid){ bid=newCjobBid(cid); job.bids.push(bid); }
+    bid.price=price; bid.note = noteEl?noteEl.value.trim():''; bid.status='countered';
+    bid.thread.push({by:'staff', price, note:bid.note, at:new Date().toISOString()});
+    saveData(); render(); toast(tf('ส่งข้อเสนอต่อรองแล้ว','Counter-offer sent'));
+  });
+  $$('[data-cjob-award]').forEach(b=> b.onclick = ()=>{
+    if(!confirm(tf('ยืนยันอนุมัติราคานี้ และปิดรับใบเสนอราคาจากผู้รับเหมารายอื่น?','Confirm approving this price and closing bidding for the other contractors?'))) return;
+    awardCjob(job, b.dataset.cjobAward);
+    render();
+  });
+  const confirmInspectBtn = $('#cjob-confirm-inspect');
+  if(confirmInspectBtn) confirmInspectBtn.onclick = ()=>{
+    const dEl = $('#cjob-confirm-inspect-date');
+    if(!dEl || !dEl.value){ toast(tf('กรุณาเลือกวันที่','Please choose a date')); return; }
+    job.inspection.confirmedDate = dEl.value; job.inspection.confirmedAt = new Date().toISOString(); job.inspection.confirmedBy = currentActorName();
+    job.status='inspection_confirmed';
+    saveData(); render(); toast(tf('ยืนยันวันนัดตรวจงานแล้ว','Inspection date confirmed'));
+  };
+  const passBtn=$('#cjob-review-pass');
+  if(passBtn) passBtn.onclick = ()=>{
+    const noteEl=$('#cjob-review-note');
+    job.handover.reviewPass=true; job.handover.reviewNote=noteEl?noteEl.value.trim():''; job.handover.reviewedAt=new Date().toISOString(); job.handover.reviewedBy=currentActorName();
+    job.status='handover_passed';
+    saveData(); render(); toast(tf('บันทึกผลตรวจผ่านแล้ว','Marked as passed'));
+  };
+  const failBtn=$('#cjob-review-fail');
+  if(failBtn) failBtn.onclick = ()=>{
+    const noteEl=$('#cjob-review-note');
+    job.handover.reviewPass=false; job.handover.reviewNote=noteEl?noteEl.value.trim():''; job.handover.reviewedAt=new Date().toISOString(); job.handover.reviewedBy=currentActorName();
+    job.status='handover_failed';
+    saveData(); render(); toast(tf('ส่งกลับให้ผู้รับเหมาแก้ไขแล้ว','Sent back to the contractor'));
+  };
+  const finalBtn=$('#cjob-final-approve');
+  if(finalBtn) finalBtn.onclick = ()=>{
+    const noteEl=$('#cjob-final-note');
+    job.finalApproval={approved:true, approvedBy:currentActorName(), approvedAt:new Date().toISOString(), note:noteEl?noteEl.value.trim():''};
+    job.status='final_approved';
+    saveData(); render(); toast(tf('อนุมัติสุดท้ายแล้ว','Final approval given'));
+  };
+  const payoutBtn=$('#cjob-mark-payout');
+  if(payoutBtn) payoutBtn.onclick = ()=>{
+    const noteEl=$('#cjob-payout-note');
+    job.payout={sent:true, sentBy:currentActorName(), sentAt:new Date().toISOString(), note:noteEl?noteEl.value.trim():''};
+    job.status='paid';
+    saveData(); render(); toast(tf('บันทึกว่าเบิกเงินแล้ว','Payout marked as sent'));
+  };
+  refreshItemModalPhotos();
+}
+
+/* ---- Contractor-facing side: the restricted #job-bid deep-link screen ---- */
+let cjobHandoverPending = []; // {dataUrl} -- pending handover photos, mirrors pendingPhotos elsewhere
+function cjobHandoverFormHtml(){
+  const pendingThumbs = cjobHandoverPending.map((p,idx)=>`<div class="photo-item"><img src="${p.dataUrl}" alt=""><button class="rm" data-jb-rm-handover-photo="${idx}">✕</button></div>`).join('');
+  return `<div class="card">
+    <b style="font-family:var(--font-display)">📦 ${tf('ส่งมอบงาน','Submit handover')}</b>
+    <div class="field" style="margin-top:10px">
+      <label class="photo-drop" for="jb-handover-photo-input">📷 ${tf('แตะเพื่อแนบรูปผลงานที่เสร็จสิ้น','Tap to attach photos of the finished work')}</label>
+      <input type="file" id="jb-handover-photo-input" accept="image/*" multiple style="display:none">
+      ${cjobHandoverPending.length? `<div class="photo-grid" style="margin-top:10px">${pendingThumbs}</div>` : ''}
+    </div>
+    <div class="field"><label>${tf('หมายเหตุ (ไม่บังคับ)','Note (optional)')}</label><input type="text" id="jb-handover-note" value=""></div>
+    <button class="btn primary block" id="jb-submit-handover" style="margin-top:6px">${tf('ส่งมอบงาน','Submit handover')}</button>
+  </div>`;
+}
+function renderJobBid(){
+  const {project:pid, job:jobId, contractor:cid} = jobBidParamsFromHash();
+  const proj = state.projects.find(p=>p.id===pid);
+  const job = proj ? (proj.contractorJobs||[]).find(j=>j.id===jobId) : null;
+  const contractor = job ? cjobInvited(job, cid) : null;
+  if(!proj || !job || !contractor){
+    return `<div class="empty"><span class="ic">🔗</span>${tf('ไม่พบใบงานนี้ หรือลิงก์ไม่ถูกต้อง กรุณาขอลิงก์ใหม่จากผู้ว่าจ้าง','This job link is invalid or no longer exists. Please ask the requester for a new link.')}</div>`;
+  }
+  const bid = cjobBidFor(job, cid) || newCjobBid(cid);
+  const isWinner = job.awardedContractorId === cid;
+  const isLoser = job.status!=='open_bidding' && job.awardedContractorId && job.awardedContractorId!==cid;
+  let sections = `<div class="card">
+    <div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start">
+      <b style="font-family:var(--font-display);font-size:16px">${escapeHtml(job.title)}</b>
+      <span class="badge ${cjobStatusDef(job.status).cls}">${cjobStatusLabel(job.status)}</span>
+    </div>
+    ${job.description? `<div class="sub" style="margin-top:8px;white-space:pre-wrap">${escapeHtml(job.description)}</div>` : ''}
+    ${cjobPhotoGalleryHtml(job.photoIds)}
+    <div style="display:flex;flex-wrap:wrap;gap:10px 22px;margin-top:14px">
+      <div><div class="meta-lbl">${tf('วันเริ่มงาน','Start date')}</div><b class="tabular">${job.startDate? fmtDate(job.startDate):'-'}</b></div>
+      <div><div class="meta-lbl">${tf('จำนวนวันทำงาน','Working days')}</div><b class="tabular">${job.durationDays||'-'}</b></div>
+    </div>
+  </div>`;
+  if(job.status==='open_bidding'){
+    if(bid.thread.length){
+      sections += `<div class="card"><b style="font-family:var(--font-display)">💬 ${tf('ประวัติการเสนอ/ต่อรองราคา','Bid / negotiation history')}</b>
+        <div class="hint" style="margin-top:8px;display:flex;flex-direction:column;gap:4px">
+          ${bid.thread.map(t=>`<div>${t.by==='contractor'? '👷 '+tf('คุณ','You'):'🏢 '+tf('ผู้ว่าจ้าง','Requester')}: ฿${fmtNum(t.price,0)} ${t.note?'— '+escapeHtml(t.note):''} <span style="color:var(--ink-400)">(${fmtDateTime(t.at)})</span></div>`).join('')}
+        </div></div>`;
+    }
+    const isCountered = bid.status==='countered';
+    sections += `<div class="card">
+      <b style="font-family:var(--font-display)">💰 ${isCountered? tf('ผู้ว่าจ้างเสนอราคาต่อรองกลับมา','The requester sent a counter-offer'):tf('เสนอราคาของคุณ','Submit your price')}</b>
+      ${isCountered? `<div class="sub" style="margin-top:6px">${tf('ราคาที่เสนอ','Offered price')}: <b>฿${fmtNum(bid.price,0)}</b>${bid.note?' — '+escapeHtml(bid.note):''}</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
+          <button class="btn primary sm" id="jb-accept-counter">✅ ${tf('ยอมรับราคานี้','Accept this price')}</button>
+        </div>` : ''}
+      <div class="field" style="margin-top:12px"><label>${tf('เสนอราคาใหม่ (บาท)','New price (THB)')}</label><input type="number" min="0" step="1" id="jb-price" value="${bid.price!=null?bid.price:''}"></div>
+      <div class="field"><label>${tf('หมายเหตุ (ไม่บังคับ)','Note (optional)')}</label><input type="text" id="jb-note" value=""></div>
+      <button class="btn primary block" id="jb-submit-bid" style="margin-top:6px">${tf('ส่งราคา','Submit price')}</button>
+    </div>`;
+  } else if(isLoser){
+    sections += `<div class="card"><div class="sub">${tf('ขออภัย งานนี้ได้มอบหมายให้ผู้รับเหมาท่านอื่นแล้ว ขอบคุณที่เสนอราคาเข้ามาครับ','This job has been awarded to another contractor. Thank you for your bid.')}</div></div>`;
+  } else if(isWinner){
+    sections += `<div class="card tint"><b style="font-family:var(--font-display)">🎉 ${tf('คุณได้รับเลือกสำหรับงานนี้','You were awarded this job')}</b><div class="sub" style="margin-top:6px">${tf('ราคาที่อนุมัติ','Approved price')}: <b>฿${fmtNum(job.awardedPrice,0)}</b></div></div>`;
+    if(job.status==='awarded'){
+      sections += `<div class="card">
+        <b style="font-family:var(--font-display)">📅 ${tf('นัดวันตรวจงาน','Propose an inspection date')}</b>
+        <div class="field" style="margin-top:10px"><input type="date" id="jb-inspect-date" value="${job.inspection.proposedDate||''}"></div>
+        <button class="btn primary sm" id="jb-propose-inspect" style="margin-top:6px">${tf('ส่งข้อเสนอนัดตรวจงาน','Send inspection date proposal')}</button>
+      </div>`;
+    } else if(job.status==='inspection_proposed'){
+      sections += `<div class="card"><div class="sub">⏳ ${tf('เสนอวันนัดตรวจงานแล้ว รอการยืนยันจากทีมงาน: ','Inspection date proposed, awaiting confirmation: ')}<b>${fmtDate(job.inspection.proposedDate)}</b></div></div>`;
+    } else if(job.status==='inspection_confirmed'){
+      sections += `<div class="card"><div class="sub">✅ ${tf('ยืนยันวันนัดตรวจงานแล้ว: ','Inspection date confirmed: ')}<b>${fmtDate(job.inspection.confirmedDate)}</b></div></div>`;
+    }
+    if(['awarded','inspection_proposed','inspection_confirmed','handover_failed'].includes(job.status)){
+      if(job.status==='handover_failed'){
+        sections += `<div class="card"><div class="sub" style="color:var(--coral-600,#c0392b)">❌ ${tf('ตรวจงานไม่ผ่าน กรุณาแก้ไขแล้วส่งมอบงานอีกครั้ง','Inspection failed -- please fix the work and submit handover again')}${job.handover.reviewNote?' — '+escapeHtml(job.handover.reviewNote):''}</div></div>`;
+      }
+      sections += cjobHandoverFormHtml();
+    } else if(job.status==='handover_submitted'){
+      sections += `<div class="card"><div class="sub">📦 ${tf('ส่งมอบงานแล้ว รอทีมงานเข้าตรวจสอบหน้างาน','Handed over -- awaiting on-site inspection')}</div></div>`;
+    } else if(['handover_passed','final_approved'].includes(job.status)){
+      sections += `<div class="card"><div class="sub">✅ ${tf('ตรวจงานผ่านแล้ว กำลังรอการอนุมัติขั้นสุดท้าย/เบิกเงิน','Passed inspection -- awaiting final approval / payout')}</div></div>`;
+    } else if(job.status==='paid'){
+      sections += `<div class="card tint"><b>💰 ${tf('เบิกเงินเรียบร้อยแล้ว ขอบคุณสำหรับงานครับ','Payout complete -- thank you for the work')}</b></div>`;
+    }
+  } else if(job.status==='cancelled'){
+    sections += `<div class="card"><div class="sub">${tf('ใบงานนี้ถูกยกเลิกแล้ว','This job has been cancelled')}</div></div>`;
+  }
+  return sections;
+}
+function wireJobBid(){
+  const {project:pid, job:jobId, contractor:cid} = jobBidParamsFromHash();
+  const proj = state.projects.find(p=>p.id===pid);
+  const job = proj ? (proj.contractorJobs||[]).find(j=>j.id===jobId) : null;
+  if(!job) return;
+  const submitBtn = $('#jb-submit-bid');
+  if(submitBtn) submitBtn.onclick = ()=>{
+    const priceEl = $('#jb-price');
+    const price = priceEl && priceEl.value!==''? Number(priceEl.value) : null;
+    if(price==null || isNaN(price) || price<0){ toast(tf('กรุณาระบุราคา','Please enter a price')); return; }
+    const noteEl=$('#jb-note');
+    let bid = cjobBidFor(job, cid);
+    if(!bid){ bid=newCjobBid(cid); job.bids.push(bid); }
+    bid.price=price; bid.note=noteEl?noteEl.value.trim():''; bid.status='pending';
+    bid.thread.push({by:'contractor', price, note:bid.note, at:new Date().toISOString()});
+    saveData(); render(); toast(tf('ส่งราคาแล้ว','Price submitted'));
+  };
+  const acceptBtn = $('#jb-accept-counter');
+  if(acceptBtn) acceptBtn.onclick = ()=>{
+    const bid = cjobBidFor(job, cid); if(!bid) return;
+    bid.status='accepted';
+    bid.thread.push({by:'contractor', price:bid.price, note:tf('ยอมรับราคาที่เสนอ','Accepted the offered price'), at:new Date().toISOString()});
+    saveData(); render(); toast(tf('ยอมรับราคาแล้ว รอผู้ว่าจ้างยืนยัน','Price accepted -- awaiting requester confirmation'));
+  };
+  const inspectBtn = $('#jb-propose-inspect');
+  if(inspectBtn) inspectBtn.onclick = ()=>{
+    const dEl = $('#jb-inspect-date');
+    if(!dEl || !dEl.value){ toast(tf('กรุณาเลือกวันที่','Please choose a date')); return; }
+    job.inspection.proposedDate = dEl.value; job.inspection.proposedAt = new Date().toISOString(); job.inspection.proposedBy = (cjobInvited(job,cid)||{}).name || '';
+    job.status='inspection_proposed';
+    saveData(); render(); toast(tf('ส่งข้อเสนอนัดตรวจงานแล้ว','Inspection date proposal sent'));
+  };
+  const photoInput = $('#jb-handover-photo-input');
+  if(photoInput) photoInput.onchange = async (e)=>{
+    const files = Array.from(e.target.files||[]);
+    for(const f of files){ try{ const dataUrl = await compressImage(f); cjobHandoverPending.push({dataUrl}); }catch(err){} }
+    photoInput.value=''; render();
+  };
+  $$('[data-jb-rm-handover-photo]').forEach(b=> b.onclick=()=>{ cjobHandoverPending.splice(Number(b.dataset.jbRmHandoverPhoto),1); render(); });
+  const handoverBtn = $('#jb-submit-handover');
+  if(handoverBtn) handoverBtn.onclick = async ()=>{
+    if(!cjobHandoverPending.length){ toast(tf('กรุณาแนบรูปผลงานอย่างน้อย 1 รูป','Please attach at least one photo')); return; }
+    const noteEl = $('#jb-handover-note');
+    const newIds=[];
+    for(const p of cjobHandoverPending){ const id=uid(); await idbPut(id,p.dataUrl); newIds.push(id); }
+    job.handover.photoIds = newIds;
+    job.handover.note = noteEl?noteEl.value.trim():'';
+    job.handover.submittedAt = new Date().toISOString();
+    job.handover.reviewPass = null; job.handover.reviewNote=''; job.handover.reviewedAt=''; job.handover.reviewedBy='';
+    job.status='handover_submitted';
+    cjobHandoverPending = [];
+    saveData(); render(); toast(tf('ส่งมอบงานแล้ว','Handover submitted'));
+  };
+  refreshItemModalPhotos();
+}
+
 /* ============================= WIRE SCREEN ROUTER ============================= */
 function wireScreen(){
+  if(JOB_BID_MODE) return wireJobBid();
   if(FIELD_MODE){
     if(!state.currentProjectId) return;
     if(state.tab==='procure') return wireProcure();
@@ -10089,6 +10783,7 @@ function wireScreen(){
   else if(state.tab==='dailylog') wireDailyLog();
   else if(state.tab==='procure') wireProcure();
   else if(state.tab==='purchaseplan') wirePurchasePlan();
+  else if(state.tab==='contractorjobs') wireContractorJobs();
   else if(state.tab==='costlog') wireCostLog();
   else if(state.tab==='budget') wireBudget();
   else if(state.tab==='billing') wireBilling();
