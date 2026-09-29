@@ -862,29 +862,6 @@ select.pp-status-select.pp-noneed{background:var(--surface-2);color:var(--ink-50
 .bud-table .badge{white-space:normal;text-align:center;line-height:1.25;padding:3px 7px;font-size:10.5px}
 .bud-table .budget-cat-row td{white-space:normal}
 
-/* ---------- Dashboard: item-status tables, full-bleed landscape ----------
-   Same full-bleed breakout as .bud-wrap/.pp-wrap above -- these tables sit
-   inside the Dashboard's normal .card, but the table itself escapes main's
-   centered max-width:1180px column so all 9 columns are visible on a wide
-   screen without needing a horizontal scrollbar. Each status bucket table
-   also gets its own bounded height + sticky header (like .bud-wrap), since
-   the "not started" bucket in particular can run to 50+ rows. */
-.dash-wrap{width:100vw;margin-left:calc(50% - 50vw);margin-right:calc(50% - 50vw);margin-top:0;margin-bottom:14px;box-sizing:border-box;padding-left:18px;padding-right:18px;max-height:calc(100vh - 260px);overflow-y:auto}
-.dash-table{table-layout:fixed;width:100%}
-.dash-table thead th{position:sticky;top:0;z-index:5}
-.dash-table th,.dash-table td{padding:7px 8px;font-size:12px}
-.dash-table th{white-space:normal;overflow-wrap:anywhere;line-height:1.3;vertical-align:bottom;font-size:11px}
-.dash-table td:nth-child(1),.dash-table th:nth-child(1){width:3%}
-.dash-table td:nth-child(2),.dash-table th:nth-child(2){width:6%}
-.dash-table td:nth-child(3),.dash-table th:nth-child(3){white-space:normal;overflow-wrap:anywhere;width:30%}
-.dash-table td:nth-child(4),.dash-table th:nth-child(4){width:6%}
-.dash-table td:nth-child(5),.dash-table th:nth-child(5){width:12%}
-.dash-table td:nth-child(6),.dash-table th:nth-child(6){width:12%}
-.dash-table td:nth-child(7),.dash-table th:nth-child(7){width:12%}
-.dash-table td:nth-child(8),.dash-table th:nth-child(8){width:8%}
-.dash-table td:nth-child(9),.dash-table th:nth-child(9){width:11%}
-.dash-table .budget-cat-row td{white-space:normal}
-
 /* ---------- Kanban ----------
    The 4 status columns are a fixed set (not a variable-length list), so they
    sit inside one shared .card -- like every other page in the app -- and
@@ -895,6 +872,9 @@ select.pp-status-select.pp-noneed{background:var(--surface-2);color:var(--ink-50
    one column and the divider becomes a bottom rule instead. */
 .kanban-card{padding:14px}
 .kanban{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:0}
+.kanban.kanban-3col{grid-template-columns:repeat(3,minmax(0,1fr))}
+.kcol-cat{font-size:10.5px;font-weight:700;color:var(--purple-600);text-transform:uppercase;letter-spacing:.02em;margin-top:6px;padding:0 2px}
+.kcol-cat:first-child{margin-top:0}
 .kcol{display:flex;flex-direction:column;gap:8px;padding:0 12px;min-width:0}
 .kcol:first-child{padding-left:2px}
 .kcol:last-child{padding-right:2px}
@@ -912,12 +892,16 @@ select.pp-status-select.pp-noneed{background:var(--surface-2);color:var(--ink-50
 .kcard.approved{border-left-color:var(--mint-500)}
 .kcard.rejected{border-left-color:var(--coral-500)}
 .kcard.scheduled{border-left-color:var(--blue-500)}
+.kcard.ok{border-left-color:var(--mint-500)}
+.kcard.bad{border-left-color:var(--coral-500)}
+.kcard.idle{border-left-color:var(--ink-300)}
 .kcard .reqno{font-family:var(--font-mono);font-size:11px;color:var(--ink-300)}
 .kcard .title{font-weight:600;font-size:13px;line-height:1.35}
 .kcard .meta{font-size:11px;color:var(--ink-500)}
 .empty-col{border:1.5px dashed var(--line);border-radius:var(--radius-sm);padding:12px 8px;text-align:center;color:var(--ink-300);font-size:11.5px}
 @media (max-width:900px){
   .kanban{grid-template-columns:1fr;gap:16px}
+  .kanban.kanban-3col{grid-template-columns:1fr}
   .kcol{padding:0;border-right:none!important}
   .kcol:not(:last-child){padding-bottom:14px;border-bottom:1px solid var(--line)}
 }
@@ -9919,21 +9903,17 @@ function renderDashboard(){
     {key:'bad', icon:'🔴', cls:'bad', label: tf('ล่าช้ากว่าแผน','Behind plan')},
     {key:'idle', icon:'⏳', cls:'idle', label: tf('ยังไม่เริ่ม','Not started')},
   ];
-  // The section header lives in its own .card (normal, centered width), but
-  // the table itself is a TOP-LEVEL sibling right after it, never nested
-  // inside a .card -- a .card's own padding breaks the full-bleed
-  // calc(50% - 50vw) breakout trick used by .dash-wrap (it only measures out
-  // correctly from a direct child of main), exactly like .bud-wrap/.pp-wrap
-  // are never nested inside a card either.
-  const statusSectionsHtml = STATUS_SECTIONS.map(s=>{
+  // Three side-by-side columns sharing one full-width card, like the
+  // Material Request Kanban board (.kanban/.kcol/.kcard) -- .kanban-3col
+  // just overrides the column count from 4 to 3. Each column is its own
+  // scrollable list of item cards, grouped by category with a small label
+  // line (.kcol-cat) ahead of each group's cards.
+  const kanbanColsHtml = STATUS_SECTIONS.map(s=>{
     const items = statusBuckets[s.key];
-    return `<div class="card" style="margin-top:14px">
-      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
-        <b style="font-family:var(--font-display)">${s.icon} ${s.label}</b>
-        <span class="badge ${s.cls}">${items.length} ${tf('รายการ','items')}</span>
-      </div>
-    </div>
-    ${dashboardItemStatusTableHtml(items, asOf, proj.logs)}`;
+    return `<div class="kcol">
+      <div class="kcol-head"><b>${s.icon} ${s.label}</b><span class="count">${items.length}</span></div>
+      ${dashboardStatusColumnCardsHtml(items, s.cls, asOf, proj.logs)}
+    </div>`;
   }).join('');
 
   const curve = buildSCurve(asOf);
@@ -9961,45 +9941,42 @@ function renderDashboard(){
     <div class="legend" style="margin:10px 0 6px"><span><i style="background:var(--purple-600)"></i>${tf('แผนงาน (Planned)','Planned')}</span><span><i style="background:var(--mint-500)"></i>${tf('ผลงานจริง (Actual)','Actual')}</span></div>
     ${curve.svg}
   </div>
-  <div class="page-head"><div><h3 style="font-size:16px">${tf('สถานะรายรายการ','Item-level status')}</h3><div class="sub">${tf('แบ่งเป็น 3 สถานะ แล้วจัดกลุ่มย่อยตามหมวดงานในแต่ละสถานะ','Split into 3 status groups, each grouped by work category')}</div></div></div>
-  ${statusSectionsHtml}
+  <div class="page-head"><div><h3 style="font-size:16px">${tf('สถานะรายรายการ','Item-level status')}</h3><div class="sub">${tf('แบ่งเป็น 3 สถานะ แล้วจัดกลุ่มย่อยตามหมวดงานในแต่ละสถานะ · กดที่รายการเพื่อแก้ไข','Split into 3 status columns, each grouped by work category -- tap an item to edit it')}</div></div></div>
+  <div class="card kanban-card"><div class="kanban kanban-3col">${kanbanColsHtml}</div></div>
   `;
 }
 // Renders one status bucket's items (already filtered by the caller) as a
-// table grouped by work category -- mirrors Budget's boqCategoryGroups() +
-// per-category header-row pattern so the two pages read consistently.
-function dashboardItemStatusTableHtml(items, asOf, logs){
-  if(!items.length) return `<div class="empty" style="padding:14px 0"><span class="ic">–</span>${tf('ไม่มีรายการในกลุ่มนี้','No items in this group')}</div>`;
+// list of .kcard items grouped by work category (boqCategoryGroups(), same
+// grouping Budget's table uses) with a small .kcol-cat label ahead of each
+// group -- this is the content of one .kcol in the 3-column Kanban layout
+// above. Falls back to .empty-col to match the Material Request board's own
+// "nothing in this column" treatment.
+function dashboardStatusColumnCardsHtml(items, statusCls, asOf, logs){
+  if(!items.length) return `<div class="empty-col">${tf('ไม่มีรายการ','No items')}</div>`;
   const groups = boqCategoryGroups(items);
-  let no=0;
-  const rows = groups.map(g=>{
+  return groups.map(g=>{
     const label = g.cat? escapeHtml(g.cat) : tf('ไม่ระบุหมวดหมู่','Uncategorized');
-    const catHeader = `<tr class="budget-cat-row"><td colspan="9">📁 ${label}</td></tr>`;
-    const itemRows = g.items.map(item=>{
-      no++;
+    const catLabel = `<div class="kcol-cat">📁 ${label}</div>`;
+    const cards = g.items.map(item=>{
       const planned = plannedCumAt(item,asOf), actual = actualCumAt(item,asOf,logs);
       const pct = clamp((actual/(item.qtyTotal||1))*100,0,100);
       const diff = actual-planned;
       const pred = itemPrediction(item,asOf,logs);
-      return `<tr>
-        <td class="tabular">${no}</td>
-        <td>${escapeHtml(item.itemCode||'-')}</td>
-        <td>${escapeHtml(item.name)}</td>
-        <td>${escapeHtml(item.unit)}</td>
-        <td class="tabular">${fmtNum(planned,2)}</td>
-        <td class="tabular">${fmtNum(actual,2)}</td>
-        <td class="tabular" style="color:${diff<0?'var(--coral-600)':'inherit'}">${diff>=0?'+':''}${fmtNum(diff,2)}</td>
-        <td class="tabular">${fmtNum(pct,0)}%</td>
-        <td class="tabular">${pred.finishDate? fmtDate(pred.finishDate) : '-'}</td>
-      </tr>`;
+      return `<div class="kcard ${statusCls}" data-dash-item-open="${item.id}">
+        <div class="title">${escapeHtml(item.name)}</div>
+        <div class="meta">${escapeHtml(item.itemCode||'-')} · ${escapeHtml(item.unit)} · ${fmtNum(pct,0)}%</div>
+        <div class="meta">${tf('แผน','planned')} <b class="tabular">${fmtNum(planned,2)}</b> / ${tf('จริง','actual')} <b class="tabular">${fmtNum(actual,2)}</b></div>
+        <div class="meta" style="color:${diff<0?'var(--coral-600)':'inherit'}">${diff>=0?'+':''}${fmtNum(diff,2)} ${escapeHtml(item.unit)}${pred.finishDate? ' · '+tf('คาดเสร็จ','est.')+' '+fmtDate(pred.finishDate) : ''}</div>
+      </div>`;
     }).join('');
-    return catHeader + itemRows;
+    return catLabel + cards;
   }).join('');
-  return `<div class="table-wrap dash-wrap"><table class="budget-table dash-table"><thead><tr>
-    <th>${tf('No.','No.')}</th><th>${tf('รหัส','Code')}</th><th>${tf('รายการ','Description')}</th><th>${tf('หน่วย','Unit')}</th>
-    <th>${tf('แผนสะสม','Planned to date')}</th><th>${tf('จริงสะสม','Actual to date')}</th><th>${tf('ส่วนต่าง','Diff')}</th>
-    <th>${tf('% คืบหน้า','% Progress')}</th><th>${tf('คาดเสร็จ','Est. finish')}</th>
-  </tr></thead><tbody>${rows}</tbody></table></div>`;
+}
+function wireDashboard(){
+  // Tapping a kcard opens the same Master Plan item editor as everywhere
+  // else an item can be opened from (e.g. Budget's ✏️ icon), rather than
+  // building a second, Dashboard-only item detail view.
+  $$('[data-dash-item-open]').forEach(el=> el.onclick = ()=>{ openItemDraft(el.dataset.dashItemOpen); render(); });
 }
 function buildSCurve(asOf){
   const proj = P();
@@ -11211,6 +11188,7 @@ function wireScreen(){
   else if(state.tab==='contractorjobs') wireContractorJobs();
   else if(state.tab==='costlog') wireCostLog();
   else if(state.tab==='budget') wireBudget();
+  else if(state.tab==='dashboard') wireDashboard();
   else if(state.tab==='billing') wireBilling();
   else if(state.tab==='report') wireReport();
 }
