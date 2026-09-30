@@ -4331,6 +4331,27 @@ function jobBidParamsFromHash(){
 function cjobBidLink(projectId, jobId, contractorId){
   return location.origin + location.pathname + location.search + '#job-bid&project=' + encodeURIComponent(projectId) + '&job=' + encodeURIComponent(jobId) + '&contractor=' + encodeURIComponent(contractorId);
 }
+// INSPECT checklist stage link: opening the app with
+// #punch-stage&project=<id>&run=<runId>&stage=<pre|progress|post> locks the
+// whole UI to ONE stage of ONE checklist run -- per the user's request for
+// separate shareable links per stage (🔹ก่อนดำเนินงาน/🔸ระหว่างดำเนินงาน/
+// ✅หลังดำเนินงาน), so a different person can be handed a link for just
+// "before work", "during work", or "after work" on the same inspection run,
+// each only ever seeing (and able to fill in) their own stage's items.
+// Restricted the same way JOB_BID_MODE is (no other tab, no other project,
+// none of the staff-side chrome), just scoped to a checklist stage instead
+// of a contractor's bid. PUNCH_CL_STAGES itself is defined later in this
+// file (INSPECT section) -- fine, since it's only ever read at render time,
+// long after the whole script (including that const) has finished loading.
+const PUNCH_STAGE_MODE = !FIELD_MODE && !JOB_BID_MODE && location.hash.replace('#','').split('&').includes('punch-stage');
+function punchStageParamsFromHash(){
+  const parts = location.hash.replace('#','').split('&');
+  const get = (key)=>{ const m = parts.find(s=> s.indexOf(key+'=')===0); return m ? decodeURIComponent(m.slice(key.length+1)) : null; };
+  return { project:get('project'), run:get('run'), stage:get('stage') };
+}
+function punchStageLink(projectId, runId, stage){
+  return location.origin + location.pathname + location.search + '#punch-stage&project=' + encodeURIComponent(projectId) + '&run=' + encodeURIComponent(runId) + '&stage=' + encodeURIComponent(stage);
+}
 const ROLE_LABEL = {
   site: tf('ผู้รับเหมาหน้างาน / ทีมงาน','Site contractor / crew'),
   pm: tf('ผู้จัดการโครงการ / ผู้บริหาร','Project manager / owner'),
@@ -4623,6 +4644,15 @@ function bootstrap(){
     const {project:pid} = jobBidParamsFromHash();
     const proj = state.projects.find(p=>p.id===pid);
     if(proj){ state.currentProjectId = proj.id; state.view='project'; state.tab='contractorjobs'; }
+  } else if(PUNCH_STAGE_MODE){
+    // Checklist stage link: jump straight into the single-stage restricted
+    // view. renderPunchStageLink() (see INSPECT section below) reads
+    // PUNCH_STAGE_MODE/punchStageParamsFromHash() itself to resolve exactly
+    // which run+stage this link is for, so nothing else needs to be set here
+    // beyond opening the right project.
+    const {project:pid} = punchStageParamsFromHash();
+    const proj = state.projects.find(p=>p.id===pid);
+    if(proj){ state.currentProjectId = proj.id; state.view='project'; state.tab='punch'; }
   }
 }
 
@@ -4797,6 +4827,13 @@ function renderModalRoot(){
   // underlying draft object is left untouched in memory so closing the
   // annotator just falls through to whichever modal was open before it.
   if(punchAnnotating) return punchAnnotateModalHtml();
+  // The checklist stage link (PUNCH_STAGE_MODE) only ever needs the annotate
+  // modal just checked above -- none of the other modal state below is ever
+  // set from inside its own restricted screen/wiring, but this stops any
+  // stale state left over from a *different* mode/tab in this same browser
+  // (e.g. a staff member who was mid-edit elsewhere before opening this
+  // link) from leaking a modal into a screen meant to show none but that.
+  if(PUNCH_STAGE_MODE) return '';
   if(punchItemDraft) return punchItemModalHtml();
   if(punchPlanDraft) return punchPlanModalHtml();
   if(punchChecklistManagerOpen) return punchChecklistModalHtml();
@@ -4819,7 +4856,7 @@ function renderModalRoot(){
 }
 
 function renderTopbar(){
-  const inProject = state.view==='project' && !FIELD_MODE && !JOB_BID_MODE;
+  const inProject = state.view==='project' && !FIELD_MODE && !JOB_BID_MODE && !PUNCH_STAGE_MODE;
   let pillHtml='';
   if(inProject){
     const proj = P();
@@ -4843,11 +4880,11 @@ function renderTopbar(){
       </div>
     </div>
     <div class="spacer"></div>
-    ${(FIELD_MODE||JOB_BID_MODE)? '' : `<div class="lang-switch">
+    ${(FIELD_MODE||JOB_BID_MODE||PUNCH_STAGE_MODE)? '' : `<div class="lang-switch">
       <button data-lang="th" class="${state.lang==='th'?'active':''}">ไทย</button>
       <button data-lang="en" class="${state.lang==='en'?'active':''}">EN</button>
     </div>`}
-    ${(FIELD_MODE||JOB_BID_MODE)? '' : `<div class="role-switch">
+    ${(FIELD_MODE||JOB_BID_MODE||PUNCH_STAGE_MODE)? '' : `<div class="role-switch">
       <button data-role="site" class="${state.role==='site'?'active':''}">${tf('หน้างาน','Site')}</button>
       <button data-role="pm" class="${state.role==='pm'?'active':''}">PM</button>
       <button data-role="procurement" class="${state.role==='procurement'?'active':''}">${tf('จัดซื้อ','Buy')}</button>
@@ -4866,6 +4903,12 @@ function renderTabbar(){
   if(JOB_BID_MODE){
     return `<nav class="tabbar"><button class="tabbtn active" data-nav="contractorjobs"><span class="ic">👷</span>${tf('ใบงานของฉัน','My job')}</button></nav>`;
   }
+  if(PUNCH_STAGE_MODE){
+    const {stage} = punchStageParamsFromHash();
+    const stDef = PUNCH_CL_STAGES.find(s=>s.v===stage);
+    const label = stDef? `${stDef.ic} ${tf(stDef.th,stDef.en)}` : tf('เช็กลิสต์ตรวจงาน','Checklist');
+    return `<nav class="tabbar"><button class="tabbtn active" data-nav="punch"><span class="ic">📋</span>${label}</button></nav>`;
+  }
   if(state.view==='project'){
     return `<nav class="tabbar">
       <button class="tabbtn back" data-back-hub><span class="ic">←</span>${tf('โปรเจ็คทั้งหมด','All projects')}</button>
@@ -4879,6 +4922,7 @@ function renderTabbar(){
 
 function renderScreen(){
   if(JOB_BID_MODE) return renderJobBid();
+  if(PUNCH_STAGE_MODE) return renderPunchStageLink();
   if(FIELD_MODE){
     if(!state.currentProjectId) return `<div class="empty"><span class="ic">🔗</span>${tf('ไม่พบโปรเจ็คสำหรับลิงก์นี้ กรุณาขอลิงก์ใหม่จากผู้ดูแลโปรเจ็ค','This link is not linked to any project. Please ask the project owner for a new link.')}</div>`;
     if(state.tab==='procure') return renderProcure();
@@ -10832,6 +10876,39 @@ function punchReportBodyHtml(proj){
 }
 
 /* ---- 3-stage checklist run view ---- */
+// One checklist item's row: pass/fail/N-A buttons, photo attach (each photo
+// editable in place via the ✏️ annotate icon -- draw/circle/highlight,
+// reusing the same canvas tool as defect photos), and a note field shown
+// only when marked fail. Shared between the normal in-app checklist view
+// below and the restricted single-stage link view (renderPunchStageLink()),
+// since both need to render/wire the exact same per-item markup.
+function punchClPhotosHtml(it, res){
+  return (res.photoIds||[]).map(pid=>`<div class="photo-item" style="width:60px;height:60px;display:inline-block;vertical-align:middle">
+    <img data-thumb-id="${pid}" alt="">
+    <button class="rm" data-pu-cl-rm-photo="${it.id}|${pid}">✕</button>
+    <div class="edit-ic" data-pu-cl-annotate="${it.id}|${pid}" title="${tf('วาด/วงกลม/ไฮไลท์','Draw/circle/highlight')}">✏️</div>
+  </div>`).join('');
+}
+function punchClItemRowHtml(it, res){
+  res = res || {status:'', note:'', photoIds:[]};
+  const photosHtml = punchClPhotosHtml(it, res);
+  return `<div class="punch-cl-item">
+    <div class="row1">
+      <div class="txt"><b>${escapeHtml(it.text)}</b>${it.detail? `<p>${escapeHtml(it.detail)}</p>` : ''}</div>
+      <div class="punch-cl-status">
+        <button class="${res.status==='pass'?'on pass':''}" data-pu-cl-set="${it.id}|pass" title="${tf('ผ่าน','Pass')}">✅</button>
+        <button class="${res.status==='fail'?'on fail':''}" data-pu-cl-set="${it.id}|fail" title="${tf('ไม่ผ่าน','Fail')}">❌</button>
+        <button class="${res.status==='na'?'on na':''}" data-pu-cl-set="${it.id}|na" title="${tf('ไม่เกี่ยวข้อง','N/A')}">➖</button>
+      </div>
+    </div>
+    <div style="display:flex;gap:8px;align-items:center;margin-top:6px;flex-wrap:wrap">
+      <label class="photo-drop" style="padding:4px 10px;font-size:11px" for="pu-cl-photo-${it.id}">📷 ${tf('แนบรูป','Attach photo')}</label>
+      <input type="file" id="pu-cl-photo-${it.id}" data-pu-cl-photo-input="${it.id}" accept="image/*" multiple style="display:none">
+      ${photosHtml}
+    </div>
+    ${res.status==='fail'? `<input type="text" data-pu-cl-note="${it.id}" value="${escapeHtml(res.note||'')}" placeholder="${tf('หมายเหตุ (สาเหตุ/สิ่งที่ต้องแก้)','note (cause / what to fix)')}" style="margin-top:6px;width:100%;font-size:12px">` : ''}
+  </div>`;
+}
 function renderPunchChecklistView(proj){
   const runs = proj.punchChecklistRuns||[];
   if(!punchSelectedRunId || !runs.find(r=>r.id===punchSelectedRunId)) punchSelectedRunId = runs.length? runs[runs.length-1].id : null;
@@ -10868,31 +10945,24 @@ function renderPunchChecklistView(proj){
       stItems.forEach(it=>{ (byTrade[it.group]=byTrade[it.group]||[]).push(it); });
       return Object.keys(byTrade).map(g=>{
         const gItems = byTrade[g];
-        const rowsHtml = gItems.map(it=>{
-          const res = run.results[it.id] || {status:'', note:'', photoIds:[]};
-          const photosHtml = (res.photoIds||[]).map(pid=>`<div class="photo-item" style="width:60px;height:60px;display:inline-block;vertical-align:middle"><img data-thumb-id="${pid}" alt=""><button class="rm" data-pu-cl-rm-photo="${it.id}|${pid}">✕</button></div>`).join('');
-          return `<div class="punch-cl-item">
-            <div class="row1">
-              <div class="txt"><b>${escapeHtml(it.text)}</b>${it.detail? `<p>${escapeHtml(it.detail)}</p>` : ''}</div>
-              <div class="punch-cl-status">
-                <button class="${res.status==='pass'?'on pass':''}" data-pu-cl-set="${it.id}|pass" title="${tf('ผ่าน','Pass')}">✅</button>
-                <button class="${res.status==='fail'?'on fail':''}" data-pu-cl-set="${it.id}|fail" title="${tf('ไม่ผ่าน','Fail')}">❌</button>
-                <button class="${res.status==='na'?'on na':''}" data-pu-cl-set="${it.id}|na" title="${tf('ไม่เกี่ยวข้อง','N/A')}">➖</button>
-              </div>
-            </div>
-            <div style="display:flex;gap:8px;align-items:center;margin-top:6px;flex-wrap:wrap">
-              <label class="photo-drop" style="padding:4px 10px;font-size:11px" for="pu-cl-photo-${it.id}">📷 ${tf('แนบรูป','Attach photo')}</label>
-              <input type="file" id="pu-cl-photo-${it.id}" data-pu-cl-photo-input="${it.id}" accept="image/*" multiple style="display:none">
-              ${photosHtml}
-            </div>
-            ${res.status==='fail'? `<input type="text" data-pu-cl-note="${it.id}" value="${escapeHtml(res.note||'')}" placeholder="${tf('หมายเหตุ (สาเหตุ/สิ่งที่ต้องแก้)','note (cause / what to fix)')}" style="margin-top:6px;width:100%;font-size:12px">` : ''}
-          </div>`;
-        }).join('');
+        const rowsHtml = gItems.map(it=> punchClItemRowHtml(it, run.results[it.id])).join('');
         return `<div class="punch-cl-stage"><div class="punch-cl-stage-label">${escapeHtml(g)}</div>${rowsHtml}</div>`;
       }).join('');
     })();
+    // 🔗 copies a personal link scoped to just this run + this stage (see
+    // PUNCH_STAGE_MODE/punchStageLink() near the top of the file) -- the
+    // user's explicit request for a separate shareable link per stage, so
+    // whoever handles "ก่อนดำเนินงาน" vs "ระหว่างดำเนินงาน" vs
+    // "หลังดำเนินงาน" can be handed a link that opens straight to just their
+    // stage's items, with no other tab/project/checklist stage reachable.
     return `<div class="punch-cl-group">
-      <div class="punch-cl-group-head" data-pu-cl-toggle="${st.v}"><span>${expanded?'▾':'▸'} ${st.ic} ${tf(st.th,st.en)}</span><span class="count">${stDone}/${stItems.length}</span></div>
+      <div class="punch-cl-group-head" data-pu-cl-toggle="${st.v}">
+        <span>${expanded?'▾':'▸'} ${st.ic} ${tf(st.th,st.en)}</span>
+        <span style="display:flex;align-items:center;gap:10px">
+          <button class="iconbtn" data-pu-cl-share="${run.id}|${st.v}" title="${tf('คัดลอกลิงก์สำหรับระยะนี้','Copy this stage’s link')}">🔗</button>
+          <span class="count">${stDone}/${stItems.length}</span>
+        </span>
+      </div>
       ${tradesHtml}
     </div>`;
   }).join('');
@@ -10910,6 +10980,43 @@ function renderPunchChecklistView(proj){
     <div class="punch-cl-progress"><i style="width:${pct}%"></i></div>
   </div>
   <div style="margin-top:14px">${stagesHtml}</div>
+  `;
+}
+// Restricted, single-stage view for PUNCH_STAGE_MODE links -- everything
+// this stage's recipient needs (project/zone context, this stage's items
+// only) and nothing else: no other stage, no other run, no other tab.
+// Reuses punchClItemRowHtml() so the checklist item itself (status buttons,
+// photo attach, annotate, fail-note) behaves identically to the normal view.
+function renderPunchStageLink(){
+  const {project:pid, run:runId, stage} = punchStageParamsFromHash();
+  const proj = state.projects.find(p=>p.id===pid);
+  if(proj) ensurePunchDefaults(proj);
+  const run = proj ? (proj.punchChecklistRuns||[]).find(r=>r.id===runId) : null;
+  const stDef = PUNCH_CL_STAGES.find(s=>s.v===stage);
+  if(!proj || !run || !stDef){
+    return `<div class="empty"><span class="ic">🔗</span>${tf('ไม่พบเช็กลิสต์นี้ หรือลิงก์ไม่ถูกต้อง กรุณาขอลิงก์ใหม่จากผู้ดูแลโครงการ','This checklist link is invalid or no longer exists. Please ask the project owner for a new link.')}</div>`;
+  }
+  const items = (proj.punchChecklist||[]).filter(it=>it.stage===stDef.v);
+  const done = items.filter(it=> run.results[it.id] && run.results[it.id].status).length;
+  const passN = items.filter(it=> run.results[it.id] && run.results[it.id].status==='pass').length;
+  const failN = items.filter(it=> run.results[it.id] && run.results[it.id].status==='fail').length;
+  const pct = items.length? Math.round(done/items.length*100) : 0;
+  const byTrade = {};
+  items.forEach(it=> (byTrade[it.group]=byTrade[it.group]||[]).push(it));
+  const groupsHtml = Object.keys(byTrade).map(g=>{
+    const rowsHtml = byTrade[g].map(it=> punchClItemRowHtml(it, run.results[it.id])).join('');
+    return `<div class="punch-cl-stage"><div class="punch-cl-stage-label">${escapeHtml(g)}</div>${rowsHtml}</div>`;
+  }).join('');
+  return `<div class="card">
+    <div class="meta-lbl">${tf('โครงการ','Project')}</div>
+    <div style="font-family:var(--font-display);font-weight:700;font-size:21px;line-height:1.25;margin-top:2px">${escapeHtml(proj.name||tf('(ไม่มีชื่อโปรเจ็ค)','(untitled project)'))}</div>
+    <div class="meta-lbl" style="margin-top:12px">${tf('จุด/โซนที่ตรวจ','Zone / location')}</div>
+    <div style="font-weight:600;font-size:15px;margin-top:2px">📋 ${escapeHtml(run.zone||tf('(ยังไม่ระบุโซน)','(unnamed zone)'))}</div>
+    <div style="margin-top:12px"><span class="badge idle">${stDef.ic} ${tf(stDef.th,stDef.en)}</span></div>
+    <div class="sub" style="margin-top:8px">${tf('ตรวจแล้ว','Checked')} ${done}/${items.length} · ✅ ${passN} · ❌ ${failN}</div>
+    <div class="punch-cl-progress"><i style="width:${pct}%"></i></div>
+  </div>
+  <div style="margin-top:14px">${items.length? groupsHtml : `<div class="card" style="text-align:center;padding:30px 20px"><div class="empty"><span class="ic">📋</span>${tf('ยังไม่มีหัวข้อตรวจสำหรับระยะนี้','No checklist items for this stage yet')}</div></div>`}</div>
   `;
 }
 
@@ -11367,6 +11474,54 @@ function wirePunchPlanModal(){
     saveData(); punchPlanDraft=null; editingPunchPlanId=null; render(); toast(tf('ลบแปลนแล้ว','Plan deleted'));
   };
 }
+// Shared per-item wiring: status buttons, fail-note, photo attach/remove,
+// and the ✏️ in-place annotate icon (draw/circle/highlight directly on an
+// already-attached checklist photo). Used by both the normal in-app
+// checklist view and the restricted single-stage link view below, since
+// punchClItemRowHtml() renders identical markup/data-* attributes for both.
+function wirePunchClItemHandlers(run){
+  if(!run) return;
+  $$('[data-pu-cl-set]').forEach(b=> b.onclick=()=>{
+    const [itemId, status] = b.dataset.puClSet.split('|');
+    run.results[itemId] = run.results[itemId] || {status:'', note:'', photoIds:[]};
+    run.results[itemId].status = run.results[itemId].status===status ? '' : status;
+    saveData(); render();
+  });
+  $$('[data-pu-cl-note]').forEach(inp=> inp.onchange=()=>{
+    const itemId = inp.dataset.puClNote;
+    run.results[itemId] = run.results[itemId] || {status:'', note:'', photoIds:[]};
+    run.results[itemId].note = inp.value; saveData();
+  });
+  $$('[data-pu-cl-photo-input]').forEach(inp=> inp.onchange = async (e)=>{
+    const itemId = inp.dataset.puClPhotoInput;
+    const files = Array.from(e.target.files||[]);
+    run.results[itemId] = run.results[itemId] || {status:'', note:'', photoIds:[]};
+    for(const f of files){
+      try{ const dataUrl = await compressImage(f); const id=uid(); await idbPut(id,dataUrl); run.results[itemId].photoIds.push(id); }catch(err){}
+      await new Promise(r=>setTimeout(r,0));
+    }
+    inp.value=''; saveData(); render();
+  });
+  $$('[data-pu-cl-rm-photo]').forEach(b=> b.onclick=()=>{
+    const [itemId,pid] = b.dataset.puClRmPhoto.split('|');
+    if(run.results[itemId]) run.results[itemId].photoIds = (run.results[itemId].photoIds||[]).filter(x=>x!==pid);
+    saveData(); render();
+  });
+  // Overwrites the photo in place (same loadRefPhoto + idbPut + refPhotoCache
+  // pattern the defect-item photo annotator uses for an already-saved photo)
+  // -- reuses the one shared annotate canvas (punchAnnotating/
+  // punchAnnotateModalHtml/wirePunchAnnotateModal) rather than a second copy
+  // of the drawing tool.
+  $$('[data-pu-cl-annotate]').forEach(el=> el.onclick = async ()=>{
+    const [itemId, pid] = el.dataset.puClAnnotate.split('|');
+    const dataUrl = await loadRefPhoto(pid);
+    if(!dataUrl){ toast(tf('โหลดรูปไม่สำเร็จ','Failed to load photo')); return; }
+    const onSave = async (newDataUrl)=>{ await idbPut(pid, newDataUrl); refPhotoCache[pid]=newDataUrl; };
+    punchAnnotating = {dataUrl, marks:[], zoom:1, tool:'pen', onSave};
+    render();
+  });
+  refreshPunchPhotos();
+}
 function wirePunchChecklistView(){
   const proj = P();
   $$('[data-pu-run]').forEach(el=> el.onclick = ()=>{ punchSelectedRunId = el.dataset.puRun; render(); });
@@ -11388,37 +11543,32 @@ function wirePunchChecklistView(){
     if(punchClExpanded.has(g)) punchClExpanded.delete(g); else punchClExpanded.add(g);
     render();
   });
+  // Nested inside the same clickable group-head as data-pu-cl-toggle above --
+  // stopPropagation so tapping "copy link" doesn't also collapse/expand the
+  // stage section underneath it.
+  $$('[data-pu-cl-share]').forEach(b=> b.onclick = async (e)=>{
+    e.stopPropagation();
+    const [runId, stage] = b.dataset.puClShare.split('|');
+    const link = punchStageLink(proj.id, runId, stage);
+    try{ await navigator.clipboard.writeText(link); toast(tf('คัดลอกลิงก์แล้ว','Link copied')); }
+    catch(err){ prompt(tf('คัดลอกลิงก์นี้เพื่อส่งให้ทีมงาน:','Copy this link to share:'), link); }
+  });
   const run = (proj.punchChecklistRuns||[]).find(r=>r.id===punchSelectedRunId);
   if(run){
     const zoneInp=$('#pu-run-zone'); if(zoneInp) zoneInp.onchange=()=>{ run.zone=zoneInp.value.trim(); saveData(); render(); };
-    $$('[data-pu-cl-set]').forEach(b=> b.onclick=()=>{
-      const [itemId, status] = b.dataset.puClSet.split('|');
-      run.results[itemId] = run.results[itemId] || {status:'', note:'', photoIds:[]};
-      run.results[itemId].status = run.results[itemId].status===status ? '' : status;
-      saveData(); render();
-    });
-    $$('[data-pu-cl-note]').forEach(inp=> inp.onchange=()=>{
-      const itemId = inp.dataset.puClNote;
-      run.results[itemId] = run.results[itemId] || {status:'', note:'', photoIds:[]};
-      run.results[itemId].note = inp.value; saveData();
-    });
-    $$('[data-pu-cl-photo-input]').forEach(inp=> inp.onchange = async (e)=>{
-      const itemId = inp.dataset.puClPhotoInput;
-      const files = Array.from(e.target.files||[]);
-      run.results[itemId] = run.results[itemId] || {status:'', note:'', photoIds:[]};
-      for(const f of files){
-        try{ const dataUrl = await compressImage(f); const id=uid(); await idbPut(id,dataUrl); run.results[itemId].photoIds.push(id); }catch(err){}
-        await new Promise(r=>setTimeout(r,0));
-      }
-      inp.value=''; saveData(); render();
-    });
-    $$('[data-pu-cl-rm-photo]').forEach(b=> b.onclick=()=>{
-      const [itemId,pid] = b.dataset.puClRmPhoto.split('|');
-      if(run.results[itemId]) run.results[itemId].photoIds = (run.results[itemId].photoIds||[]).filter(x=>x!==pid);
-      saveData(); render();
-    });
-    refreshPunchPhotos();
+    wirePunchClItemHandlers(run);
   }
+}
+// Restricted single-stage link (PUNCH_STAGE_MODE) -- same per-item wiring as
+// the normal checklist view, just resolved against the run/stage from the
+// URL instead of punchSelectedRunId/an expanded stage section.
+function wirePunchStageLink(){
+  const {project:pid, run:runId} = punchStageParamsFromHash();
+  const proj = state.projects.find(p=>p.id===pid);
+  const run = proj ? (proj.punchChecklistRuns||[]).find(r=>r.id===runId) : null;
+  if(!run) return;
+  wirePunchClItemHandlers(run);
+  wirePunchAnnotateModal();
 }
 function punchChecklistGroupedTemplate(proj){
   const groups = {};
@@ -13171,6 +13321,7 @@ function wireJobBid(){
 /* ============================= WIRE SCREEN ROUTER ============================= */
 function wireScreen(){
   if(JOB_BID_MODE) return wireJobBid();
+  if(PUNCH_STAGE_MODE) return wirePunchStageLink();
   if(FIELD_MODE){
     if(!state.currentProjectId) return;
     if(state.tab==='procure') return wireProcure();
