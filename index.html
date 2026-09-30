@@ -12113,9 +12113,19 @@ function cjobAlertStatus(job){
   if(daysBetween(today,due)<=3) return 'duesoon';
   return '';
 }
+// Each thumbnail is wrapped in a link to its own full-size image (opened in
+// a new tab) so users can actually view it at full size -- the thumbnail
+// alone was previously unclickable, the same data-po-open pattern used for
+// the PO-document links just below in this file. The href starts as "#"
+// (the real dataUrl isn't known until it's pulled back out of IndexedDB) and
+// is filled in by refreshCjobJobPhotoLinks() after render.
 function cjobPhotoGalleryHtml(photoIds){
   if(!photoIds || !photoIds.length) return '';
-  return `<div class="photo-grid" style="margin-top:10px">${photoIds.map(id=>`<div class="photo-item"><img data-thumb-id="${id}" alt=""></div>`).join('')}</div>`;
+  return `<div class="photo-grid" style="margin-top:10px">${photoIds.map(id=>`<div class="photo-item"><a data-cjob-jobphoto-open="${id}" href="#" target="_blank" rel="noopener"><img data-thumb-id="${id}" alt="" style="cursor:zoom-in"></a></div>`).join('')}</div>`;
+}
+async function refreshCjobJobPhotoLinks(){
+  const links = $$('[data-cjob-jobphoto-open]');
+  for(const a of links){ const data = await loadRefPhoto(a.dataset.cjobJobphotoOpen); if(data) a.href = data; }
 }
 
 /* ---- Staff side: job list (project tab "งานจ้างเหมา") ---- */
@@ -12862,6 +12872,7 @@ function wireCjobDetailModal(){
   };
   refreshItemModalPhotos();
   refreshCjobPoLinks();
+  refreshCjobJobPhotoLinks();
 }
 // PO-document links can only be given a real href once their dataUrl is
 // pulled back out of IndexedDB (only the id is kept on the job itself) --
@@ -13086,6 +13097,7 @@ function wireJobBid(){
     saveData(); render(); toast(tf('ส่งใบส่งงานแล้ว','Work-submission note sent'));
   };
   refreshItemModalPhotos();
+  refreshCjobJobPhotoLinks();
 }
 
 /* ============================= WIRE SCREEN ROUTER ============================= */
