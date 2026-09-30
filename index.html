@@ -4781,6 +4781,14 @@ function render(){
 // computed transform isn't "none" -- .screen briefly has one during its
 // mount animation, which would misplace/clip a nested modal.
 function renderModalRoot(){
+  // The contractor-facing job-bid screen (JOB_BID_MODE) has no modals of its
+  // own -- just this one lightbox for viewing job/handover photos at full
+  // size. It's rendered here (a sibling of <main>, always safe for a
+  // position:fixed overlay) rather than inside renderJobBid()'s own returned
+  // HTML, which sits inside .screen -- an ancestor with a transform during
+  // its mount animation that would otherwise trap and misplace it (same
+  // reason every other modal in this function is rendered here too).
+  if(JOB_BID_MODE) return cjobPhotoLightboxHtml();
   // punchAnnotating is checked first: it opens *on top of* an in-progress
   // punchItemDraft (drawing on a defect photo mid-edit) or punchChecklistRun
   // photo, and this app only ever shows one modal-bg at a time -- the
@@ -4912,7 +4920,7 @@ function resetTransient(){
   editingInspectionId=null; inspectionDraft=null;
   billingPickerRowId=null; billingPickerFiles=null; billingPickerLoading=false; billingPickerError='';
   cjobDraft=null; editingCjobId=null; cjobDetailId=null; cjobHandoverPending=[]; cjobViewTrash=false;
-  cjobPoPending=[]; cjobPoDraft=null; cjobShareImageUrl=null;
+  cjobPoPending=[]; cjobPoDraft=null; cjobShareImageUrl=null; cjobPhotoLightboxId=null;
   punchSelectedPlanId=null; punchPlanDraft=null; editingPunchPlanId=null;
   punchItemDraft=null; editingPunchItemId=null; punchPendingPin=null; punchDrawMode='pin';
   punchFilterStatus='all'; punchFilterSeverity='all'; punchFilterCategory=''; punchFilterAssignee=''; punchFilterSearch='';
@@ -12113,19 +12121,30 @@ function cjobAlertStatus(job){
   if(daysBetween(today,due)<=3) return 'duesoon';
   return '';
 }
-// Each thumbnail is wrapped in a link to its own full-size image (opened in
-// a new tab) so users can actually view it at full size -- the thumbnail
-// alone was previously unclickable, the same data-po-open pattern used for
-// the PO-document links just below in this file. The href starts as "#"
-// (the real dataUrl isn't known until it's pulled back out of IndexedDB) and
-// is filled in by refreshCjobJobPhotoLinks() after render.
+// Each thumbnail opens cjobPhotoLightboxId in a full-size lightbox -- it was
+// previously just a plain <img> with no click handler at all, so there was
+// no way to view it at full size (a first attempt wrapped it in a
+// target="_blank" link to its data: URL, matching the data-po-open pattern
+// used for the PO-document links just below in this file, but Chrome blocks
+// top-level navigation to a data: URL opened that way, so the "new tab"
+// just came up blank -- an in-page lightbox, same overlay CSS the reference
+// photo gallery and plan-markup records already use, has no such problem).
 function cjobPhotoGalleryHtml(photoIds){
   if(!photoIds || !photoIds.length) return '';
-  return `<div class="photo-grid" style="margin-top:10px">${photoIds.map(id=>`<div class="photo-item"><a data-cjob-jobphoto-open="${id}" href="#" target="_blank" rel="noopener"><img data-thumb-id="${id}" alt="" style="cursor:zoom-in"></a></div>`).join('')}</div>`;
+  return `<div class="photo-grid" style="margin-top:10px">${photoIds.map(id=>`<div class="photo-item"><img data-thumb-id="${id}" alt="" data-cjob-jobphoto-open="${id}" style="cursor:zoom-in"></div>`).join('')}</div>`;
 }
-async function refreshCjobJobPhotoLinks(){
-  const links = $$('[data-cjob-jobphoto-open]');
-  for(const a of links){ const data = await loadRefPhoto(a.dataset.cjobJobphotoOpen); if(data) a.href = data; }
+let cjobPhotoLightboxId=null;
+function cjobPhotoLightboxHtml(){
+  if(!cjobPhotoLightboxId) return '';
+  return `<div class="lightbox-overlay" id="cjob-photo-lightbox">
+    <button class="lightbox-close" id="cjob-photo-lightbox-close" title="${tf('ปิด','Close')}">✕</button>
+    <img data-thumb-id="${cjobPhotoLightboxId}" alt="">
+  </div>`;
+}
+function wireCjobPhotoLightbox(){
+  $$('[data-cjob-jobphoto-open]').forEach(el=> el.onclick = ()=>{ cjobPhotoLightboxId = el.dataset.cjobJobphotoOpen; render(); });
+  const closeBtn = $('#cjob-photo-lightbox-close'); if(closeBtn) closeBtn.onclick = ()=>{ cjobPhotoLightboxId=null; render(); };
+  const overlay = $('#cjob-photo-lightbox'); if(overlay) overlay.addEventListener('click', e=>{ if(e.target===overlay){ cjobPhotoLightboxId=null; render(); } });
 }
 
 /* ---- Staff side: job list (project tab "งานจ้างเหมา") ---- */
@@ -12660,7 +12679,7 @@ function cjobDetailModalHtml(){
     ${job.status!=='cancelled' && job.status!=='paid'? `<div class="action-row" style="margin-top:16px">
       <button class="btn danger sm" id="cjob-detail-cancel">🗑️ ${tf('ยกเลิกใบงานนี้','Cancel this job')}</button>
     </div>` : ''}
-  </div></div>`;
+  </div></div>${cjobPhotoLightboxHtml()}`;
 }
 function closeCjobDetail(){ cjobDetailId=null; render(); }
 // Phase 1 step 6: "ระบบ ทำการ ลงบันทึกต้นทุน (Cost Record) เข้าสู่ระบบบัญชี
@@ -12872,7 +12891,7 @@ function wireCjobDetailModal(){
   };
   refreshItemModalPhotos();
   refreshCjobPoLinks();
-  refreshCjobJobPhotoLinks();
+  wireCjobPhotoLightbox();
 }
 // PO-document links can only be given a real href once their dataUrl is
 // pulled back out of IndexedDB (only the id is kept on the job itself) --
@@ -13097,7 +13116,7 @@ function wireJobBid(){
     saveData(); render(); toast(tf('ส่งใบส่งงานแล้ว','Work-submission note sent'));
   };
   refreshItemModalPhotos();
-  refreshCjobJobPhotoLinks();
+  wireCjobPhotoLightbox();
 }
 
 /* ============================= WIRE SCREEN ROUTER ============================= */
