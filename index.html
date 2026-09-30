@@ -4340,6 +4340,12 @@ const PP_DELIVERY_SOURCE = [
 // values. Lives at module scope (not persisted, resets on reload) the same
 // way costLogStatusFilter does -- it's view state, not project data.
 let ppStatusFilter = 'all';
+// Categories currently expanded on the Purchasing Plan table -- same
+// collapse/expand-by-default convention as Master Plan's mpExpandedCats,
+// added so the two screens behave identically when a project has many BOQ
+// categories (tap a category header to toggle it, or use the expand-all/
+// collapse-all buttons).
+let ppExpandedCats = new Set();
 function ppMatchesStatusFilter(item, filter){
   if(filter==='all') return true;
   if(filter==='overdue') return ppAlertStatus(item)==='overdue';
@@ -4401,9 +4407,22 @@ function bootstrap(){
   // migration: contractorJobs (the Contractor Job / RFQ workflow) shipped
   // after some installs already had saved projects -- same backfill pattern
   // as costLog above, so every P().contractorJobs read/push is always safe.
+  // Each job is also passed through cjobEnsureRounds() (see near CJOB_STATUS
+  // above), which upgrades the old single inspection/handover/finalApproval/
+  // payout shape into job.rounds[]. NOTE: same as the punch-list crash fixed
+  // earlier -- a bootstrap-only migration isn't enough on its own, because a
+  // later cloud-sync overwrite (initCloudSync()'s "Firestore is now the
+  // source of truth" branch replacing state.projects wholesale) can bring
+  // back pre-migration data from Firestore at any point after this runs
+  // once at load. ensureCjobDefaults(proj) is therefore ALSO called
+  // defensively at the top of every render path that reads job.rounds
+  // (renderContractorJobs(), cjobDetailModalHtml(), renderJobBid()).
   {
     let addedCjobs=false;
-    state.projects.forEach(p=>{ if(!Array.isArray(p.contractorJobs)){ p.contractorJobs=[]; addedCjobs=true; } });
+    state.projects.forEach(p=>{
+      if(!Array.isArray(p.contractorJobs)){ p.contractorJobs=[]; addedCjobs=true; }
+      p.contractorJobs.forEach(job=>{ if(!Array.isArray(job.rounds)){ cjobEnsureRounds(job); addedCjobs=true; } });
+    });
     if(addedCjobs) saveData();
   }
   // migration: INSPECT (punch list + 3-stage checklist, proj.punchPlans/
@@ -8776,8 +8795,11 @@ function renderPurchasePlan(proj=P()){
   const rows = groups.map(g=>{
     const filteredItems = g.items.filter(item=> ppMatchesStatusFilter(item, ppStatusFilter));
     if(!filteredItems.length) return '';
+    const key = g.cat || '__uncategorized__';
+    const expanded = ppExpandedCats.has(key);
     const label = g.cat? escapeHtml(g.cat) : tf('ไม่ระบุหมวดหมู่','Uncategorized');
-    const catHeader = `<tr class="budget-cat-row"><td colspan="14">📁 ${label}</td></tr>`;
+    const catHeader = `<tr class="budget-cat-row" data-toggle-pp-cat="${escapeHtml(key)}" style="cursor:pointer"><td colspan="14"><span class="mp-cat-chevron">${expanded?'▾':'▸'}</span>📁 ${label} <span class="mp-cat-count">${filteredItems.length} ${tf('รายการ','item(s)')}</span></td></tr>`;
+    if(!expanded) return catHeader;
     const itemRows = filteredItems.map(item=>{
       const orderStatus = item.ppOrderStatus || 'not_ordered';
       const orderStatusDef = PP_ORDER_STATUS.find(s=>s.v===orderStatus) || PP_ORDER_STATUS[0];
@@ -8831,6 +8853,10 @@ function renderPurchasePlan(proj=P()){
   <div class="page-head">
     <div><h2>${tf('แผนสั่งของ (Purchasing Plan)','Purchasing Plan')}</h2><div class="sub">${tf(`แผนสั่งของเข้าหน้างานของทุกรายการใน BOQ — วันที่ต้องถึงหน้างานดึงจากแผนงานหลักอัตโนมัติ ส่วนวันที่ต้องสั่งซื้อคำนวณจาก Lead Time ที่กรอกต่อรายการ (ค่าเริ่มต้น ${PP_DEFAULT_LEAD_DAYS} วันก่อนถึงหน้างาน ถ้าไม่ได้กรอก)`,`Material ordering plan for every BOQ item — the need-on-site date is pulled automatically from the Master Plan, and the order-by date is computed from the lead time entered per item (defaults to ${PP_DEFAULT_LEAD_DAYS} days before the need-on-site date if left blank)`)}</div></div>
   </div>
+  ${groups.length>1? `<div class="mp-expand-controls">
+    <button class="btn ghost sm" id="btn-pp-expand-all-cat">${tf('ขยายทั้งหมด','Expand all')}</button>
+    <button class="btn ghost sm" id="btn-pp-collapse-all-cat">${tf('ย่อทั้งหมด','Collapse all')}</button>
+  </div>` : ''}
   ${alertNote}
   <div class="grid cols-auto" style="margin-bottom:16px">
     <div class="card kpi"><div class="stat"><span class="lbl">📦 ${tf('รายการทั้งหมด','Total items')}</span><span class="num tabular" style="font-size:19px">${proj.boq.length}</span></div></div>
@@ -8872,6 +8898,18 @@ function wirePurchasePlan(proj=P()){
   wirePpTopscroll();
   const filterSel = $('#pp-status-filter');
   if(filterSel) filterSel.onchange = ()=>{ ppStatusFilter = filterSel.value; render(); };
+  $$('[data-toggle-pp-cat]').forEach(row=> row.onclick = ()=>{
+    const key = row.dataset.togglePpCat;
+    if(ppExpandedCats.has(key)) ppExpandedCats.delete(key); else ppExpandedCats.add(key);
+    render();
+  });
+  const expandAllBtn = $('#btn-pp-expand-all-cat');
+  if(expandAllBtn) expandAllBtn.onclick = ()=>{
+    boqCategoryGroups(proj.boq).forEach(g=> ppExpandedCats.add(g.cat || '__uncategorized__'));
+    render();
+  };
+  const collapseAllBtn = $('#btn-pp-collapse-all-cat');
+  if(collapseAllBtn) collapseAllBtn.onclick = ()=>{ ppExpandedCats.clear(); render(); };
   $$('[data-pp-row]').forEach(row=>{
     const item = proj.boq.find(i=>i.id===row.dataset.ppRow);
     if(!item) return;
@@ -11325,23 +11363,32 @@ async function exportReportAsImage(){
 // by itemDraft above) and, on price award, auto-creates a proj.costLog entry
 // via newCostLogEntry() so the cost shows up in Budget/Cost Log immediately.
 //
-// Lifecycle (proj.contractorJobs[] item, one per job card), matching the
-// user's 5-phase spec:
+// Lifecycle (proj.contractorJobs[] item, one per job card):
 //   open_bidding          Phase 1: invited contractors are bidding/negotiating
 //   awarded                Phase 1 done -> Phase 2: price approved + cost
 //                           logged; contractor is expected on site from
 //                           startDate. cjobAlertStatus() below flags
 //                           overdue/due-soon against startDate+durationDays
-//                           the whole time the job sits in this state.
-//   inspection_proposed    Phase 3 step 1: contractor proposed a date
-//   inspection_confirmed   Phase 3 step 2: staff locked the date
-//   handover_submitted     Phase 4 step 1: contractor submitted handover photos
-//   handover_failed        Phase 4 step 2 (fail path): sent back -- contractor
-//                           can resubmit, which returns to handover_submitted
-//   handover_passed        Phase 4 step 2 (pass path): forwarded to management
-//   final_approved         Phase 5 step 2: management signed off
-//   paid                   Phase 5 step 3: accounting marked payout sent -- done
+//                           the whole time the job sits in this state. This
+//                           is also the umbrella status for the ENTIRE
+//                           multi-round inspection/handover/payout execution
+//                           phase below -- job.status only changes again once
+//                           every round is fully paid (-> 'paid').
+//   paid                   Every round's payout has been sent and the
+//                           cumulative % across passed rounds reached 100 --
+//                           done.
 //   cancelled               job called off at any point before paid
+//
+// Phase 3-5 (inspection through payout) used to be a single round living
+// directly on the job (job.inspection/handover/finalApproval/payout). Per
+// the user's explicit request ("อยากให้มีการนัดแบ่งรอบเพื่อแบ่งเบิกงวด ตาม %
+// งาน ได้ ไม่จำเป็นต้องเบิกจบงาน 100%" -- want to be able to split inspection
+// into multiple rounds so draws can be split by % of work done, not
+// requiring 100% completion each time), that's now job.rounds[] -- see
+// newCjobRound()/CJOB_ROUND_STATUS below. Each round carries its own full
+// inspection->handover->final-approval->payout cycle and its own % of the
+// awarded price; cjobRoundBilledPercent()/cjobRoundsRemainingPercent() track
+// the running total across rounds so it can never be billed past 100%.
 //
 // External access: each invited contractor gets their own no-login link
 // (#job-bid&project=<id>&job=<jobId>&contractor=<contractorId>, see
@@ -11353,17 +11400,100 @@ async function exportReportAsImage(){
 const CJOB_STATUS = [
   {v:'open_bidding', th:'เปิดรับใบเสนอราคา', en:'Open for bidding', cls:'idle'},
   {v:'awarded', th:'อนุมัติราคาแล้ว / กำลังดำเนินงาน', en:'Price approved / in progress', cls:'ok'},
-  {v:'inspection_proposed', th:'ผู้รับเหมาเสนอวันนัดตรวจงาน', en:'Contractor proposed inspection date', cls:'warn'},
-  {v:'inspection_confirmed', th:'ยืนยันวันนัดตรวจงานแล้ว', en:'Inspection date confirmed', cls:'ok'},
-  {v:'handover_submitted', th:'ส่งมอบงานแล้ว รอตรวจหน้างาน', en:'Handed over, awaiting on-site check', cls:'warn'},
-  {v:'handover_failed', th:'ตรวจไม่ผ่าน ส่งกลับให้แก้ไข', en:'Failed inspection, sent back', cls:'bad'},
-  {v:'handover_passed', th:'ตรวจผ่าน รอผู้บริหารอนุมัติ', en:'Passed, awaiting final approval', cls:'ok'},
-  {v:'final_approved', th:'อนุมัติสุดท้ายแล้ว รอเบิกเงิน', en:'Final approved, awaiting payout', cls:'ok'},
-  {v:'paid', th:'เบิกเงินเรียบร้อย ✅', en:'Paid ✅', cls:'ok'},
+  {v:'paid', th:'เบิกเงินครบทุกงวดแล้ว ✅', en:'Fully paid ✅', cls:'ok'},
   {v:'cancelled', th:'ยกเลิก', en:'Cancelled', cls:'bad'},
 ];
 function cjobStatusDef(v){ return CJOB_STATUS.find(s=>s.v===v) || CJOB_STATUS[0]; }
 function cjobStatusLabel(v){ const s=cjobStatusDef(v); return tf(s.th,s.en); }
+// Per-round status (job.rounds[] items) -- the same Phase 3/4/5 vocabulary
+// the job itself used to carry directly, now scoped to one draw round.
+const CJOB_ROUND_STATUS = [
+  {v:'awaiting_inspection', th:'รอผู้รับเหมาเสนอวันนัดตรวจงาน', en:'Awaiting contractor to propose an inspection date', cls:'idle'},
+  {v:'inspection_proposed', th:'ผู้รับเหมาเสนอวันนัดตรวจงาน', en:'Contractor proposed inspection date', cls:'warn'},
+  {v:'inspection_confirmed', th:'ยืนยันวันนัดตรวจงานแล้ว', en:'Inspection date confirmed', cls:'ok'},
+  {v:'handover_submitted', th:'ส่งใบส่งงานแล้ว รอตรวจหน้างาน', en:'Work submitted, awaiting on-site check', cls:'warn'},
+  {v:'handover_failed', th:'ตรวจไม่ผ่าน ส่งกลับให้แก้ไข', en:'Failed inspection, sent back', cls:'bad'},
+  {v:'handover_passed', th:'ตรวจผ่าน รอผู้บริหารอนุมัติ', en:'Passed, awaiting final approval', cls:'ok'},
+  {v:'final_approved', th:'อนุมัติแล้ว รอเบิกเงินงวดนี้', en:'Approved, awaiting this round’s payout', cls:'ok'},
+  {v:'paid', th:'เบิกเงินงวดนี้แล้ว ✅', en:'This round paid ✅', cls:'ok'},
+];
+function cjobRoundStatusDef(v){ return CJOB_ROUND_STATUS.find(s=>s.v===v) || CJOB_ROUND_STATUS[0]; }
+function cjobRoundStatusLabel(v){ const s=cjobRoundStatusDef(v); return tf(s.th,s.en); }
+function newCjobRound(roundNo){
+  return {id:uid(), roundNo, status:'awaiting_inspection',
+    inspection:{proposedDate:'', proposedAt:'', proposedBy:'', confirmedDate:'', confirmedAt:'', confirmedBy:''},
+    // percent: % of the job's total awarded price this round's handover
+    // claims to cover -- entered by the contractor at submission time (part
+    // of the "ใบส่งงาน" -- work-submission document -- per the user's spec),
+    // used to auto-calculate this round's payout amount (percent/100 *
+    // job.awardedPrice) rather than a separately-typed baht figure.
+    handover:{photoIds:[], note:'', percent:null, submittedAt:'', submittedBy:'', reviewPass:null, reviewNote:'', reviewedAt:'', reviewedBy:''},
+    finalApproval:{approved:false, approvedBy:'', approvedAt:'', note:''},
+    payout:{amount:null, sent:false, sentAt:'', sentBy:'', note:''},
+  };
+}
+// Cumulative % of the awarded price already confirmed by an inspection that
+// passed (or moved further -- final_approved/paid), across every round.
+// Used both to cap how much a new round can claim and to know when the job
+// is fully billed (100%).
+function cjobRoundBilledPercent(job){
+  return (job.rounds||[]).filter(r=>['handover_passed','final_approved','paid'].includes(r.status))
+    .reduce((s,r)=> s + (Number(r.handover.percent)||0), 0);
+}
+function cjobRoundsRemainingPercent(job){ return Math.max(0, 100 - cjobRoundBilledPercent(job)); }
+// The one round still in progress (not yet past inspection review), if any --
+// a job can only ever have one round open at a time; the next round can't
+// start until this one has at least passed inspection.
+function cjobActiveRound(job){
+  const rounds = job.rounds||[];
+  if(!rounds.length) return null;
+  const last = rounds[rounds.length-1];
+  return ['handover_passed','final_approved','paid'].includes(last.status) ? null : last;
+}
+function cjobLatestRound(job){ const rounds=job.rounds||[]; return rounds.length? rounds[rounds.length-1] : null; }
+function cjobCanStartNewRound(job){
+  if(job.status!=='awarded') return false;
+  if(cjobActiveRound(job)) return false;
+  return cjobRoundsRemainingPercent(job) > 0;
+}
+function cjobRoundAmount(job, round){
+  const pct = Number(round.handover.percent);
+  if(job.awardedPrice==null || round.handover.percent==null || isNaN(pct)) return null;
+  return job.awardedPrice * pct/100;
+}
+// Upgrades one job from the old single-round shape (job.inspection/handover/
+// finalApproval/payout + a job.status that carried Phase 3-5 values
+// directly) into job.rounds[]. Safe to call on an already-migrated job
+// (job.rounds already an array) -- it's a no-op then. See the long comment
+// above CJOB_STATUS for why this exists, and the migration/render-time
+// call sites for why it has to run defensively, not just once at bootstrap.
+function cjobEnsureRounds(job){
+  if(Array.isArray(job.rounds)) return;
+  const oldStatus = job.status;
+  const hadRoundData = ['inspection_proposed','inspection_confirmed','handover_submitted','handover_failed','handover_passed','final_approved','paid'].includes(oldStatus);
+  if(!hadRoundData){ job.rounds=[]; return; }
+  const round = newCjobRound(1);
+  const oi = job.inspection || {}, oh = job.handover || {}, of = job.finalApproval || {}, op = job.payout || {};
+  round.inspection = {proposedDate:oi.proposedDate||'', proposedAt:oi.proposedAt||'', proposedBy:oi.proposedBy||'', confirmedDate:oi.confirmedDate||'', confirmedAt:oi.confirmedAt||'', confirmedBy:oi.confirmedBy||''};
+  // The old flow only ever supported one all-or-nothing draw and never
+  // tracked a per-round % -- a round that got far enough to be billed
+  // (passed inspection or further) is treated as covering the full 100%.
+  const pastPass = ['handover_passed','final_approved','paid'].includes(oldStatus);
+  round.handover = {photoIds:(oh.photoIds||[]).slice(), note:oh.note||'', percent: pastPass?100:null, submittedAt:oh.submittedAt||'', submittedBy:'', reviewPass: oh.reviewPass!=null? oh.reviewPass : null, reviewNote:oh.reviewNote||'', reviewedAt:oh.reviewedAt||'', reviewedBy:oh.reviewedBy||''};
+  round.finalApproval = {approved:!!of.approved, approvedBy:of.approvedBy||'', approvedAt:of.approvedAt||'', note:of.note||''};
+  round.payout = {amount: pastPass? cjobRoundAmount({awardedPrice:job.awardedPrice}, round) : null, sent:!!op.sent, sentAt:op.sentAt||'', sentBy:op.sentBy||'', note:op.note||''};
+  round.status = oldStatus;
+  job.rounds = [round];
+  // Collapse job.status to the trimmed top-level vocabulary (open_bidding/
+  // awarded/paid/cancelled) -- every retired per-round value becomes the
+  // umbrella 'awarded' status now that rounds track their own progress.
+  if(oldStatus!=='paid') job.status = 'awarded';
+}
+// Loops every contractor job on a project through cjobEnsureRounds() --
+// call defensively at the top of any render path that reads job.rounds.
+function ensureCjobDefaults(proj){
+  (proj.contractorJobs||[]).forEach(job=> cjobEnsureRounds(job));
+}
 const CJOB_BID_STATUS = {
   pending: {th:'รอพิจารณา', en:'Pending review'},
   countered: {th:'ต่อรองราคา (รอผู้รับเหมาตอบ)', en:'Countered (awaiting contractor)'},
@@ -11388,10 +11518,10 @@ function newContractorJob(){
     // this field existed won't have it -- every reader guards with `job.
     // procurement||{}`.
     procurement:{poFileIds:[], poFileMeta:{}, poNumber:'', category:'', actualCost:null, note:'', recordedAt:'', recordedBy:''},
-    inspection:{proposedDate:'', proposedAt:'', proposedBy:'', confirmedDate:'', confirmedAt:'', confirmedBy:''},
-    handover:{photoIds:[], note:'', submittedAt:'', reviewPass:null, reviewNote:'', reviewedAt:'', reviewedBy:''},
-    finalApproval:{approved:false, approvedBy:'', approvedAt:'', note:''},
-    payout:{sent:false, sentAt:'', sentBy:'', note:''},
+    // Multiple inspection/handover/payout draw rounds -- see newCjobRound()
+    // above. Empty until the job is awarded and the contractor proposes the
+    // first round's inspection date.
+    rounds:[],
   };
 }
 // Each invited contractor's bid is its own full, separate quotation --
@@ -11434,7 +11564,7 @@ function cjobDueDate(job){
 // only meaningful once work is actually supposed to be underway and before
 // the contractor has handed anything over yet.
 function cjobAlertStatus(job){
-  if(!['awarded','inspection_proposed','inspection_confirmed'].includes(job.status)) return '';
+  if(job.status!=='awarded') return '';
   const due = cjobDueDate(job);
   if(!due) return '';
   const today = todayStr();
@@ -11454,6 +11584,7 @@ function cjobPhotoGalleryHtml(photoIds){
 // just a filtered view of the same contractorJobs array.
 let cjobViewTrash = false;
 function renderContractorJobs(proj=P()){
+  ensureCjobDefaults(proj);
   const allJobs = proj.contractorJobs||[];
   const cancelledCount = allJobs.filter(j=>j.status==='cancelled').length;
   const jobs = allJobs.filter(j=> cjobViewTrash? j.status==='cancelled' : j.status!=='cancelled')
@@ -11476,6 +11607,17 @@ function cjobCardHtml(job){
   const lowest = cjobLowestBid(job);
   const bidCount = (job.invitedContractors||[]).length;
   const due = cjobDueDate(job);
+  // Multi-round draw progress -- billedPct is the cumulative % confirmed by
+  // a passed (or further) inspection round; the active round (if any) shows
+  // its own live status alongside it so the card tells the whole story
+  // without opening the detail modal.
+  const billedPct = cjobRoundBilledPercent(job);
+  const activeRound = cjobActiveRound(job);
+  const roundsHtml = (job.status==='awarded' && (job.rounds||[]).length)? `<div style="margin-top:10px">
+      <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--ink-500)"><span>${tf('เบิกไปแล้ว','Billed')}</span><span class="tabular">${billedPct}%</span></div>
+      <div style="height:6px;border-radius:4px;background:var(--surface-2);overflow:hidden;margin-top:3px"><div style="height:100%;width:${clamp(billedPct,0,100)}%;background:var(--mint-500)"></div></div>
+      ${activeRound? `<div class="sub" style="margin-top:6px">${tf('งวดที่','Round')} ${activeRound.roundNo}: <b>${cjobRoundStatusLabel(activeRound.status)}</b></div>` : ''}
+    </div>` : '';
   return `<div class="card" data-cjob-open="${job.id}" style="cursor:pointer">
     <div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start">
       <b style="font-family:var(--font-display);font-size:15px">${escapeHtml(job.title||tf('(ไม่มีชื่องาน)','(untitled job)'))}</b>
@@ -11489,6 +11631,7 @@ function cjobCardHtml(job){
       ${job.startDate? `<div><div class="meta-lbl">${tf('วันเริ่มงาน','Start date')}</div><b class="tabular">${fmtDate(job.startDate)}</b></div>` : `<div><div class="meta-lbl">${tf('กำหนดการ','Schedule')}</div><b class="tabular">${tf('รอผู้รับเหมาเสนอ','Awaiting contractor proposal')}</b></div>`}
       ${due? `<div><div class="meta-lbl">${tf('กำหนดเสร็จ','Due')}</div><b class="tabular">${fmtDate(due)}</b></div>` : ''}
     </div>
+    ${roundsHtml}
     ${alert? `<div style="margin-top:8px"><span class="badge ${alert==='overdue'?'bad':'warn'}">⏰ ${alert==='overdue'? tf('เลยกำหนดจำนวนวันทำงานแล้ว','Past the working-day deadline') : tf('ใกล้ครบกำหนดจำนวนวันทำงาน','Nearing the working-day deadline')}</span></div>` : ''}
   </div>`;
 }
@@ -11815,52 +11958,119 @@ function cjobProcurementHtml(job){
     ${recordedHint}
   </div>`;
 }
-function cjobLifecycleHtml(job){
-  if(job.status==='open_bidding' || job.status==='cancelled') return '';
-  let html = '<div style="margin-top:18px;display:flex;flex-direction:column;gap:14px">';
-  html += cjobProcurementHtml(job);
-  if(['awarded','inspection_proposed','inspection_confirmed'].includes(job.status)){
-    const proposed = job.inspection.proposedDate;
-    html += `<div class="card tint">
-      <b style="font-family:var(--font-display)">📅 ${tf('นัดหมายตรวจงาน','Inspection scheduling')}</b>
-      ${proposed? `<div class="sub" style="margin-top:6px">${tf('ผู้รับเหมาเสนอวันที่: ','Contractor proposed: ')}<b>${fmtDate(proposed)}</b></div>` : `<div class="sub" style="margin-top:6px">${tf('ยังไม่มีข้อเสนอวันนัดตรวจงานจากผู้รับเหมา','No inspection date proposed by the contractor yet')}</div>`}
-      <div class="field" style="margin-top:10px"><label>${tf('ยืนยัน/กำหนดวันนัดตรวจงาน','Confirm / set inspection date')}</label><input type="date" id="cjob-confirm-inspect-date" value="${job.inspection.confirmedDate||proposed||''}"></div>
-      <button class="btn primary sm" id="cjob-confirm-inspect" style="margin-top:6px">✅ ${tf('ยืนยันวันนัดตรวจงาน','Confirm inspection date')}</button>
-    </div>`;
-  } else if(['handover_submitted','handover_failed','handover_passed','final_approved','paid'].includes(job.status) && job.inspection.confirmedDate){
-    html += `<div class="card"><div class="sub">📅 ${tf('วันนัดตรวจงานที่ยืนยันแล้ว: ','Confirmed inspection date: ')}<b>${fmtDate(job.inspection.confirmedDate)}</b></div></div>`;
+// The "ใบส่งงาน" (work-submission note) document, per the user's explicit
+// field list: PO info without any monetary amount / inspection date /
+// attached submission photos / work details / % / pass-fail result / review
+// note / submitted-by / inspected-by / dated. Shared by the round summary
+// card (past rounds) and the active round's review card (current round) so
+// there's exactly one place this document is laid out.
+function cjobRoundDocCardHtml(job, round){
+  const proc = job.procurement||{};
+  const passLabel = round.handover.reviewPass===true? tf('ผ่าน ✅','Passed ✅') : round.handover.reviewPass===false? tf('ไม่ผ่าน 🚫','Failed 🚫') : tf('รอผลตรวจ','Awaiting review');
+  return `<div class="card" style="background:var(--surface-1)">
+    <b style="font-family:var(--font-display)">📄 ${tf('ใบส่งงาน','Work Submission Note')} — ${tf('งวดที่','Round')} ${round.roundNo}</b>
+    <div class="grid cols-2" style="margin-top:10px;gap:10px 16px">
+      <div><div class="meta-lbl">${tf('เลขที่ใบสั่งซื้อ (PO)','PO number')}</div><b>${escapeHtml(proc.poNumber||'-')}</b></div>
+      <div><div class="meta-lbl">${tf('หมวดงาน','Category')}</div><b>${escapeHtml(proc.category||'-')}</b></div>
+      <div><div class="meta-lbl">${tf('วันตรวจงาน','Inspection date')}</div><b>${round.inspection.confirmedDate? fmtDate(round.inspection.confirmedDate) : '-'}</b></div>
+      <div><div class="meta-lbl">${tf('% งานที่ส่งมอบ','% delivered')}</div><b class="tabular">${round.handover.percent!=null? round.handover.percent+'%' : '-'}</b></div>
+      <div><div class="meta-lbl">${tf('สถานะการตรวจ','Inspection result')}</div><b>${passLabel}</b></div>
+      <div><div class="meta-lbl">${tf('ลงวันที่','Dated')}</div><b>${round.handover.reviewedAt? fmtDate(round.handover.reviewedAt) : (round.handover.submittedAt? fmtDate(round.handover.submittedAt) : '-')}</b></div>
+      <div><div class="meta-lbl">${tf('ผู้ส่งงาน','Submitted by')}</div><b>${escapeHtml(round.handover.submittedBy||'-')}</b></div>
+      <div><div class="meta-lbl">${tf('ผู้ตรวจงาน','Inspected by')}</div><b>${escapeHtml(round.handover.reviewedBy||'-')}</b></div>
+    </div>
+    ${round.handover.note? `<div style="margin-top:10px"><div class="meta-lbl">${tf('รายละเอียดงาน','Work details')}</div><div class="sub" style="margin-top:2px;white-space:pre-wrap">${escapeHtml(round.handover.note)}</div></div>` : ''}
+    ${round.handover.reviewNote? `<div style="margin-top:8px"><div class="meta-lbl">${tf('หมายเหตุการตรวจ','Review note')}</div><div class="sub" style="margin-top:2px">${escapeHtml(round.handover.reviewNote)}</div></div>` : ''}
+    ${cjobPhotoGalleryHtml(round.handover.photoIds)}
+  </div>`;
+}
+// A finished (or not-yet-current) round -- read-only summary, no actions.
+function cjobRoundSummaryCardHtml(job, round){
+  const sdef = cjobRoundStatusDef(round.status);
+  const amount = cjobRoundAmount(job, round);
+  let extra = '';
+  if(round.finalApproval && round.finalApproval.approved){
+    extra += `<div class="sub" style="margin-top:8px">✅ ${tf('อนุมัติสุดท้ายโดย ','Final approved by ')}${escapeHtml(round.finalApproval.approvedBy||'-')} · ${round.finalApproval.approvedAt?fmtDateTime(round.finalApproval.approvedAt):''}${round.finalApproval.note?' — '+escapeHtml(round.finalApproval.note):''}</div>`;
   }
-  if(job.status==='handover_submitted'){
-    html += `<div class="card tint">
-      <b style="font-family:var(--font-display)">📦 ${tf('ตรวจสอบงานที่ส่งมอบ','Review submitted handover')}</b>
-      ${job.handover.note? `<div class="sub" style="margin-top:6px">${escapeHtml(job.handover.note)}</div>` : ''}
-      ${cjobPhotoGalleryHtml(job.handover.photoIds)}
+  if(round.payout && round.payout.sent){
+    extra += `<div class="sub" style="margin-top:4px">💰 ${tf('เบิกเงินแล้ว ','Paid out ')}${amount!=null?'฿'+fmtNum(amount,0)+' · ':''}${tf('โดย ','by ')}${escapeHtml(round.payout.sentBy||'-')} · ${round.payout.sentAt?fmtDateTime(round.payout.sentAt):''}${round.payout.note?' — '+escapeHtml(round.payout.note):''}</div>`;
+  } else if(round.status==='final_approved' && amount!=null){
+    extra += `<div class="sub" style="margin-top:4px">💰 ${tf('รอเบิกเงิน: ','Awaiting payout: ')}<b>฿${fmtNum(amount,0)}</b></div>`;
+  }
+  const hasDoc = ['handover_submitted','handover_failed','handover_passed','final_approved','paid'].includes(round.status);
+  return `<div class="card">
+    <div style="display:flex;justify-content:space-between;gap:8px;align-items:flex-start">
+      <b style="font-family:var(--font-display)">${tf('งวดที่','Round')} ${round.roundNo}</b>
+      <span class="badge ${sdef.cls}">${cjobRoundStatusLabel(round.status)}</span>
+    </div>
+    ${hasDoc? `<div style="margin-top:10px">${cjobRoundDocCardHtml(job, round)}</div>` : (round.inspection.confirmedDate? `<div class="sub" style="margin-top:6px">📅 ${tf('วันนัดตรวจงานที่ยืนยันแล้ว: ','Confirmed inspection date: ')}<b>${fmtDate(round.inspection.confirmedDate)}</b></div>` : '')}
+    ${extra}
+  </div>`;
+}
+// The one round currently in progress -- staff actions live here, one set
+// per round.status, mirroring the old single-round Phase 3/4/5 UI exactly
+// but scoped to this round's own inspection/handover/finalApproval/payout.
+function cjobActiveRoundCardHtml(job, round){
+  let html = `<div class="card tint">
+    <div style="display:flex;justify-content:space-between;gap:8px;align-items:flex-start">
+      <b style="font-family:var(--font-display)">📅 ${tf('งวดที่','Round')} ${round.roundNo}</b>
+      <span class="badge ${cjobRoundStatusDef(round.status).cls}">${cjobRoundStatusLabel(round.status)}</span>
+    </div>`;
+  if(round.status==='awaiting_inspection'){
+    html += `<div class="sub" style="margin-top:8px">${tf('ยังไม่มีข้อเสนอวันนัดตรวจงานจากผู้รับเหมา','No inspection date proposed by the contractor yet')}</div>`;
+  } else if(round.status==='inspection_proposed'){
+    html += `<div class="sub" style="margin-top:8px">${tf('ผู้รับเหมาเสนอวันที่: ','Contractor proposed: ')}<b>${fmtDate(round.inspection.proposedDate)}</b></div>
+      <div class="field" style="margin-top:10px"><label>${tf('ยืนยัน/กำหนดวันนัดตรวจงาน','Confirm / set inspection date')}</label><input type="date" id="cjob-confirm-inspect-date" value="${round.inspection.confirmedDate||round.inspection.proposedDate||''}"></div>
+      <button class="btn primary sm" id="cjob-confirm-inspect" style="margin-top:6px">✅ ${tf('ยืนยันวันนัดตรวจงาน','Confirm inspection date')}</button>`;
+  } else if(round.status==='inspection_confirmed'){
+    html += `<div class="sub" style="margin-top:8px">📅 ${tf('วันนัดตรวจงานที่ยืนยันแล้ว: ','Confirmed inspection date: ')}<b>${fmtDate(round.inspection.confirmedDate)}</b></div>
+      <div class="hint" style="margin-top:6px">${tf('รอผู้รับเหมาส่งใบส่งงาน','Awaiting the contractor to submit their work-submission note')}</div>`;
+  } else if(round.status==='handover_submitted'){
+    html += `<div style="margin-top:10px">${cjobRoundDocCardHtml(job, round)}</div>
       <div class="field" style="margin-top:10px"><label>${tf('หมายเหตุการตรวจ (ไม่บังคับ)','Review note (optional)')}</label><input type="text" id="cjob-review-note" value=""></div>
       <div class="action-row" style="margin-top:6px">
         <button class="btn approve" id="cjob-review-pass">✅ ${tf('ตรวจผ่าน — ส่งต่อผู้บริหาร','Pass -- forward to management')}</button>
         <button class="btn reject" id="cjob-review-fail">🚫 ${tf('ตรวจไม่ผ่าน — ส่งกลับแก้ไข','Fail -- send back')}</button>
-      </div>
-    </div>`;
-  } else if(job.status==='handover_failed' || ['handover_passed','final_approved','paid'].includes(job.status)){
-    html += `<div class="card"><div class="sub">📦 ${tf('ผลตรวจงานล่าสุด: ','Last inspection result: ')}<b>${job.handover.reviewPass===true?tf('ผ่าน ✅','Passed ✅'):job.handover.reviewPass===false?tf('ไม่ผ่าน 🚫','Failed 🚫'):'-'}</b>${job.handover.reviewNote?' — '+escapeHtml(job.handover.reviewNote):''}</div>${cjobPhotoGalleryHtml(job.handover.photoIds)}</div>`;
-  }
-  if(job.status==='handover_passed'){
-    html += `<div class="card tint">
-      <b style="font-family:var(--font-display)">✅ ${tf('อนุมัติสุดท้าย (ผู้บริหาร)','Final approval (management)')}</b>
+      </div>`;
+  } else if(round.status==='handover_failed'){
+    html += `<div style="margin-top:10px">${cjobRoundDocCardHtml(job, round)}</div>
+      <div class="hint" style="margin-top:8px">${tf('ส่งกลับให้ผู้รับเหมาแก้ไขแล้ว รอส่งใบส่งงานใหม่','Sent back to the contractor -- awaiting resubmission')}</div>`;
+  } else if(round.status==='handover_passed'){
+    html += `<div style="margin-top:10px">${cjobRoundDocCardHtml(job, round)}</div>
       <div class="field" style="margin-top:10px"><label>${tf('หมายเหตุ (ไม่บังคับ)','Note (optional)')}</label><input type="text" id="cjob-final-note" value=""></div>
-      <button class="btn primary sm" id="cjob-final-approve" style="margin-top:6px">✅ ${tf('อนุมัติสุดท้าย','Give final approval')}</button>
-    </div>`;
-  } else if(['final_approved','paid'].includes(job.status)){
-    html += `<div class="card"><div class="sub">✅ ${tf('อนุมัติสุดท้ายโดย ','Final approved by ')}${escapeHtml(job.finalApproval.approvedBy||'-')} · ${job.finalApproval.approvedAt?fmtDateTime(job.finalApproval.approvedAt):''}${job.finalApproval.note?' — '+escapeHtml(job.finalApproval.note):''}</div></div>`;
-  }
-  if(job.status==='final_approved'){
-    html += `<div class="card tint">
-      <b style="font-family:var(--font-display)">💰 ${tf('ส่งเบิกเงินให้ผู้รับเหมา (ฝ่ายบัญชี)','Send payout to contractor (accounting)')}</b>
+      <button class="btn primary sm" id="cjob-final-approve" style="margin-top:6px">✅ ${tf('อนุมัติสุดท้าย','Give final approval')}</button>`;
+  } else if(round.status==='final_approved'){
+    const amount = cjobRoundAmount(job, round);
+    html += `<div style="margin-top:10px">${cjobRoundDocCardHtml(job, round)}</div>
+      <div class="sub" style="margin-top:8px">💰 ${tf('ยอดเบิกงวดนี้ (คำนวณจาก % งาน)','This round’s payout (auto-calculated from %)')}: <b>฿${fmtNum(amount,0)}</b></div>
       <div class="field" style="margin-top:10px"><label>${tf('หมายเหตุ (ไม่บังคับ)','Note (optional)')}</label><input type="text" id="cjob-payout-note" value=""></div>
-      <button class="btn primary sm" id="cjob-mark-payout" style="margin-top:6px">💰 ${tf('บันทึกว่าเบิกเงินแล้ว','Mark payout sent')}</button>
+      <button class="btn primary sm" id="cjob-mark-payout" style="margin-top:6px">💰 ${tf('บันทึกว่าเบิกเงินแล้ว','Mark payout sent')}</button>`;
+  }
+  html += '</div>';
+  return html;
+}
+function cjobLifecycleHtml(job){
+  if(job.status==='open_bidding' || job.status==='cancelled') return '';
+  let html = '<div style="margin-top:18px;display:flex;flex-direction:column;gap:14px">';
+  html += cjobProcurementHtml(job);
+  const rounds = job.rounds||[];
+  const activeRound = cjobActiveRound(job);
+  const billedPct = cjobRoundBilledPercent(job);
+  const remaining = cjobRoundsRemainingPercent(job);
+  if(rounds.length){
+    html += `<div class="card">
+      <b style="font-family:var(--font-display)">📊 ${tf('สรุปการเบิกงวด','Draw summary')}</b>
+      <div style="display:flex;justify-content:space-between;font-size:12.5px;color:var(--ink-500);margin-top:8px"><span>${tf('เบิกไปแล้ว','Billed')}</span><span class="tabular">${billedPct}% / 100%</span></div>
+      <div style="height:8px;border-radius:5px;background:var(--surface-2);overflow:hidden;margin-top:4px"><div style="height:100%;width:${clamp(billedPct,0,100)}%;background:var(--mint-500)"></div></div>
     </div>`;
-  } else if(job.status==='paid'){
-    html += `<div class="card"><div class="sub">💰 ${tf('เบิกเงินแล้วโดย ','Payout sent by ')}${escapeHtml(job.payout.sentBy||'-')} · ${job.payout.sentAt?fmtDateTime(job.payout.sentAt):''}${job.payout.note?' — '+escapeHtml(job.payout.note):''}</div></div>`;
+  }
+  rounds.forEach(r=>{ if(r!==activeRound) html += cjobRoundSummaryCardHtml(job, r); });
+  if(activeRound){
+    html += cjobActiveRoundCardHtml(job, activeRound);
+  } else if(job.status==='awarded'){
+    html += remaining>0
+      ? `<div class="card"><div class="hint">${tf(`รอผู้รับเหมาเสนอวันนัดตรวจงานสำหรับงวดถัดไป (เบิกได้อีก ${remaining}%)`,`Awaiting the contractor to propose an inspection date for the next round (up to ${remaining}% remaining)`)}</div></div>`
+      : `<div class="card"><div class="sub">✅ ${tf('เบิกครบ 100% ของราคาที่อนุมัติแล้ว','Fully billed -- 100% of the awarded price')}</div></div>`;
   }
   html += '</div>';
   return html;
@@ -11868,6 +12078,7 @@ function cjobLifecycleHtml(job){
 function cjobDetailModalHtml(){
   if(!cjobDetailId) return '';
   const proj = P();
+  ensureCjobDefaults(proj);
   const job = (proj.contractorJobs||[]).find(j=>j.id===cjobDetailId);
   if(!job) return '';
   const sdef = cjobStatusDef(job.status);
@@ -12052,40 +12263,60 @@ function wireCjobDetailModal(){
     }
     saveData(); render(); toast(tf('บันทึกข้อมูลจัดซื้อแล้ว','Procurement info saved'));
   };
+  // Every handler below acts on the job's single currently-active round
+  // (cjobActiveRound()) -- the corresponding button only ever renders while
+  // that round is in the matching status, so `round` existing is implied by
+  // the button existing, but each guard still checks it defensively.
   const confirmInspectBtn = $('#cjob-confirm-inspect');
   if(confirmInspectBtn) confirmInspectBtn.onclick = ()=>{
+    const round = cjobActiveRound(job); if(!round) return;
     const dEl = $('#cjob-confirm-inspect-date');
     if(!dEl || !dEl.value){ toast(tf('กรุณาเลือกวันที่','Please choose a date')); return; }
-    job.inspection.confirmedDate = dEl.value; job.inspection.confirmedAt = new Date().toISOString(); job.inspection.confirmedBy = currentActorName();
-    job.status='inspection_confirmed';
+    round.inspection.confirmedDate = dEl.value; round.inspection.confirmedAt = new Date().toISOString(); round.inspection.confirmedBy = currentActorName();
+    round.status='inspection_confirmed';
     saveData(); render(); toast(tf('ยืนยันวันนัดตรวจงานแล้ว','Inspection date confirmed'));
   };
   const passBtn=$('#cjob-review-pass');
   if(passBtn) passBtn.onclick = ()=>{
+    const round = cjobActiveRound(job); if(!round) return;
+    // Cap the running total at 100% -- other already-passed rounds plus this
+    // one's claimed % must never exceed the awarded price.
+    const otherBilled = cjobRoundBilledPercent(job);
+    const pct = Number(round.handover.percent)||0;
+    if(otherBilled + pct > 100){
+      toast(tf(`งวดนี้ขอเบิก ${pct}% แต่เบิกไปแล้ว ${otherBilled}% รวมเกิน 100% กรุณาแก้ % ในใบส่งงาน หรือแจ้งผู้รับเหมาให้ส่งใหม่`,`This round claims ${pct}%, but ${otherBilled}% is already billed -- together that's over 100%. Ask the contractor to resubmit with a corrected %.`));
+      return;
+    }
     const noteEl=$('#cjob-review-note');
-    job.handover.reviewPass=true; job.handover.reviewNote=noteEl?noteEl.value.trim():''; job.handover.reviewedAt=new Date().toISOString(); job.handover.reviewedBy=currentActorName();
-    job.status='handover_passed';
+    round.handover.reviewPass=true; round.handover.reviewNote=noteEl?noteEl.value.trim():''; round.handover.reviewedAt=new Date().toISOString(); round.handover.reviewedBy=currentActorName();
+    round.status='handover_passed';
     saveData(); render(); toast(tf('บันทึกผลตรวจผ่านแล้ว','Marked as passed'));
   };
   const failBtn=$('#cjob-review-fail');
   if(failBtn) failBtn.onclick = ()=>{
+    const round = cjobActiveRound(job); if(!round) return;
     const noteEl=$('#cjob-review-note');
-    job.handover.reviewPass=false; job.handover.reviewNote=noteEl?noteEl.value.trim():''; job.handover.reviewedAt=new Date().toISOString(); job.handover.reviewedBy=currentActorName();
-    job.status='handover_failed';
+    round.handover.reviewPass=false; round.handover.reviewNote=noteEl?noteEl.value.trim():''; round.handover.reviewedAt=new Date().toISOString(); round.handover.reviewedBy=currentActorName();
+    round.status='handover_failed';
     saveData(); render(); toast(tf('ส่งกลับให้ผู้รับเหมาแก้ไขแล้ว','Sent back to the contractor'));
   };
   const finalBtn=$('#cjob-final-approve');
   if(finalBtn) finalBtn.onclick = ()=>{
+    const round = cjobActiveRound(job); if(!round) return;
     const noteEl=$('#cjob-final-note');
-    job.finalApproval={approved:true, approvedBy:currentActorName(), approvedAt:new Date().toISOString(), note:noteEl?noteEl.value.trim():''};
-    job.status='final_approved';
+    round.finalApproval={approved:true, approvedBy:currentActorName(), approvedAt:new Date().toISOString(), note:noteEl?noteEl.value.trim():''};
+    round.status='final_approved';
     saveData(); render(); toast(tf('อนุมัติสุดท้ายแล้ว','Final approval given'));
   };
   const payoutBtn=$('#cjob-mark-payout');
   if(payoutBtn) payoutBtn.onclick = ()=>{
+    const round = cjobActiveRound(job); if(!round) return;
     const noteEl=$('#cjob-payout-note');
-    job.payout={sent:true, sentBy:currentActorName(), sentAt:new Date().toISOString(), note:noteEl?noteEl.value.trim():''};
-    job.status='paid';
+    round.payout={amount:cjobRoundAmount(job,round), sent:true, sentBy:currentActorName(), sentAt:new Date().toISOString(), note:noteEl?noteEl.value.trim():''};
+    round.status='paid';
+    // Once the last round is paid and there's nothing left to bill, the job
+    // itself is fully done -- collapse it to the umbrella 'paid' status.
+    if(cjobRoundsRemainingPercent(job)<=0) job.status='paid';
     saveData(); render(); toast(tf('บันทึกว่าเบิกเงินแล้ว','Payout marked as sent'));
   };
   refreshItemModalPhotos();
@@ -12102,22 +12333,30 @@ async function refreshCjobPoLinks(){
 
 /* ---- Contractor-facing side: the restricted #job-bid deep-link screen ---- */
 let cjobHandoverPending = []; // {dataUrl} -- pending handover photos, mirrors pendingPhotos elsewhere
-function cjobHandoverFormHtml(){
+// The contractor's own "ใบส่งงาน" (work-submission note) submission form --
+// per the user's spec this now also collects the % of work this round
+// delivers (capped at `remaining`, the % still left to bill on the job),
+// since payout amounts are auto-calculated from % rather than typed in
+// separately. Everything else on the printed document (PO info, inspection
+// date, pass/fail, reviewed-by, dated) is filled in later by staff.
+function cjobHandoverFormHtml(remaining){
   const pendingThumbs = cjobHandoverPending.map((p,idx)=>`<div class="photo-item"><img src="${p.dataUrl}" alt=""><button class="rm" data-jb-rm-handover-photo="${idx}">✕</button></div>`).join('');
   return `<div class="card">
-    <b style="font-family:var(--font-display)">📦 ${tf('ส่งมอบงาน','Submit handover')}</b>
+    <b style="font-family:var(--font-display)">📄 ${tf('ส่งใบส่งงาน','Submit work-submission note')}</b>
     <div class="field" style="margin-top:10px">
       <label class="photo-drop" for="jb-handover-photo-input">📷 ${tf('แตะเพื่อแนบรูปผลงานที่เสร็จสิ้น','Tap to attach photos of the finished work')}</label>
       <input type="file" id="jb-handover-photo-input" accept="image/*" multiple style="display:none">
       ${cjobHandoverPending.length? `<div class="photo-grid" style="margin-top:10px">${pendingThumbs}</div>` : ''}
     </div>
-    <div class="field"><label>${tf('หมายเหตุ (ไม่บังคับ)','Note (optional)')}</label><input type="text" id="jb-handover-note" value=""></div>
-    <button class="btn primary block" id="jb-submit-handover" style="margin-top:6px">${tf('ส่งมอบงาน','Submit handover')}</button>
+    <div class="field" style="margin-top:12px"><label>${tf('รายละเอียดงานที่ส่งมอบ (ไม่บังคับ)','Work details (optional)')}</label><textarea id="jb-handover-note" rows="3" placeholder="${tf('อธิบายงานที่ทำเสร็จในงวดนี้','Describe the work completed in this round')}"></textarea></div>
+    <div class="field" style="margin-top:12px"><label>${tf(`% งานที่ส่งมอบในงวดนี้ (เบิกได้อีก ${remaining}%)`,`% of work delivered in this round (up to ${remaining}% remaining)`)}</label><input type="number" min="1" max="${remaining}" step="1" id="jb-handover-percent" placeholder="${tf('เช่น','e.g.')} ${Math.min(remaining,30)}"></div>
+    <button class="btn primary block" id="jb-submit-handover" style="margin-top:10px">${tf('ส่งใบส่งงาน','Submit work-submission note')}</button>
   </div>`;
 }
 function renderJobBid(){
   const {project:pid, job:jobId, contractor:cid} = jobBidParamsFromHash();
   const proj = state.projects.find(p=>p.id===pid);
+  if(proj) ensureCjobDefaults(proj);
   const job = proj ? (proj.contractorJobs||[]).find(j=>j.id===jobId) : null;
   const contractor = job ? cjobInvited(job, cid) : null;
   if(!proj || !job || !contractor){
@@ -12168,27 +12407,55 @@ function renderJobBid(){
   } else if(isWinner){
     sections += `<div class="card tint"><b style="font-family:var(--font-display)">🎉 ${tf('คุณได้รับเลือกสำหรับงานนี้','You were awarded this job')}</b><div class="sub" style="margin-top:6px">${tf('ราคาที่อนุมัติ','Approved price')}: <b>฿${fmtNum(job.awardedPrice,0)}</b></div></div>`;
     if(job.status==='awarded'){
-      sections += `<div class="card">
-        <b style="font-family:var(--font-display)">📅 ${tf('นัดวันตรวจงาน','Propose an inspection date')}</b>
-        <div class="field" style="margin-top:10px"><input type="date" id="jb-inspect-date" value="${job.inspection.proposedDate||''}"></div>
-        <button class="btn primary sm" id="jb-propose-inspect" style="margin-top:6px">${tf('ส่งข้อเสนอนัดตรวจงาน','Send inspection date proposal')}</button>
-      </div>`;
-    } else if(job.status==='inspection_proposed'){
-      sections += `<div class="card"><div class="sub">⏳ ${tf('เสนอวันนัดตรวจงานแล้ว รอการยืนยันจากทีมงาน: ','Inspection date proposed, awaiting confirmation: ')}<b>${fmtDate(job.inspection.proposedDate)}</b></div></div>`;
-    } else if(job.status==='inspection_confirmed'){
-      sections += `<div class="card"><div class="sub">✅ ${tf('ยืนยันวันนัดตรวจงานแล้ว: ','Inspection date confirmed: ')}<b>${fmtDate(job.inspection.confirmedDate)}</b></div></div>`;
-    }
-    if(['awarded','inspection_proposed','inspection_confirmed','handover_failed'].includes(job.status)){
-      if(job.status==='handover_failed'){
-        sections += `<div class="card"><div class="sub" style="color:var(--coral-600,#c0392b)">❌ ${tf('ตรวจงานไม่ผ่าน กรุณาแก้ไขแล้วส่งมอบงานอีกครั้ง','Inspection failed -- please fix the work and submit handover again')}${job.handover.reviewNote?' — '+escapeHtml(job.handover.reviewNote):''}</div></div>`;
+      const billedPct = cjobRoundBilledPercent(job);
+      const remaining = cjobRoundsRemainingPercent(job);
+      const activeRound = cjobActiveRound(job);
+      if((job.rounds||[]).length){
+        sections += `<div class="card">
+          <div style="display:flex;justify-content:space-between;font-size:12.5px;color:var(--ink-500)"><span>${tf('เบิกไปแล้ว','Billed')}</span><span class="tabular">${billedPct}% / 100%</span></div>
+          <div style="height:8px;border-radius:5px;background:var(--surface-2);overflow:hidden;margin-top:4px"><div style="height:100%;width:${clamp(billedPct,0,100)}%;background:var(--mint-500)"></div></div>
+        </div>`;
       }
-      sections += cjobHandoverFormHtml();
-    } else if(job.status==='handover_submitted'){
-      sections += `<div class="card"><div class="sub">📦 ${tf('ส่งมอบงานแล้ว รอทีมงานเข้าตรวจสอบหน้างาน','Handed over -- awaiting on-site inspection')}</div></div>`;
-    } else if(['handover_passed','final_approved'].includes(job.status)){
-      sections += `<div class="card"><div class="sub">✅ ${tf('ตรวจงานผ่านแล้ว กำลังรอการอนุมัติขั้นสุดท้าย/เบิกเงิน','Passed inspection -- awaiting final approval / payout')}</div></div>`;
+      if(activeRound){
+        const roundLabel = (job.rounds||[]).length>1? ' — '+tf('งวดที่','Round')+' '+activeRound.roundNo : '';
+        if(activeRound.status==='inspection_proposed'){
+          sections += `<div class="card"><div class="sub">⏳ ${tf('เสนอวันนัดตรวจงานแล้ว รอการยืนยันจากทีมงาน: ','Inspection date proposed, awaiting confirmation: ')}<b>${fmtDate(activeRound.inspection.proposedDate)}</b></div></div>`;
+        } else if(activeRound.status==='inspection_confirmed'){
+          sections += `<div class="card"><div class="sub">✅ ${tf('ยืนยันวันนัดตรวจงานแล้ว: ','Inspection date confirmed: ')}<b>${fmtDate(activeRound.inspection.confirmedDate)}</b></div></div>`;
+          sections += cjobHandoverFormHtml(remaining);
+        } else if(activeRound.status==='handover_failed'){
+          sections += `<div class="card"><div class="sub" style="color:var(--coral-600,#c0392b)">❌ ${tf('ตรวจงานไม่ผ่าน กรุณาแก้ไขแล้วส่งใบส่งงานอีกครั้ง','Inspection failed -- please fix the work and submit the note again')}${activeRound.handover.reviewNote?' — '+escapeHtml(activeRound.handover.reviewNote):''}</div></div>`;
+          sections += cjobHandoverFormHtml(remaining);
+        } else if(activeRound.status==='handover_submitted'){
+          sections += `<div class="card"><div class="sub">📦 ${tf('ส่งใบส่งงานแล้ว รอทีมงานเข้าตรวจสอบหน้างาน','Submitted -- awaiting on-site inspection')}${roundLabel}</div></div>`;
+        } else if(['handover_passed','final_approved'].includes(activeRound.status)){
+          sections += `<div class="card"><div class="sub">✅ ${tf('ตรวจงานผ่านแล้ว กำลังรอการอนุมัติขั้นสุดท้าย/เบิกเงินงวดนี้','Passed inspection -- awaiting final approval / this round’s payout')}${roundLabel}</div></div>`;
+        } else {
+          // 'awaiting_inspection' in practice never persists (the round is
+          // only created once a date is actually proposed, see wireJobBid),
+          // but handled defensively for completeness.
+          sections += `<div class="card">
+            <b style="font-family:var(--font-display)">📅 ${tf('นัดวันตรวจงาน','Propose an inspection date')}${roundLabel}</b>
+            <div class="field" style="margin-top:10px"><input type="date" id="jb-inspect-date" value=""></div>
+            <button class="btn primary sm" id="jb-propose-inspect" style="margin-top:6px">${tf('ส่งข้อเสนอนัดตรวจงาน','Send inspection date proposal')}</button>
+          </div>`;
+        }
+      } else if(remaining>0){
+        // No round currently in progress and there's still % left to bill --
+        // offer to start the next one. wireJobBid's #jb-propose-inspect
+        // handler creates the round itself the first time this is submitted
+        // (including round 1, the very first time a job is awarded).
+        sections += `<div class="card">
+          <b style="font-family:var(--font-display)">📅 ${(job.rounds||[]).length? tf('นัดวันตรวจงานสำหรับงวดถัดไป','Propose an inspection date for the next round') : tf('นัดวันตรวจงาน','Propose an inspection date')}</b>
+          <div class="sub" style="margin-top:4px">${tf(`เบิกได้อีก ${remaining}%`,`Up to ${remaining}% remaining`)}</div>
+          <div class="field" style="margin-top:10px"><input type="date" id="jb-inspect-date" value=""></div>
+          <button class="btn primary sm" id="jb-propose-inspect" style="margin-top:6px">${tf('ส่งข้อเสนอนัดตรวจงาน','Send inspection date proposal')}</button>
+        </div>`;
+      } else {
+        sections += `<div class="card tint"><b>💰 ${tf('เบิกครบ 100% แล้ว รอบัญชีเบิกเงินงวดสุดท้าย ขอบคุณสำหรับงานครับ','Fully billed at 100% -- awaiting the final payout. Thank you for the work')}</b></div>`;
+      }
     } else if(job.status==='paid'){
-      sections += `<div class="card tint"><b>💰 ${tf('เบิกเงินเรียบร้อยแล้ว ขอบคุณสำหรับงานครับ','Payout complete -- thank you for the work')}</b></div>`;
+      sections += `<div class="card tint"><b>💰 ${tf('เบิกเงินครบทุกงวดแล้ว ขอบคุณสำหรับงานครับ','All rounds paid -- thank you for the work')}</b></div>`;
     }
   } else if(job.status==='cancelled'){
     sections += `<div class="card"><div class="sub">${tf('ใบงานนี้ถูกยกเลิกแล้ว','This job has been cancelled')}</div></div>`;
@@ -12234,8 +12501,18 @@ function wireJobBid(){
   if(inspectBtn) inspectBtn.onclick = ()=>{
     const dEl = $('#jb-inspect-date');
     if(!dEl || !dEl.value){ toast(tf('กรุณาเลือกวันที่','Please choose a date')); return; }
-    job.inspection.proposedDate = dEl.value; job.inspection.proposedAt = new Date().toISOString(); job.inspection.proposedBy = (cjobInvited(job,cid)||{}).name || '';
-    job.status='inspection_proposed';
+    let round = cjobActiveRound(job);
+    if(!round){
+      // No round in progress -- this proposal starts a brand-new one
+      // (round 1 the first time the job is awarded, or the next round after
+      // a previous one finished passing inspection).
+      if(cjobRoundsRemainingPercent(job)<=0){ toast(tf('เบิกครบ 100% แล้ว ไม่สามารถเริ่มงวดใหม่ได้','Already fully billed -- a new round can’t be started')); return; }
+      round = newCjobRound((job.rounds||[]).length+1);
+      job.rounds = job.rounds||[];
+      job.rounds.push(round);
+    }
+    round.inspection.proposedDate = dEl.value; round.inspection.proposedAt = new Date().toISOString(); round.inspection.proposedBy = (cjobInvited(job,cid)||{}).name || '';
+    round.status='inspection_proposed';
     saveData(); render(); toast(tf('ส่งข้อเสนอนัดตรวจงานแล้ว','Inspection date proposal sent'));
   };
   const photoInput = $('#jb-handover-photo-input');
@@ -12247,17 +12524,25 @@ function wireJobBid(){
   $$('[data-jb-rm-handover-photo]').forEach(b=> b.onclick=()=>{ cjobHandoverPending.splice(Number(b.dataset.jbRmHandoverPhoto),1); render(); });
   const handoverBtn = $('#jb-submit-handover');
   if(handoverBtn) handoverBtn.onclick = async ()=>{
+    const round = cjobActiveRound(job); if(!round) return;
     if(!cjobHandoverPending.length){ toast(tf('กรุณาแนบรูปผลงานอย่างน้อย 1 รูป','Please attach at least one photo')); return; }
+    const percentEl = $('#jb-handover-percent');
+    const percent = percentEl && percentEl.value!==''? Number(percentEl.value) : null;
+    const remaining = cjobRoundsRemainingPercent(job);
+    if(percent==null || isNaN(percent) || percent<=0){ toast(tf('กรุณาระบุ % งานที่ส่งมอบในงวดนี้','Please enter the % of work delivered in this round')); return; }
+    if(percent>remaining){ toast(tf(`เบิกได้ไม่เกิน ${remaining}% ในงวดนี้`,`You can bill up to ${remaining}% in this round`)); return; }
     const noteEl = $('#jb-handover-note');
     const newIds=[];
     for(const p of cjobHandoverPending){ const id=uid(); await idbPut(id,p.dataUrl); newIds.push(id); }
-    job.handover.photoIds = newIds;
-    job.handover.note = noteEl?noteEl.value.trim():'';
-    job.handover.submittedAt = new Date().toISOString();
-    job.handover.reviewPass = null; job.handover.reviewNote=''; job.handover.reviewedAt=''; job.handover.reviewedBy='';
-    job.status='handover_submitted';
+    round.handover.photoIds = newIds;
+    round.handover.note = noteEl?noteEl.value.trim():'';
+    round.handover.percent = percent;
+    round.handover.submittedAt = new Date().toISOString();
+    round.handover.submittedBy = (cjobInvited(job,cid)||{}).name || '';
+    round.handover.reviewPass = null; round.handover.reviewNote=''; round.handover.reviewedAt=''; round.handover.reviewedBy='';
+    round.status='handover_submitted';
     cjobHandoverPending = [];
-    saveData(); render(); toast(tf('ส่งมอบงานแล้ว','Handover submitted'));
+    saveData(); render(); toast(tf('ส่งใบส่งงานแล้ว','Work-submission note sent'));
   };
   refreshItemModalPhotos();
 }
