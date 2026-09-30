@@ -383,6 +383,15 @@ tbody tr:hover{background:var(--surface-2)}
 .budget-table{table-layout:auto}
 .budget-table th,.budget-table td{white-space:nowrap;font-size:12px;padding:9px 10px}
 .budget-table td:nth-child(3){white-space:normal;min-width:160px}
+/* Contractor Jobs (RFQ) summary table -- overrides the generic
+   .budget-table td:nth-child(3) rule above (written for the Budget screen's
+   own 3rd column), which would otherwise force this table's 3rd column
+   (Invited count, a short number) to wrap normally with a 160px min-width.
+   Column 1 (job title + description) gets its own wrap instead, so a long
+   title/description doesn't force the whole table wider. */
+.cjob-table td:nth-child(1),.cjob-table th:nth-child(1){white-space:normal;overflow-wrap:anywhere;min-width:220px}
+.cjob-table td:nth-child(3),.cjob-table th:nth-child(3){white-space:nowrap;min-width:0}
+.cjob-table tbody tr:hover td{background:var(--surface-2)}
 .cl-table td:nth-child(3){white-space:nowrap;min-width:0}
 .cl-table td{padding:5px 6px;vertical-align:middle}
 .cl-table input,.cl-table select{padding:6px 8px;font-size:12px;border-radius:6px;min-width:0}
@@ -816,7 +825,7 @@ select.pp-status-select.pp-noneed{background:var(--surface-2);color:var(--ink-50
    this table's Unit column instead. */
 .pp-table th{white-space:normal;overflow-wrap:anywhere;line-height:1.3;vertical-align:bottom;font-size:11.5px}
 .pp-table td:nth-child(1),.pp-table th:nth-child(1){white-space:nowrap;width:3.4%}
-.pp-table td:nth-child(2),.pp-table th:nth-child(2){white-space:normal;overflow-wrap:anywhere;width:15.4%}
+.pp-table td:nth-child(2),.pp-table th:nth-child(2){white-space:normal;overflow-wrap:anywhere;width:21%}
 .pp-table td:nth-child(3),.pp-table th:nth-child(3){white-space:nowrap;width:3.6%}
 .pp-table td:nth-child(4),.pp-table th:nth-child(4){width:5.8%}
 .pp-table td:nth-child(5),.pp-table th:nth-child(5){width:9.6%}
@@ -826,12 +835,17 @@ select.pp-status-select.pp-noneed{background:var(--surface-2);color:var(--ink-50
 .pp-table td:nth-child(9),.pp-table th:nth-child(9){white-space:nowrap;width:5.4%}
 .pp-table td:nth-child(10),.pp-table th:nth-child(10){white-space:nowrap;width:6.8%}
 .pp-table td:nth-child(11),.pp-table th:nth-child(11){width:10.4%}
-.pp-table td:nth-child(12),.pp-table th:nth-child(12){width:5.6%}
 .pp-table td:nth-child(14),.pp-table th:nth-child(14){width:10.4%}
 .pp-table td:nth-child(15),.pp-table th:nth-child(15){width:5.6%}
 .pp-table td:nth-child(16),.pp-table th:nth-child(16){width:7.6%}
 .pp-table td:nth-child(17),.pp-table th:nth-child(17){width:8.4%}
 .pp-table select{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* Reference-photo thumbnail placed inline before the item name, matching
+   Master Plan & BOQ's own row layout (.gl-name-cell there) -- same
+   thumb-then-text pattern instead of the photo trailing in its own column. */
+.pp-table .pp-name-cell{display:flex;align-items:center;gap:8px;min-width:0}
+.pp-table .pp-name-cell .mp-thumb{width:34px;height:34px;border-radius:8px}
+.pp-table .pp-name-cell span{min-width:0}
 .pp-table .badge{white-space:nowrap;padding:3px 8px;font-size:11px}
 .pp-table .budget-cat-row td{white-space:nowrap}
 
@@ -8830,7 +8844,7 @@ function renderPurchasePlan(proj=P()){
     const key = g.cat || '__uncategorized__';
     const expanded = ppExpandedCats.has(key);
     const label = g.cat? escapeHtml(g.cat) : tf('ไม่ระบุหมวดหมู่','Uncategorized');
-    const catHeader = `<tr class="budget-cat-row" data-toggle-pp-cat="${escapeHtml(key)}" style="cursor:pointer"><td colspan="12"><span class="mp-cat-chevron">${expanded?'▾':'▸'}</span>📁 ${label} <span class="mp-cat-count">${filteredItems.length} ${tf('รายการ','item(s)')}</span></td></tr>`;
+    const catHeader = `<tr class="budget-cat-row" data-toggle-pp-cat="${escapeHtml(key)}" style="cursor:pointer"><td colspan="11"><span class="mp-cat-chevron">${expanded?'▾':'▸'}</span>📁 ${label} <span class="mp-cat-count">${filteredItems.length} ${tf('รายการ','item(s)')}</span></td></tr>`;
     if(!expanded) return catHeader;
     const itemRows = filteredItems.map(item=>{
       const orderStatus = item.ppOrderStatus || 'not_ordered';
@@ -8849,6 +8863,9 @@ function renderPurchasePlan(proj=P()){
       // screens can never drift out of sync. refreshMasterPlanThumbs() (its
       // existing name, unchanged) already does a generic P().boq lookup by
       // item id, so it fills these thumbnails in too with no changes needed.
+      // Now placed inline right before the item name -- same position as
+      // Master Plan & BOQ's own row layout (thumbBox first, name after) --
+      // instead of trailing in its own column at the far right of the table.
       const ppThumbIds = item.refPhotoIds||[];
       const ppHasThumb = ppThumbIds.length>0;
       const ppThumbBox = `<div class="mp-thumb" ${ppHasThumb? `data-open-gallery="${item.id}"` : `data-quick-attach="${item.id}"`} title="${tf('ภาพชุดงาน','Reference photos')}">
@@ -8857,7 +8874,7 @@ function renderPurchasePlan(proj=P()){
       </div>`;
       return `<tr data-pp-row="${item.id}" class="${alert==='overdue'?'pp-row-overdue':alert==='duesoon'?'pp-row-duesoon':''}">
         <td class="tabular hint">${escapeHtml(item.itemCode||'-')}</td>
-        <td title="${escapeHtml(item.name)}">${escapeHtml(item.name)}</td>
+        <td title="${escapeHtml(item.name)}"><div class="pp-name-cell">${ppThumbBox}<span>${escapeHtml(item.name)}</span></div></td>
         <td>${escapeHtml(item.unit)}</td>
         <td class="tabular hint" title="${tf('อัตโนมัติจากวันเริ่มงานในแผนงานหลัก','Automatic from the Master Plan start date')}">${needDate? fmtDateShort(needDate) : '-'}</td>
         <td><input type="number" min="0" step="1" data-pp-field="ppLeadTimeDays" value="${item.ppLeadTimeDays==null?'':item.ppLeadTimeDays}" placeholder="${PP_DEFAULT_LEAD_DAYS}" title="${tf(`ค่าเริ่มต้น ${PP_DEFAULT_LEAD_DAYS} วัน ถ้าไม่ได้กรอก`,`Defaults to ${PP_DEFAULT_LEAD_DAYS} days if left blank`)}"></td>
@@ -8867,7 +8884,6 @@ function renderPurchasePlan(proj=P()){
         <td><input type="text" data-pp-field="ppPoNo" value="${escapeHtml(item.ppPoNo||'')}" placeholder="${tf('เลขที่ PO','PO no.')}" title="${escapeHtml(item.ppPoNo||'')}"></td>
         <td><select data-pp-field="ppOrderStatus" class="pp-status-select ${orderStatusDef.cls}" title="${orderStatusLabel}">${PP_ORDER_STATUS.map(s=>`<option value="${s.v}" ${orderStatus===s.v?'selected':''}>${escapeHtml(tf(s.th,s.en))}</option>`).join('')}</select></td>
         <td><input type="text" data-pp-field="ppNotes" value="${escapeHtml(item.ppNotes||'')}" placeholder="${tf('หมายเหตุ','note')}" title="${escapeHtml(item.ppNotes||'')}"></td>
-        <td>${ppThumbBox}</td>
       </tr>`;
     }).join('');
     return catHeader + itemRows;
@@ -8910,7 +8926,7 @@ function renderPurchasePlan(proj=P()){
     <th>${tf('วันที่ต้องถึงหน้างาน','Need-on-Site Date')}</th><th>${tf('Lead Time (วัน)','Lead Time (days)')}</th>
     <th>${tf('วันที่ต้องสั่งซื้อ','Order-by Date')}</th><th>${tf('สถานะแจ้งเตือน','Alert')}</th>
     <th>${tf('จำนวนที่สั่งจริง','Actual Order Qty')}</th><th>${tf('เลขที่ใบสั่งซื้อ','PO No.')}</th><th>${tf('สถานะการสั่งของ','Order Status')}</th>
-    <th>${tf('หมายเหตุ','Notes')}</th><th>${tf('รูปภาพ','Photo')}</th>
+    <th>${tf('หมายเหตุ','Notes')}</th>
   </tr></thead><tbody>${rows}</tbody></table></div>
   ` : `<div class="empty"><span class="ic">📦</span>${tf('ไม่มีรายการในสถานะนี้','No items with this status')}</div>`}
   `;
@@ -11824,48 +11840,48 @@ function renderContractorJobs(proj=P()){
   const emptyMsg = cjobViewTrash
     ? `<div class="empty"><span class="ic">🗑️</span>${tf('ยังไม่มีใบงานที่ถูกยกเลิก','No cancelled jobs')}</div>`
     : `<div class="empty"><span class="ic">👷</span>${tf('ยังไม่มีใบงานจ้างเหมา — กด “เปิดใบงานใหม่” เพื่อเริ่มส่งงานให้ผู้รับเหมาประมูลราคา','No contractor jobs yet -- tap “New job” to start sending work out for contractors to bid on')}</div>`;
-  const cards = jobs.length? jobs.map(cjobCardHtml).join('') : emptyMsg;
+  // Summary TABLE (one row per job) instead of the previous stacked-card
+  // list -- per the user's request that the list be "easier to understand"
+  // at a glance, especially once there are several jobs open at once. Same
+  // fields the cards used to show (status, invited count, lowest bid,
+  // schedule, due date, overdue/due-soon alert), just laid out as scannable
+  // columns; clicking a row still opens the same detail modal as before
+  // (data-cjob-open, unchanged handler in wireContractorJobs).
+  const body = jobs.length? jobs.map(cjobRowHtml).join('') : '';
   return `
   <div class="page-head">
     <div><h2>${cjobViewTrash? '🗑️ '+tf('ใบงานที่ยกเลิก','Cancelled jobs') : '👷 '+tf('งานจ้างเหมา (RFQ)','Contractor Jobs (RFQ)')}</h2><div class="sub">${cjobViewTrash? tf('ใบงานจ้างเหมาที่ถูกยกเลิกทั้งหมด แยกไว้ต่างหากจากรายการงานที่ใช้งานอยู่','All cancelled contractor jobs, kept separate from the active job list') : tf('เปิดใบงาน ส่งให้ผู้รับเหมาหลายคนเสนอราคา ต่อรอง อนุมัติ ไปจนถึงนัดตรวจงานและเบิกเงิน','Post a job, invite several contractors to bid, negotiate, approve, then track inspection through to payout')}</div></div>
     ${cjobViewTrash? `<button class="btn ghost" id="btn-cjob-back-active">← ${tf('กลับไปหน้ารายการงาน','Back to job list')}</button>` : `<div style="display:flex;gap:8px">${cancelledCount? `<button class="btn ghost" id="btn-cjob-view-trash">🗑️ ${tf('ใบงานที่ยกเลิก','Cancelled')} (${cancelledCount})</button>` : ''}<button class="btn primary" id="btn-add-cjob">+ ${tf('เปิดใบงานใหม่','New job')}</button></div>`}
   </div>
-  ${cards}
+  ${jobs.length? `<div class="table-wrap"><table class="budget-table cjob-table"><thead><tr>
+    <th>${tf('ชื่องาน','Job')}</th><th>${tf('สถานะ','Status')}</th><th>${tf('ผู้รับเหมาที่เชิญ','Invited')}</th>
+    <th>${tf('ราคาต่ำสุดที่เสนอ','Lowest bid')}</th><th>${tf('ราคาที่อนุมัติ','Awarded')}</th>
+    <th>${tf('วันเริ่มงาน','Start')}</th><th>${tf('กำหนดเสร็จ','Due')}</th><th>${tf('แจ้งเตือน','Alert')}</th>
+  </tr></thead><tbody>${body}</tbody></table></div>` : emptyMsg}
   `;
 }
-function cjobCardHtml(job){
+function cjobRowHtml(job){
   const alert = cjobAlertStatus(job);
   const sdef = cjobStatusDef(job.status);
   const lowest = cjobLowestBid(job);
   const bidCount = (job.invitedContractors||[]).length;
   const due = cjobDueDate(job);
-  // Multi-round draw progress -- billedPct is the cumulative % confirmed by
-  // a passed (or further) inspection round; the active round (if any) shows
-  // its own live status alongside it so the card tells the whole story
-  // without opening the detail modal.
   const billedPct = cjobRoundBilledPercent(job);
   const activeRound = cjobActiveRound(job);
-  const roundsHtml = (job.status==='awarded' && (job.rounds||[]).length)? `<div style="margin-top:10px">
-      <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--ink-500)"><span>${tf('เบิกไปแล้ว','Billed')}</span><span class="tabular">${billedPct}%</span></div>
-      <div style="height:6px;border-radius:4px;background:var(--surface-2);overflow:hidden;margin-top:3px"><div style="height:100%;width:${clamp(billedPct,0,100)}%;background:var(--mint-500)"></div></div>
-      ${activeRound? `<div class="sub" style="margin-top:6px">${tf('งวดที่','Round')} ${activeRound.roundNo}: <b>${cjobRoundStatusLabel(activeRound.status)}</b></div>` : ''}
-    </div>` : '';
-  return `<div class="card" data-cjob-open="${job.id}" style="cursor:pointer">
-    <div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start">
-      <b style="font-family:var(--font-display);font-size:15px">${escapeHtml(job.title||tf('(ไม่มีชื่องาน)','(untitled job)'))}</b>
-      <span class="badge ${sdef.cls}">${cjobStatusLabel(job.status)}</span>
-    </div>
-    ${job.description? `<div class="sub" style="margin-top:6px">${escapeHtml(job.description.slice(0,120))}${job.description.length>120?'…':''}</div>` : ''}
-    <div style="display:flex;flex-wrap:wrap;gap:10px 22px;margin-top:12px">
-      <div><div class="meta-lbl">${tf('ผู้รับเหมาที่เชิญ','Invited')}</div><b class="tabular">${bidCount}</b></div>
-      <div><div class="meta-lbl">${tf('ราคาต่ำสุดที่เสนอ','Lowest bid')}</div><b class="tabular">${lowest!=null? '฿'+fmtNum(lowest,0) : '-'}</b></div>
-      ${job.awardedPrice!=null? `<div><div class="meta-lbl">${tf('ราคาที่อนุมัติ','Awarded price')}</div><b class="tabular">฿${fmtNum(job.awardedPrice,0)}</b></div>` : ''}
-      ${job.startDate? `<div><div class="meta-lbl">${tf('วันเริ่มงาน','Start date')}</div><b class="tabular">${fmtDate(job.startDate)}</b></div>` : `<div><div class="meta-lbl">${tf('กำหนดการ','Schedule')}</div><b class="tabular">${tf('รอผู้รับเหมาเสนอ','Awaiting contractor proposal')}</b></div>`}
-      ${due? `<div><div class="meta-lbl">${tf('กำหนดเสร็จ','Due')}</div><b class="tabular">${fmtDate(due)}</b></div>` : ''}
-    </div>
-    ${roundsHtml}
-    ${alert? `<div style="margin-top:8px"><span class="badge ${alert==='overdue'?'bad':'warn'}">⏰ ${alert==='overdue'? tf('เลยกำหนดจำนวนวันทำงานแล้ว','Past the working-day deadline') : tf('ใกล้ครบกำหนดจำนวนวันทำงาน','Nearing the working-day deadline')}</span></div>` : ''}
-  </div>`;
+  const scheduleHtml = job.startDate
+    ? `${fmtDate(job.startDate)}${(job.status==='awarded' && (job.rounds||[]).length)? `<div class="hint tabular" style="margin-top:2px">${tf('เบิกแล้ว','Billed')} ${billedPct}%${activeRound? ` · ${tf('งวด','Rd')} ${activeRound.roundNo}` : ''}</div>` : ''}`
+    : `<span class="hint">${tf('รอผู้รับเหมาเสนอ','Awaiting proposal')}</span>`;
+  const alertHtml = alert? `<span class="badge ${alert==='overdue'?'bad':'warn'}">⏰ ${alert==='overdue'? tf('เลยกำหนด','Overdue') : tf('ใกล้ครบกำหนด','Due soon')}</span>` : '<span class="hint">-</span>';
+  return `<tr data-cjob-open="${job.id}" style="cursor:pointer">
+    <td title="${escapeHtml(job.title||'')}"><b>${escapeHtml(job.title||tf('(ไม่มีชื่องาน)','(untitled job)'))}</b>${job.description? `<div class="hint" style="margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(job.description)}</div>` : ''}</td>
+    <td><span class="badge ${sdef.cls}">${cjobStatusLabel(job.status)}</span></td>
+    <td class="tabular">${bidCount}</td>
+    <td class="tabular">${lowest!=null? '฿'+fmtNum(lowest,0) : '-'}</td>
+    <td class="tabular">${job.awardedPrice!=null? '฿'+fmtNum(job.awardedPrice,0) : '-'}</td>
+    <td>${scheduleHtml}</td>
+    <td class="tabular">${due? fmtDate(due) : '-'}</td>
+    <td>${alertHtml}</td>
+  </tr>`;
 }
 function wireContractorJobs(){
   const addBtn=$('#btn-add-cjob'); if(addBtn) addBtn.onclick=()=>{ openCjobDraft('new'); render(); };
