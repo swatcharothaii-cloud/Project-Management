@@ -819,15 +819,14 @@ select.pp-status-select.pp-noneed{background:var(--surface-2);color:var(--ink-50
 .pp-table td:nth-child(2),.pp-table th:nth-child(2){white-space:normal;overflow-wrap:anywhere;width:15.4%}
 .pp-table td:nth-child(3),.pp-table th:nth-child(3){white-space:nowrap;width:3.6%}
 .pp-table td:nth-child(4),.pp-table th:nth-child(4){width:5.8%}
-.pp-table td:nth-child(5),.pp-table th:nth-child(5){width:5.8%}
-.pp-table td:nth-child(6),.pp-table th:nth-child(6){width:9.6%}
-.pp-table td:nth-child(7),.pp-table th:nth-child(7){white-space:nowrap;width:5.4%}
-.pp-table td:nth-child(8),.pp-table th:nth-child(8){width:8.8%}
-.pp-table td:nth-child(9),.pp-table th:nth-child(9){width:5%}
-.pp-table td:nth-child(10),.pp-table th:nth-child(10){white-space:nowrap;width:5.4%}
-.pp-table td:nth-child(11),.pp-table th:nth-child(11){white-space:nowrap;width:6.8%}
-.pp-table td:nth-child(12),.pp-table th:nth-child(12){width:10.4%}
-.pp-table td:nth-child(13),.pp-table th:nth-child(13){width:5.6%}
+.pp-table td:nth-child(5),.pp-table th:nth-child(5){width:9.6%}
+.pp-table td:nth-child(6),.pp-table th:nth-child(6){white-space:nowrap;width:5.4%}
+.pp-table td:nth-child(7),.pp-table th:nth-child(7){width:8.8%}
+.pp-table td:nth-child(8),.pp-table th:nth-child(8){width:5%}
+.pp-table td:nth-child(9),.pp-table th:nth-child(9){white-space:nowrap;width:5.4%}
+.pp-table td:nth-child(10),.pp-table th:nth-child(10){white-space:nowrap;width:6.8%}
+.pp-table td:nth-child(11),.pp-table th:nth-child(11){width:10.4%}
+.pp-table td:nth-child(12),.pp-table th:nth-child(12){width:5.6%}
 .pp-table td:nth-child(14),.pp-table th:nth-child(14){width:10.4%}
 .pp-table td:nth-child(15),.pp-table th:nth-child(15){width:5.6%}
 .pp-table td:nth-child(16),.pp-table th:nth-child(16){width:7.6%}
@@ -924,6 +923,19 @@ select.pp-status-select.pp-noneed{background:var(--surface-2);color:var(--ink-50
   .kcol{padding:0;border-right:none!important}
   .kcol:not(:last-child){padding-bottom:14px;border-bottom:1px solid var(--line)}
 }
+
+/* ---------- Notes/Chat, see "SCREEN: NOTES/CHAT" below ---------- */
+.note-pad-card{padding:0;overflow:hidden}
+.note-pad-toolbar{display:flex;gap:6px;padding:9px 14px;border-bottom:1px solid var(--line);background:var(--surface-2)}
+.note-pad-tool-btn{width:28px;height:28px;border-radius:7px;border:1px solid var(--line);background:var(--surface);color:var(--ink-700);font-size:12.5px;font-family:var(--font-body);cursor:pointer;display:flex;align-items:center;justify-content:center}
+.note-pad-tool-btn:hover{border-color:var(--purple-500);color:var(--purple-600)}
+.note-pad-editor{min-height:420px;padding:22px 26px;font-family:var(--font-body);font-size:13.5px;line-height:1.75;color:var(--ink-900);outline:none}
+.note-pad-editor:empty:before{content:attr(data-placeholder);color:var(--ink-300)}
+.note-pad-editor p{margin:0 0 12px}
+.note-pad-editor p:last-child{margin-bottom:0}
+.note-pad-editor h3{font-family:var(--font-display);font-size:16px;font-weight:700;color:var(--ink-900);margin:16px 0 10px}
+.note-pad-editor h3:first-child{margin-top:0}
+.note-pad-meta{padding:0 14px 14px}
 
 /* ---------- INSPECT (punch list + 3-stage checklist), see "SCREEN: INSPECT"
    below ---------- */
@@ -4171,7 +4183,7 @@ let state = {
 // P() = the project currently open (state.view==='project'). Falls back to an
 // empty stub so calls made outside a project context never throw.
 function P(){
-  return state.projects.find(p=>p.id===state.currentProjectId) || {id:null,name:'',zone:'',boq:[],logs:[],materialRequests:[],costLog:[],contractorJobs:[],punchPlans:[],punchItems:[],punchChecklist:[],punchChecklistRuns:[],noteFeed:[],notePad:{text:'',updatedAt:'',updatedBy:''}};
+  return state.projects.find(p=>p.id===state.currentProjectId) || {id:null,name:'',zone:'',boq:[],logs:[],materialRequests:[],costLog:[],contractorJobs:[],punchPlans:[],punchItems:[],punchChecklist:[],punchChecklistRuns:[],noteFeed:[],notePad:{text:'',html:'',updatedAt:'',updatedBy:''}};
 }
 
 // Field-worker restricted link: opening the app with #field&project=<id> in the
@@ -5434,7 +5446,7 @@ function wireProjectModal(){
     if(!name){ toast(tf('กรุณาระบุชื่อโครงการ','Please enter a project name')); return; }
     if(editingProjectId==='new'){
       const importedBoq = buildBoqFromImport();
-      state.projects.push({id:uid(), name, zone, groupName, driveFolderId, driveSyncedFileIds:[], billingFolderId, paymentFolderId, billingMilestones:[], boq:importedBoq, logs:[], materialRequests:[], costLog:[], inspectionReports:[], contractorJobs:[], punchPlans:[], punchItems:[], punchChecklist:defaultPunchChecklist(), punchChecklistRuns:[], noteFeed:[], notePad:{text:'',updatedAt:'',updatedBy:''}, createdAt:new Date().toISOString()});
+      state.projects.push({id:uid(), name, zone, groupName, driveFolderId, driveSyncedFileIds:[], billingFolderId, paymentFolderId, billingMilestones:[], boq:importedBoq, logs:[], materialRequests:[], costLog:[], inspectionReports:[], contractorJobs:[], punchPlans:[], punchItems:[], punchChecklist:defaultPunchChecklist(), punchChecklistRuns:[], noteFeed:[], notePad:{text:'',html:'',updatedAt:'',updatedBy:''}, createdAt:new Date().toISOString()});
       saveData(); closeProjectModal();
       toast(importedBoq.length? tf('สร้างโปรเจ็คใหม่แล้ว พร้อม BOQ ','Project created with a BOQ of ')+importedBoq.length+tf(' รายการ',' items') : tf('สร้างโปรเจ็คใหม่แล้ว','Project created'));
     } else {
@@ -8818,7 +8830,7 @@ function renderPurchasePlan(proj=P()){
     const key = g.cat || '__uncategorized__';
     const expanded = ppExpandedCats.has(key);
     const label = g.cat? escapeHtml(g.cat) : tf('ไม่ระบุหมวดหมู่','Uncategorized');
-    const catHeader = `<tr class="budget-cat-row" data-toggle-pp-cat="${escapeHtml(key)}" style="cursor:pointer"><td colspan="13"><span class="mp-cat-chevron">${expanded?'▾':'▸'}</span>📁 ${label} <span class="mp-cat-count">${filteredItems.length} ${tf('รายการ','item(s)')}</span></td></tr>`;
+    const catHeader = `<tr class="budget-cat-row" data-toggle-pp-cat="${escapeHtml(key)}" style="cursor:pointer"><td colspan="12"><span class="mp-cat-chevron">${expanded?'▾':'▸'}</span>📁 ${label} <span class="mp-cat-count">${filteredItems.length} ${tf('รายการ','item(s)')}</span></td></tr>`;
     if(!expanded) return catHeader;
     const itemRows = filteredItems.map(item=>{
       const orderStatus = item.ppOrderStatus || 'not_ordered';
@@ -8848,7 +8860,6 @@ function renderPurchasePlan(proj=P()){
         <td title="${escapeHtml(item.name)}">${escapeHtml(item.name)}</td>
         <td>${escapeHtml(item.unit)}</td>
         <td class="tabular hint" title="${tf('อัตโนมัติจากวันเริ่มงานในแผนงานหลัก','Automatic from the Master Plan start date')}">${needDate? fmtDateShort(needDate) : '-'}</td>
-        <td><input type="text" data-pp-field="ppSupplier" value="${escapeHtml(item.ppSupplier||'')}" placeholder="${tf('ซัพพลายเออร์','supplier')}" title="${escapeHtml(item.ppSupplier||'')}"></td>
         <td><input type="number" min="0" step="1" data-pp-field="ppLeadTimeDays" value="${item.ppLeadTimeDays==null?'':item.ppLeadTimeDays}" placeholder="${PP_DEFAULT_LEAD_DAYS}" title="${tf(`ค่าเริ่มต้น ${PP_DEFAULT_LEAD_DAYS} วัน ถ้าไม่ได้กรอก`,`Defaults to ${PP_DEFAULT_LEAD_DAYS} days if left blank`)}"></td>
         <td class="tabular hint" title="${tf(`คำนวณอัตโนมัติ = วันที่ต้องถึงหน้างาน − Lead Time (ค่าเริ่มต้น ${PP_DEFAULT_LEAD_DAYS} วัน ถ้าไม่ได้กรอก)`,`Computed automatically = need-on-site date − lead time (defaults to ${PP_DEFAULT_LEAD_DAYS} days if left blank)`)}">${orderByDate? fmtDateShort(orderByDate) : '-'}</td>
         <td>${alertHtml}</td>
@@ -8896,7 +8907,7 @@ function renderPurchasePlan(proj=P()){
   <div class="table-topscroll pp-wrap-topscroll" id="pp-topscroll"><div id="pp-topscroll-spacer"></div></div>
   <div class="table-wrap pp-wrap" id="pp-table-wrap"><table class="budget-table pp-table"><thead><tr>
     <th>${tf('No.','No.')}</th><th>${tf('รายการวัสดุ/อุปกรณ์','Item')}</th><th>${tf('หน่วย','Unit')}</th>
-    <th>${tf('วันที่ต้องถึงหน้างาน','Need-on-Site Date')}</th><th>${tf('ซัพพลายเออร์','Supplier')}</th><th>${tf('Lead Time (วัน)','Lead Time (days)')}</th>
+    <th>${tf('วันที่ต้องถึงหน้างาน','Need-on-Site Date')}</th><th>${tf('Lead Time (วัน)','Lead Time (days)')}</th>
     <th>${tf('วันที่ต้องสั่งซื้อ','Order-by Date')}</th><th>${tf('สถานะแจ้งเตือน','Alert')}</th>
     <th>${tf('จำนวนที่สั่งจริง','Actual Order Qty')}</th><th>${tf('เลขที่ใบสั่งซื้อ','PO No.')}</th><th>${tf('สถานะการสั่งของ','Order Status')}</th>
     <th>${tf('หมายเหตุ','Notes')}</th><th>${tf('รูปภาพ','Photo')}</th>
@@ -10228,10 +10239,17 @@ function buildSCurve(asOf){
            (each {id, text, author, at}), newest at the top, with an input
            box to post a new one. For a quick note during a call, or logging
            "ordered the tiles today" as it happens.
-     pad   proj.notePad {text, updatedAt, updatedBy} -- a single free-form,
-           auto-saving note per project (not per-entry), for the kind of
-           running scratch note people keep open during a meeting and edit
-           in place rather than post as discrete messages.
+     pad   proj.notePad {html, text, updatedAt, updatedBy} -- a single
+           free-form, auto-saving note per project (not per-entry), for the
+           kind of running scratch note people keep open during a meeting
+           and edit in place rather than post as discrete messages. `html`
+           is the source of truth (a Word-like notebook page: paragraphs +
+           bold headings, edited via a contenteditable box + a tiny
+           Bold/Heading toolbar -- see renderNotePadHtml()/wireNotes()
+           below); `text` is a legacy plain-text field kept only so
+           ensureNoteDefaults() can migrate an old pad (written before this
+           rich-text upgrade) into a first paragraph of html instead of
+           silently losing it.
    Deliberately NOT linked to any BOQ/Master Plan work item (per the user's
    own choice when asked) -- this is a general project notebook, not a
    comment thread on a specific line item. */
@@ -10244,7 +10262,14 @@ let noteSubView = 'feed'; // 'feed' | 'pad'
 // defensively at the top of renderNotes() on every render.
 function ensureNoteDefaults(proj){
   if(!Array.isArray(proj.noteFeed)) proj.noteFeed=[];
-  if(!proj.notePad || typeof proj.notePad!=='object') proj.notePad={text:'', updatedAt:'', updatedBy:''};
+  if(!proj.notePad || typeof proj.notePad!=='object') proj.notePad={text:'', html:'', updatedAt:'', updatedBy:''};
+  // Migrate a pad written before the rich-text (contenteditable) upgrade --
+  // it only ever had plain `text` -- into a single paragraph of `html` so
+  // existing notes aren't lost. Runs once per pad (html stays '' forever
+  // after this unless the user clears the note back to empty).
+  if(typeof proj.notePad.html!=='string'){
+    proj.notePad.html = proj.notePad.text? `<p>${escapeHtml(proj.notePad.text)}</p>` : '';
+  }
 }
 function renderNoteFeedHtml(proj){
   const msgs = (proj.noteFeed||[]).slice().sort((a,b)=> (b.at||'').localeCompare(a.at||''));
@@ -10266,12 +10291,29 @@ function renderNoteFeedHtml(proj){
   </div>
   <div style="display:flex;flex-direction:column;gap:10px">${list}</div>`;
 }
+// Word-like notebook page: a contenteditable box (native browser rich text
+// via document.execCommand -- no external editor library, keeping this a
+// single self-contained file) with a two-button toolbar for exactly what
+// the user asked for -- paragraphs (contenteditable's own Enter-key
+// behavior) and bold headings (Bold for inline emphasis, Heading to toggle
+// the current line to a bold <h3>). pad.html is only re-read into the DOM
+// on a fresh render() (tab switch, sub-view toggle, initial load); while
+// the user is actively typing, wireNotes() keeps proj.notePad.html in sync
+// in-memory on every input WITHOUT calling render(), so the caret position
+// and current selection are never disturbed mid-edit -- the exact same
+// "oninput=memory only, onblur=save+render" convention already used by the
+// plain-textarea fields elsewhere in this app (e.g. wirePurchasePlan()'s
+// free-text inputs).
 function renderNotePadHtml(proj){
   const pad = proj.notePad;
-  const meta = pad.updatedAt? `<div class="hint" style="margin-top:8px">${tf('แก้ไขล่าสุดโดย ','Last edited by ')}${escapeHtml(pad.updatedBy||'-')} · ${fmtDateTime(pad.updatedAt)}</div>` : `<div class="hint" style="margin-top:8px">${tf('บันทึกอัตโนมัติเมื่อออกจากช่องพิมพ์','Auto-saves when you click away')}</div>`;
-  return `<div class="card">
-    <textarea id="note-pad-text" rows="18" style="width:100%;font-family:var(--font-body);font-size:13.5px;line-height:1.6" placeholder="${tf('พิมพ์โน้ตของโปรเจกต์นี้ได้เลย เช่น สรุปสำคัญ รายการที่ต้องติดตาม ฯลฯ','Type this project’s notes here -- key points, follow-up items, etc.')}">${escapeHtml(pad.text||'')}</textarea>
-    ${meta}
+  const meta = pad.updatedAt? `${tf('แก้ไขล่าสุดโดย ','Last edited by ')}${escapeHtml(pad.updatedBy||'-')} · ${fmtDateTime(pad.updatedAt)}` : tf('บันทึกอัตโนมัติเมื่อออกจากช่องพิมพ์','Auto-saves when you click away');
+  return `<div class="card note-pad-card">
+    <div class="note-pad-toolbar">
+      <button type="button" class="note-pad-tool-btn" data-note-cmd="bold" title="${tf('ตัวหนา','Bold')}"><b>B</b></button>
+      <button type="button" class="note-pad-tool-btn" data-note-cmd="heading" title="${tf('หัวข้อ (ตัวหนา)','Heading (bold)')}">H</button>
+    </div>
+    <div id="note-pad-editor" class="note-pad-editor" contenteditable="true" data-placeholder="${tf('พิมพ์โน้ตของโปรเจกต์นี้ได้เลย เช่น สรุปสำคัญ รายการที่ต้องติดตาม ฯลฯ','Type this project’s notes here -- key points, follow-up items, etc.')}">${pad.html||''}</div>
+    <div class="hint note-pad-meta">${meta}</div>
   </div>`;
 }
 function renderNotes(){
@@ -10305,14 +10347,33 @@ function wireNotes(){
     proj.noteFeed = (proj.noteFeed||[]).filter(m=>m.id!==b.dataset.noteDel);
     saveData(); render(); toast(tf('ลบข้อความแล้ว','Message deleted'));
   });
-  const padText = $('#note-pad-text');
-  if(padText){
-    padText.oninput = ()=>{ proj.notePad.text = padText.value; };
-    padText.onblur = ()=>{
+  const padEditor = $('#note-pad-editor');
+  if(padEditor){
+    padEditor.oninput = ()=>{ proj.notePad.html = padEditor.innerHTML; };
+    padEditor.onblur = ()=>{
+      proj.notePad.html = padEditor.innerHTML;
       proj.notePad.updatedAt = new Date().toISOString();
       proj.notePad.updatedBy = currentActorName();
       saveData(); render();
     };
+    $$('[data-note-cmd]').forEach(btn=>{
+      // mousedown (not click) preventDefault -- otherwise the button steals
+      // focus from the contenteditable box first, collapsing whatever text
+      // was selected, so "select a line, click Heading" would silently do
+      // nothing.
+      btn.onmousedown = (e)=> e.preventDefault();
+      btn.onclick = ()=>{
+        padEditor.focus();
+        const cmd = btn.dataset.noteCmd;
+        if(cmd==='heading'){
+          const isHeading = (document.queryCommandValue('formatBlock')||'').toLowerCase()==='h3';
+          document.execCommand('formatBlock', false, isHeading? 'p' : 'h3');
+        } else {
+          document.execCommand(cmd, false, null);
+        }
+        proj.notePad.html = padEditor.innerHTML;
+      };
+    });
   }
 }
 
