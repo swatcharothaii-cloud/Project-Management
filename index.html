@@ -11163,7 +11163,7 @@ function wirePunchItemModal(){
   const annotatePlanBtn = $('#pu-annotate-plan');
   if(annotatePlanBtn) annotatePlanBtn.onclick = async ()=>{
     syncPunchItemDraftFromDom();
-    const plan = proj.punchPlans.find(p=>p.id===d.planId);
+    const plan = P().punchPlans.find(p=>p.id===d.planId);
     if(!plan || !plan.imageId){ toast(tf('แปลนนี้ยังไม่มีรูปภาพ','This plan has no image yet')); return; }
     const dataUrl = await loadRefPhoto(plan.imageId);
     if(!dataUrl){ toast(tf('โหลดแปลนไม่สำเร็จ','Failed to load the plan')); return; }
