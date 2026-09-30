@@ -10442,65 +10442,43 @@ const PUNCH_CL_STAGES = [
 // into proj.punchChecklist, then freely editable via the "⚙️ จัดการเช็กลิสต์"
 // manager modal -- see punchChecklistModalHtml() below) ----
 const PUNCH_CHECKLIST_GROUPS = [
-  {group:'🚿 งานติดตั้งระบบสุขาภิบาลและห้องน้ำ', groupEn:'Sanitary & Bathroom Installation', items:[
-    {stage:'pre', text:'การตรวจสอบสเปกท่อและข้อต่อ', detail:'ตรวจเช็กยี่ห้อ ชั้นคุณภาพ (เช่น ท่อ PVC ชั้น 13.5), ขนาดท่อ และกาวประสานท่อ ว่าถูกต้องตามแบบและมาตรฐานโครงการ'},
-    {stage:'pre', text:'การเช็กตำแหน่งเจาะและแนวท่อ (Layout)', detail:'ตรวจสอบพิกัดการเจาะสลีฟ (Sleeve) ท่อน้ำดี ท่อน้ำทิ้ง และท่อส้วม ให้ตรงตามระยะสเปกของสุขภัณฑ์ที่จะนำมาติดตั้งจริง (ป้องกันระยะเยื้องศูนย์)'},
-    {stage:'pre', text:'ความสะอาดของพื้นที่ผิว', detail:'พื้นผิวคอนกรีตบริเวณห้องน้ำต้องสะอาด ไม่มีเศษปูนหรือสิ่งสกปรก เพื่อเตรียมพร้อมสำหรับงานระบบและการทาระบบกันซึม'},
-    {stage:'progress', text:'ความลาดเอียงของท่อ (Slope)', detail:'ตรวจสอบระดับความลาดเอียงของท่อน้ำทิ้ง (Floor Drain) และท่อส้วม (Soil Pipe) ให้ได้ตามมาตรฐาน (ไม่น้อยกว่า 1:100 หรือตามที่ระบุในแบบ)'},
-    {stage:'progress', text:'การเชื่อมต่อและดักกลิ่น', detail:'ตรวจสอบรอยต่อท่อว่าทากาวสม่ำเสมอแน่นหนา และมีการติดตั้งอุปกรณ์ดักกลิ่น (P-Trap / U-Trap) ในจุดที่กำหนด'},
-    {stage:'progress', text:'การทดสอบแรงดันน้ำ (Pressure Test)', detail:'อุดปลายท่อน้ำดีและทำการอัดแรงดันน้ำทิ้งไว้ตามเวลาที่กำหนด (เช่น 100-150 PSI เป็นเวลา 4-24 ชั่วโมง) เพื่อเช็กการรั่วซึมก่อนปิดทับผนังหรือเทพื้น'},
-    {stage:'progress', text:'การทำระบบกันซึม (Waterproofing)', detail:'ตรวจสอบการทาเคมีภัณฑ์กันซึมบริเวณพื้นและผนังห้องน้ำ (โดยเฉพาะบริเวณรอยต่อพื้นกับผนังต้องทาขึ้นมาสูงอย่างน้อย 20-30 ซม.)'},
-    {stage:'post', text:'การทดสอบขังน้ำพื้นห้องน้ำ (Water Leakage Test)', detail:'อุดท่อระบายน้ำที่พื้น ขังน้ำไว้สูงประมาณ 5-10 ซม. ทิ้งไว้อย่างน้อย 24 ชั่วโมง เพื่อตรวจดูการรั่วซึมที่ใต้ท้องพื้น (Floor Slab)'},
-    {stage:'post', text:'ความลาดเอียงของการระบายน้ำ (Floor Drain Slope)', detail:'ทดลองเทน้ำลงพื้นห้องน้ำเพื่อเช็กว่าน้ำไหลลงท่อได้รวดเร็ว ไม่มีน้ำขังเป็นแอ่ง'},
-    {stage:'post', text:'การติดตั้งและฟังก์ชันสุขภัณฑ์', detail:'ตรวจสอบความแน่นหนาของการติดตั้งชักโครก อ่างล้างหน้า ก๊อกน้ำ, ความแรงของน้ำ และระบบกดชำระ (Flush) ว่าทำงานสมบูรณ์ ไม่มีน้ำรั่วหยดตามข้อต่อ'},
-    {stage:'post', text:'ความสะอาดและการปกป้องผิว', detail:'สุขภัณฑ์และก๊อกน้ำต้องได้รับการทำความสะอาด ไม่มีคราบปูน/คราบกาว และมีการห่อปกป้องผิว (Protection) กันรอยขีดข่วนจนกว่าจะส่งมอบ'},
+  {group:'🧱 งานผนังและงานฉาบ', groupEn:'Wall & Plastering', items:[
+    {stage:'pre', text:'ตรวจสอบยี่ห้อและเกรดของอิฐ (มวลเบา/อิฐมอญ) และปูนฉาบ ให้ตรงตามข้อตกลงในสัญญา', detail:''},
+    {stage:'pre', text:'ตรวจสอบการตีเส้นแนวผนังและตำแหน่งประตู-หน้าต่างบนพื้นจริง เพื่อดูว่าได้ฉากและระยะที่ถูกต้อง', detail:''},
+    {stage:'progress', text:'ตรวจดูการติดตั้ง เสาเอ็นและคานทับหลัง คอนกรีตเสริมเหล็ก (รอบช่องเปิดประตู-หน้าต่าง และผนังผืนใหญ่)', detail:''},
+    {stage:'progress', text:'ตรวจสอบการเสียบเหล็กหนวดกุ้งยึดระหว่างผนังก่อกับเสาโครงสร้าง เพื่อความแข็งแรง', detail:''},
+    {stage:'post', text:'ตรวจสอบดิ่งและฉากของผนัง รวมถึงต้องไม่มีรอยแตกร้าว (Crack) หรือผิวปูนระเบิด', detail:''},
+    {stage:'post', text:'ใช้ไม้หรือค้อนยางเคาะผนังฉาบ ต้องไม่มีเสียงก้องโปร่ง (เสียงโพรงปูนฉาบไม่เกาะผนัง)', detail:''},
   ]},
-  {group:'🧱 งานฉาบปูนและทาสีผนัง', groupEn:'Plastering & Wall Painting', items:[
-    {stage:'pre', text:'การเตรียมผิวผนัง', detail:'ผนังก่ออิฐต้องเคลียร์เศษปูนออก รดน้ำให้อิ่มตัวเพื่อป้องกันผิวอิฐแย่งน้ำจากปูนฉาบ (ลดการแตกร้าว)'},
-    {stage:'pre', text:'การติดตั้งลวดกรงไก่และเซี้ยม', detail:'ตรวจสอบการติดลวดตาข่ายกรงไก่บริเวณรอยต่อโครงสร้าง (เช่น รอยต่ออิฐกับเสา/คาน, มุมวงกบประตู-หน้าต่าง) และตรวจสอบดิ่ง-ฉากของการจับเซี้ยม/ปุ่มฉาบ'},
-    {stage:'pre', text:'การตรวจสเปกปูนและสี', detail:'ตรวจสอบประเภทปูนฉาบ (ฉาบทั่วไป หรือฉาบผิวบาง/Skim coat) และเฉดสี/รุ่นของสีทาภายนอก-ภายในให้ตรงตาม Spec'},
-    {stage:'progress', text:'ความหนาในการฉาบ', detail:'ควบคุมการฉาบปูนไม่ให้หนาเกินไปในเที่ยวเดียว (หากต้องฉาบหนาต้องแบ่งเป็นชั้นๆ) เพื่อป้องกันปูนหลุดร่อนหรือแตกลายงา'},
-    {stage:'progress', text:'ระยะเวลาบ่มปูน', detail:'มีการรดน้ำบ่มผิวปูนฉาบอย่างน้อย 3-7 วัน และทิ้งให้ผนังแห้งสนิท (เช็กค่าความชื้นผนังก่อนเริ่มงานทาสี)'},
-    {stage:'progress', text:'ขั้นตอนการทาสี', detail:'ตรวจสอบการทาสีนองพื้นกันด่าง 1 เที่ยว และทาสีทับหน้าอย่างน้อย 2 เที่ยว โดยต้องทิ้งระยะเวลาให้สีแต่ละเที่ยวแห้งสนิทก่อนทาทับ'},
-    {stage:'post', text:'ความเรียบเนียนและรอยแตกร้าว (Visual Finish)', detail:'ตรวจสอบผิวผนังฉาบ/ทาสี ต้องเรียบเนียน ไม่มีรอยแตกลายงา (Hairline Cracks) ไม่มีรอยด่าง หรือสีพองล่อน'},
-    {stage:'post', text:'ความสม่ำเสมอของเนื้อสี', detail:'ตรวจดูความสม่ำเสมอของเฉดสีทั่วทั้งผืนผนัง ไม่มีรอยแปรงหรือรอยลูกกลิ้งหนาเป็นคลื่น'},
-    {stage:'post', text:'ความสะอาดของขอบและจุดตัด', detail:'ตรวจสอบแนวเส้นตัดขอบสีระหว่างผนังกับฝ้า หรือผนังกับบัวพื้น ว่าคมชัด เรียบร้อย และไม่มีคราบสีเปื้อนบนวัสดุอื่น เช่น วงกบหรือปลั๊กไฟ'},
+  {group:'🏗️ งานฝ้าเพดาน', groupEn:'Ceiling', items:[
+    {stage:'pre', text:'ตรวจเช็กระดับความสูงของฝ้าเพดานที่จะทำจริง ว่าไม่ติดขัดกับท่อระบบหรือคานบ้าน', detail:''},
+    {stage:'pre', text:'ตรวจสอบสเปกแผ่นยิปซั่ม (เช่น ชนิดกันชื้นสำหรับห้องน้ำ/ระเบียง, ชนิดธรรมดาสำหรับห้องนอน)', detail:''},
+    {stage:'progress', text:'ตรวจเช็กระยะห่างและระดับของโครงคร่าวฝ้าเพดาน ต้องแข็งแรง ยึดแน่น และไม่หย่อนท้องช้างก่อนปิดแผ่น', detail:''},
+    {stage:'post', text:'ผิวฝ้าต้องเรียบเนียน รอยต่อแผ่นต้องฉาบเรียบไม่เป็นลอน และไม่เห็นหัวน็อต/สกรูโผล่', detail:''},
+    {stage:'post', text:'ช่องเซอร์วิส (Service Knob) สามารถเปิด-ปิดได้สนิท แข็งแรง และตรงตำแหน่งที่ใช้งานจริง', detail:''},
   ]},
-  {group:'🏗️ งานติดตั้งฝ้าเพดาน', groupEn:'Ceiling Installation', items:[
-    {stage:'pre', text:'เคลียร์งานระบบเหนือฝ้า', detail:'ตรวจสอบให้มั่นใจว่างานระบบไฟฟ้า ประปา และปรับอากาศเหนือฝ้าเพดาน ได้รับการตรวจสอบและปิดงาน (Sign-off) เรียบร้อยแล้วก่อนปิดฝ้า'},
-    {stage:'pre', text:'เช็กระดับและสเปกวัสดุ', detail:'ตรวจสอบระดับความสูงของฝ้าเพดานตามแบบสถาปัตย์ ตรวจเช็กชนิดของแผ่นยิปซั่ม (เช่น แผ่นธรรมดา, แผ่นกันชื้นสำหรับห้องน้ำ, แผ่นทนไฟ) และขนาดโครงคร่าว'},
-    {stage:'pre', text:'ความแข็งแรงของจุดยึดโครง', detail:'ตรวจสอบระยะการเจาะยึดพุกเหล็กและชุดแขวนโครงคร่าวกับท้องพื้นคอนกรีต ว่าแน่นหนาและได้ระยะตามมาตรฐาน'},
-    {stage:'progress', text:'ระยะโครงคร่าว (Grid Spacing)', detail:'ตรวจสอบระยะห่างของโครงคร่าวหลักและโครงคร่าวซอย (เช่น ระยะ 40x120 ซม. หรือตามสเปก) เพื่อไม่ให้ฝ้าแอ่นตัวในอนาคต'},
-    {stage:'progress', text:'การยึดแผ่นยิปซั่ม', detail:'ตรวจสอบระยะการยิงสกรูยึดแผ่นยิปซั่ม หัวสกรูต้องจมลงไปในผิวแผ่นเล็กน้อยเพื่อเตรียมฉาบโป๊ว และมีการเว้นรอยต่อแผ่นอย่างเหมาะสม'},
-    {stage:'progress', text:'การฉาบรอยต่อและมุม', detail:'ตรวจสอบการติดผ้าเทปฉาบฝ้าบริเวณรอยต่อแผ่น และการฉาบปูนโป๊วปิดหัวสกรูและรอยต่ออย่างน้อย 2-3 เที่ยว พร้อมขัดเรียบ'},
-    {stage:'post', text:'ความราบเรียบของผืนฝ้า', detail:'ใช้ไฟส่องแนบผิวฝ้าเพื่อตรวจเช็กความราบเรียบ ต้องไม่มีรอยนูนตรงตะเข็บรอยต่อแผ่น และฝ้าต้องได้ระดับ ไม่แอ่นหรือตกท้องช้าง'},
-    {stage:'post', text:'ความเรียบร้อยของช่องเซอร์วิสและโคมไฟ', detail:'ตรวจเช็กการเจาะช่องเปิดเซอร์วิส (Service Knob) และช่องดาวน์ไลท์ ว่าเรียบร้อย แข็งแรง และตำแหน่งตรงตามแบบ'},
-    {stage:'post', text:'งานทาสีฝ้า', detail:'ผิวฝ้าเพดานหลังทาสีต้องเนียนสม่ำเสมอ ไม่มีรอยคราบด่างหรือรอยปูดพอง'},
+  {group:'⚡ งานไฟฟ้า', groupEn:'Electrical', items:[
+    {stage:'pre', text:'ตรวจสอบแบบแปลนตำแหน่งปลั๊ก สวิตช์ และดวงโคม ร่วมกับเจ้าของบ้านหน้างานอีกครั้งก่อนกรีดผนัง', detail:''},
+    {stage:'pre', text:'ตรวจสอบขนาดและสเปกสายไฟ (เช่น สาย THW, VAF) และท่อร้อยสายไฟ (Conduit)', detail:''},
+    {stage:'progress', text:'ตรวจสอบท่อร้อยสายไฟฝังผนังและบนฝ้า ต้องร้อยสายเรียบร้อย ไม่มีสายเปลือย และกล่องพักสายต้องปิดมิดชิด', detail:''},
+    {stage:'post', text:'ใช้ Socket Tester ตรวจเช็กเต้ารับทุกจุดว่ามีไฟเข้าและเดินระบบสายดิน (Ground) ถูกต้อง', detail:''},
+    {stage:'post', text:'ตรวจสอบตู้ควบคุม (Consumer Unit) ต้องมีป้ายกำกับเบรกเกอร์ชัดเจน และปุ่ม Test ของเครื่องตัดไฟรั่วทำงานปกติ', detail:''},
   ]},
-  {group:'⚡ ระบบไฟฟ้า', groupEn:'Electrical System', items:[
-    {stage:'pre', text:'การตรวจเช็กวัสดุและอุปกรณ์', detail:'ตรวจสอบสเปกสายไฟ (ขนาดตัวนำ THW, VAF, NYY), ท่อร้อยสายไฟ (ท่อ PVC สีเหลือง/สีขาว หรือท่อเหล็ก EMT), ตู้ Consumer Unit และเบรกเกอร์ ให้ตรงตามแบบไฟฟ้า'},
-    {stage:'pre', text:'แนวการเดินท่อและบล็อกฝัง', detail:'ตรวจสอบตำแหน่งการวางบล็อกสวิตช์-ปลั๊กไฟ และแนวการฝังท่อในผนัง/พื้น ให้ได้ระดับและความสูงตามแบบสถาปัตย์'},
-    {stage:'progress', text:'การร้อยสายและต่อสายไฟ', detail:'ตรวจสอบไม่ให้มีรอยต่อสายไฟภายในท่อร้อยสาย (ต้องต่อภายในกล่องพักสาย/Junction Box เท่านั้น) และการพันเทปพันสายไฟหรือใช้ Wire Nut อย่างแน่นหนา'},
-    {stage:'progress', text:'การแยกสีสายไฟและการจัดสายในตู้', detail:'ตรวจสอบการเดินสายตามมาตรฐานสีใหม่ (เช่น L=น้ำตาล, N=ฟ้า, G=เขียวแถบเหลือง) และการจัดเรียงสายในตู้ไฟให้เป็นระเบียบ เรียบร้อย มีป้ายเนมเพลท (Label) ระบุวงจรชัดเจน'},
-    {stage:'progress', text:'ระบบกราวด์ (Earthing System)', detail:'ตรวจสอบการติดตั้งแท่งกราวด์ (Ground Rod) และการต่อสายดินเข้ากับเครื่องใช้ไฟฟ้าหลัก เช่น เครื่องทำน้ำอุ่น และเต้ารับสามตา'},
-    {stage:'post', text:'การทดสอบความต่อเนื่องและแรงดันไฟฟ้า (Voltage & Continuity Test)', detail:'ทดสอบวัดแรงดันไฟฟ้าตามเต้ารับ (ต้องได้ประมาณ 220V) และตรวจเช็กว่าไม่มีการสลับสายระหว่าง Line และ Neutral'},
-    {stage:'post', text:'การทดสอบระบบกราวด์และ RCD', detail:'ใช้เครื่องทดสอบเต้ารับ (Socket Tester) เช็กระบบสายดิน และกดทดสอบปุ่ม Test ของอุปกรณ์ป้องกันไฟดูด (RCCB/RCBO) ว่าตัดวงจรจริง'},
-    {stage:'post', text:'ฟังก์ชันการทำงานของสวิตช์และดวงโคม', detail:'ทดลองเปิด-ปิดสวิตช์ไฟทุกจุด ดวงโคมดาวน์ไลท์และไฟกิ่งต้องติดครบถ้วน สวิตช์สองทาง (ถ้ามี) ต้องทำงานถูกต้อง'},
-    {stage:'post', text:'ความสมบูรณ์ภายนอก', detail:'หน้ากากสวิตช์และปลั๊กไฟติดตั้งได้ระนาบ แนบสนิทกับผนัง ไม่มีรอยแตกหัก และทำความสะอาดคราบสกปรกเรียบร้อย'},
+  {group:'🎨 งานทาสี', groupEn:'Painting', items:[
+    {stage:'pre', text:'ตรวจสอบเฉดสี (Color Code) และเกรดของสี (สีรองพื้น/สีทับหน้า) ว่าถูกต้องตามที่เลือกไว้', detail:''},
+    {stage:'post', text:'เนื้อสีเรียบเนียน สม่ำเสมอ ไม่มีรอยด่าง คราบสีไหลเยิ้ม หรือรอยลูกกลิ้ง', detail:''},
+    {stage:'post', text:'การตัดขอบสีระหว่าง ผนัง ฝ้า วงกบ และบัวพื้น ต้องคมสวยงาม ไม่เลอะเทอะข้ามฝั่ง', detail:''},
   ]},
-  {group:'📋 เช็กลิสต์มาตรฐานทั่วไป (3 ระยะ)', groupEn:'General Standard Checklist (3-Stage)', items:[
-    {stage:'pre', text:'การอนุมัติแบบและเอกสาร (Shop Drawing Approval)', detail:'ตรวจสอบว่าแบบขยายสำหรับหน้างาน (Shop Drawing) และขั้นตอนการทำงาน (Method Statement) ได้รับการอนุมัติจากวิศวกรหรือสถาปนิกแล้ว'},
-    {stage:'pre', text:'การตรวจสอบวัสดุ (Material Inspection)', detail:'ตรวจเช็กชนิด รุ่น ขนาด และแบรนด์ของวัสดุที่จัดส่งมาหน้างาน ว่าถูกต้องตรงตามสเปกและไม่มีความเสียหาย'},
-    {stage:'pre', text:'ความพร้อมของพื้นที่ (Site Readiness)', detail:'ตรวจสอบความสะอาด การเคลียร์พื้นที่ และระดับหรือพิกัดของพื้นที่ที่จะลงมือทำงาน'},
-    {stage:'pre', text:'ความปลอดภัยหน้างาน (Safety & Tools Inspection)', detail:'ตรวจเช็กอุปกรณ์ป้องกันส่วนบุคคล (PPE) ของช่าง เครื่องมือช่าง และระบบไฟฟ้าชั่วคราวหน้างานว่าพร้อมและปลอดภัย'},
-    {stage:'progress', text:'ความถูกต้องตามตำแหน่ง (Layout & Alignment)', detail:'ตรวจสอบแนว ดิ่ง ฉาก และระยะของการติดตั้งอย่างต่อเนื่อง (เช่น การตั้งเซี้ยมผนัง หรือการเดินแนวท่อ)'},
-    {stage:'progress', text:'มาตรฐานฝีมือช่าง (Workmanship)', detail:'ตรวจเช็กความประณีตในการทำงาน เช่น การผสมปูนตามสัดส่วน การเชื่อมรอยต่อเหล็ก หรือการทากันซึมตามจำนวนรอบที่กำหนด'},
-    {stage:'progress', text:'งานระบบฝังในสถาปัตยกรรม (MEP Embedded System)', detail:'ก่อนจะปิดผิว (เช่น เทคอนกรีตหรือปิดฝ้า) ต้องตรวจเช็กท่อร้อยสายไฟ ท่อน้ำดี-น้ำเสีย และการทดสอบแรงดันระบบเบื้องต้น'},
-    {stage:'progress', text:'การปกป้องพื้นผิว (Surface Protection)', detail:'ตรวจดูว่ามีการคลุมหน้างานหรือป้องกันความเสียหายที่อาจเกิดขึ้นกับวัสดุรอบข้างที่ทำเสร็จแล้วหรือไม่'},
-    {stage:'post', text:'ความสมบูรณ์ของผิวหน้า (Surface & Visual Finish)', detail:'ตรวจเช็กความเรียบร้อย ความเรียบเนียน เม็ดสี รอยร้าว รอยขีดข่วน หรือรอยด่างบนผิวงาน (ผนัง พื้น ฝ้า หรือเฟอร์นิเจอร์)'},
-    {stage:'post', text:'การทดสอบฟังก์ชันและการทำงาน (Functional Testing)', detail:'ทดสอบเปิด-ปิดสวิตช์ไฟ, ทดลองเปิดน้ำเพื่อเช็กการไหลและรอยรั่วซึม (Water Test), ทดสอบการลาดเอียงของพื้นห้องน้ำ (Floor Drain Slope)'},
-    {stage:'post', text:'ความถูกต้องของแบบแปลนจริง (As-Built Verification)', detail:'ตรวจสอบว่างานที่สร้างเสร็จจริงตรงตามแบบที่มีการแก้ไขล่าสุดหรือไม่'},
-    {stage:'post', text:'การทำความสะอาดและส่งมอบ (Final Cleaning & Clearance)', detail:'ตรวจเช็กการจัดเก็บขยะ เศษวัสดุ และการทำความสะอาดพื้นผิวให้พร้อมสำหรับขั้นตอนการตรวจรับงานขั้นต่อไป'},
+  {group:'🚿 งานห้องน้ำ, สุขภัณฑ์ และระเบียง', groupEn:'Bathroom, Sanitary & Balcony', items:[
+    {stage:'pre', text:'ตรวจสอบตำแหน่งท่อส้วม (ต้องห่างจากผนังดิบประมาณ 30.5 ซม. สำหรับชักโครกมาตรฐาน)', detail:''},
+    {stage:'pre', text:'ตรวจสอบแบรนด์และรุ่นของสุขภัณฑ์ ก๊อกน้ำ และอุปกรณ์ทุกชิ้นว่าสภาพสมบูรณ์ ไม่แตกบิ่น', detail:''},
+    {stage:'progress', text:'การทดสอบแรงดันน้ำ (Pressure Test)', detail:'อุดปลายท่อน้ำดีแล้วอัดแรงดันน้ำทิ้งไว้ เพื่อเช็กว่าไม่มีข้อต่อไหนรั่วซึมก่อนฉาบปิด'},
+    {stage:'progress', text:'งานระบบกันซึม', detail:'ตรวจสอบการทาซีเมนต์กันซึมที่พื้นและผนังห้องน้ำ/ระเบียง (สูงขึ้นมาจากพื้นอย่างน้อย 20-30 ซม.)'},
+    {stage:'progress', text:'ตรวจเช็กความลาดเอียง (Slope) ของพื้นปูนก่อนปูกระเบื้อง ให้เทลาดเอียงไปทางท่อน้ำทิ้ง', detail:''},
+    {stage:'post', text:'ใช้ค้อนยางเคาะกระเบื้องทุกแผ่น ต้องไม่มีเสียงโพรง (ถ้ามีต้องรื้อปูใหม่ป้องกันน้ำซึมและกระเบื้องแตก)', detail:''},
+    {stage:'post', text:'ทดลองเทน้ำราดพื้นห้องน้ำและระเบียง น้ำต้องไหลลงท่ออย่างรวดเร็ว ต้องไม่มีน้ำขังเป็นแอ่ง', detail:''},
+    {stage:'post', text:'ทดลองเปิดก๊อก ฝักบัว และกดชักโครก เพื่อดูแรงดันน้ำ การระบายน้ำ และตรวจเช็กว่าไม่มีกลิ่นย้อนจากท่อ', detail:''},
+    {stage:'post', text:'ตรวจสอบข้อต่อใต้อ่างล้างหน้า สายฉีดชำระ และฐานชักโครก ต้องไม่มีน้ำซึมหยดลงพื้น', detail:''},
   ]},
 ];
 function defaultPunchChecklist(){
@@ -10607,7 +10585,7 @@ function renderPunchDefectsView(proj){
 
   if(!proj.punchPlans.length){
     return statsHtml + `<div class="card" style="text-align:center;padding:40px 20px">
-      <div class="empty"><span class="ic">📐</span>${tf('ยังไม่มีแปลนดิจิทัล — อัปโหลดรูปแปลน (ผังห้อง/ผังชั้น) เพื่อเริ่มปักหมุดจุดบกพร่อง','No digital blueprint yet -- upload a plan image (room/floor layout) to start pinning defects')}</div>
+      <div class="empty"><span class="ic">📐</span>${tf('ยังไม่มีแปลนดิจิทัล — อัปโหลดรูปแปลนหรือไฟล์ PDF (ผังห้อง/ผังชั้น) เพื่อเริ่มปักหมุดจุดบกพร่อง','No digital blueprint yet -- upload a plan image or PDF (room/floor layout) to start pinning defects')}</div>
       <button class="btn primary" style="margin-top:10px" id="pu-add-plan">+ ${tf('เพิ่มแปลน','Add blueprint')}</button>
     </div>`;
   }
@@ -11084,9 +11062,9 @@ function punchPlanModalHtml(){
       <div class="modal-head"><h3>${isNew? tf('เพิ่มแปลนดิจิทัล','Add digital blueprint') : tf('แก้ไขแปลน','Edit blueprint')}</h3><button class="iconbtn" id="pu-plan-modal-close">✕</button></div>
       <div class="field"><label>${tf('ชื่อแปลน (เช่น ชั้น 1, ห้องนอนใหญ่)','Plan name (e.g. Floor 1, Master bedroom)')}</label><input type="text" id="pu-plan-name" value="${escapeHtml(d.name)}"></div>
       <div class="field" style="margin-top:10px">
-        <label>${tf('รูปแปลน','Plan image')}</label>
-        <label class="photo-drop" for="pu-plan-photo-input">📐 ${tf('แตะเพื่อเลือกรูปแปลน','Tap to choose a plan image')}</label>
-        <input type="file" id="pu-plan-photo-input" accept="image/*" style="display:none">
+        <label>${tf('รูปแปลน (รองรับไฟล์ PDF)','Plan image (PDF supported)')}</label>
+        <label class="photo-drop" for="pu-plan-photo-input">📐 ${tf('แตะเพื่อเลือกรูปแปลนหรือไฟล์ PDF','Tap to choose a plan image or PDF file')}</label>
+        <input type="file" id="pu-plan-photo-input" accept="image/*,application/pdf" style="display:none">
         ${previewSrc? `<div class="photo-grid" style="margin-top:10px"><div class="photo-item"><img src="${previewSrc}" alt=""></div></div>` :
           (d.imageId? `<div class="photo-grid" style="margin-top:10px"><div class="photo-item"><img data-thumb-id="${d.imageId}" alt=""></div></div>` : '')}
       </div>
@@ -11108,7 +11086,25 @@ function wirePunchPlanModal(){
   if(photoInput) photoInput.onchange = async (e)=>{
     const f = (e.target.files||[])[0];
     if(!f) return;
-    try{ const dataUrl = await compressImage(f, 1600, 0.7); punchPlanDraft.pendingPhoto = {dataUrl}; }catch(err){}
+    try{
+      // A PDF blueprint (common for architect-issued floor plans) can't be
+      // used as an <img> src directly, so it's rasterized to an image here
+      // at upload time via the same pdf.js-based pdfBlobToCanvases() helper
+      // already used for PO-document OCR above -- only the FIRST page is
+      // used (a blueprint upload is one page/one plan). From this point on
+      // it's stored and rendered exactly like a normal photo upload
+      // (idbPut + plan.imageId), so the pin-placement viewer and every
+      // other part of this feature needs no PDF-specific handling at all.
+      if(f.type==='application/pdf'){
+        toast(tf('กำลังแปลง PDF เป็นรูปแปลน...','Converting PDF to a plan image...'));
+        const canvases = await pdfBlobToCanvases(f, 1);
+        if(!canvases.length){ toast(tf('ไม่พบหน้าในไฟล์ PDF','No pages found in the PDF')); photoInput.value=''; return; }
+        punchPlanDraft.pendingPhoto = {dataUrl: canvases[0].toDataURL('image/jpeg', 0.85)};
+      } else {
+        const dataUrl = await compressImage(f, 1600, 0.7);
+        punchPlanDraft.pendingPhoto = {dataUrl};
+      }
+    }catch(err){ toast(tf('ไม่สามารถประมวลผลไฟล์นี้ได้','Could not process this file')); }
     photoInput.value=''; render();
   };
   $('#pu-plan-save').onclick = async ()=>{
@@ -11220,6 +11216,9 @@ function punchChecklistModalHtml(){
     <div class="modal" style="max-width:720px">
       <div class="modal-head"><h3>⚙️ ${tf('จัดการเช็กลิสต์มาตรฐาน','Manage standard checklist')}</h3><button class="iconbtn" id="pu-cl-modal-close">✕</button></div>
       <div class="role-note">💡 ${tf('แก้ไข/ลบหัวข้อที่มีอยู่ได้โดยตรง — การเปลี่ยนแปลงจะถูกบันทึกอัตโนมัติ','Edit/remove any item directly -- changes save automatically')}</div>
+      <div style="display:flex;justify-content:flex-end;margin-top:8px">
+        <button class="btn ghost sm" id="pu-cl-reset-template" title="${tf('แทนที่หัวข้อทั้งหมดด้วยเทมเพลตมาตรฐานล่าสุดของระบบ','Replace every item with the app’s latest standard template')}">↺ ${tf('รีเซ็ตเป็นเทมเพลตล่าสุด','Reset to latest template')}</button>
+      </div>
       <div style="margin-top:12px;max-height:50vh;overflow:auto">${body}</div>
       <div style="margin-top:14px;border-top:1px solid var(--line);padding-top:14px">
         <b style="font-family:var(--font-display);font-size:12.5px">+ ${tf('เพิ่มหัวข้อใหม่','Add new item')}</b>
@@ -11241,6 +11240,21 @@ function wirePunchChecklistModal(){
   $('#pu-cl-modal-close').onclick = close;
   bg.addEventListener('click', e=>{ if(e.target===bg) close(); });
   const proj = P();
+  const resetBtn = $('#pu-cl-reset-template');
+  if(resetBtn) resetBtn.onclick = ()=>{
+    // Wholesale-replaces proj.punchChecklist with fresh items from the
+    // CURRENT PUNCH_CHECKLIST_GROUPS (so a project seeded before a later
+    // content update -- e.g. this project's, still on the old 50-item
+    // template -- can pick up the new one on demand). Every item gets a
+    // fresh uid(), so any pass/fail/photo/note already recorded against the
+    // OLD item ids in proj.punchChecklistRuns[].results is orphaned (the
+    // run itself and its zone name are untouched, but those specific marks
+    // no longer match anything and stop showing) -- the confirm() spells
+    // that out rather than silently discarding real inspection data.
+    if(!confirm(tf('รีเซ็ตหัวข้อเช็กลิสต์ทั้งหมดเป็นเทมเพลตล่าสุด? หัวข้อที่แก้ไข/เพิ่มเองไว้จะถูกแทนที่ และผลตรวจ (ผ่าน/ไม่ผ่าน/รูป) ที่บันทึกไว้กับหัวข้อเดิมจะไม่ผูกกับหัวข้อใหม่อีกต่อไป','Reset every checklist item to the latest template? Any item you edited or added yourself will be replaced, and pass/fail/photo results already recorded against the old items will no longer be linked to anything.'))) return;
+    proj.punchChecklist = defaultPunchChecklist();
+    saveData(); render(); toast(tf('รีเซ็ตเช็กลิสต์เป็นเทมเพลตล่าสุดแล้ว','Checklist reset to the latest template'));
+  };
   $$('[data-pu-cl-text]').forEach(inp=> inp.onchange = ()=>{
     const it = proj.punchChecklist.find(i=>i.id===inp.dataset.puClText);
     if(it){ it.text = inp.value; saveData(); }
