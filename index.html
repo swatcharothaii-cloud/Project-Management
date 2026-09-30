@@ -665,6 +665,7 @@ input.gl-mini-input[type="date"]::-webkit-calendar-picker-indicator{padding:2px;
 .photo-item img{width:100%;height:98px;object-fit:cover;display:block}
 .photo-item input,.photo-item select{border:none;border-top:1px solid var(--line);border-radius:0;font-size:10.5px;padding:5px 7px;background:var(--surface);width:100%;display:block}
 .photo-item .rm{position:absolute;top:5px;right:5px;width:22px;height:22px;border-radius:50%;background:rgba(20,18,36,.62);color:#fff;border:none;font-size:12px;line-height:1}
+.photo-item .cap{border-top:1px solid var(--line);font-size:10.5px;padding:5px 7px;background:var(--surface);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .photo-pdf-icon{height:98px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;font-size:28px;background:var(--surface-2);color:var(--ink-500)}
 /* Full-screen single-photo viewer opened by tapping a thumbnail in the
    reference-photo gallery modal. Sits above .modal-bg (z-index:90) since it
@@ -4903,7 +4904,7 @@ function resetTransient(){
   punchSelectedPlanId=null; punchPlanDraft=null; editingPunchPlanId=null;
   punchItemDraft=null; editingPunchItemId=null; punchPendingPin=null; punchDrawMode='pin';
   punchFilterStatus='all'; punchFilterSeverity='all'; punchFilterCategory=''; punchFilterAssignee=''; punchFilterSearch='';
-  punchAnnotating=null; punchChecklistManagerOpen=false; punchShowQr=false;
+  punchAnnotating=null; punchRecordLightboxId=null; punchChecklistManagerOpen=false; punchShowQr=false;
   punchSubView='defects'; punchSelectedRunId=null; punchNewRunZone=''; punchClExpanded=new Set();
   noteSubView='feed';
 }
@@ -10448,7 +10449,8 @@ let editingPunchItemId = null; // null | 'new' | itemId
 let punchPendingPin = null; // {x,y,radius} captured from a viewer click/drag, consumed by the next openPunchItemDraft(proj,'new',planId) -- radius is 0 for a plain point pin, >0 for a dragged circle
 let punchDrawMode = 'pin'; // 'pin' (tap to place a point) | 'circle' (drag to mark an area) -- which interaction the plan viewer's pointer handlers use right now
 let punchFilterStatus='all', punchFilterSeverity='all', punchFilterCategory='', punchFilterAssignee='', punchFilterSearch='';
-let punchAnnotating = null; // {dataUrl, marks:[], zoom, tool, onSave, isPlan} -- drives the annotate modal, opened on top of the item modal. marks is a mixed list of {type:'stroke'|'circle'|'text', ...} in draw order (replaces the old single-purpose `strokes` list so pen/highlight/circle/text all undo and redraw together in the order they were drawn). `tool` is whichever of 'pen'|'highlight'|'circle'|'text' is currently selected in the toolbar. `isPlan` is true when annotating a copy of the blueprint (as opposed to a before/after defect photo) -- purely cosmetic (title/hint text), the save behavior itself is entirely decided by the caller's own `onSave`.
+let punchAnnotating = null; // {dataUrl, marks:[], zoom, tool, onSave, isPlan, saveAsRecord} -- drives the annotate modal, opened on top of the item modal (or directly from the main plan viewer). marks is a mixed list of {type:'stroke'|'circle'|'text', ...} in draw order (replaces the old single-purpose `strokes` list so pen/highlight/circle/text all undo and redraw together in the order they were drawn). `tool` is whichever of 'pen'|'highlight'|'circle'|'text' is currently selected in the toolbar. `isPlan` is true when annotating a copy of the blueprint (as opposed to a before/after defect photo) -- purely cosmetic (title/hint text), the save behavior itself is entirely decided by the caller's own `onSave`. `saveAsRecord` is true only for the main-plan-viewer entry point, where saving prompts for a name and stores a standalone, viewable/deletable revision record on the plan (proj.punchPlans[].annotations) instead of attaching a photo to one defect item.
+let punchRecordLightboxId = null; // id of the plan.annotations[] entry currently shown full-size in the lightbox, or null when closed
 let punchChecklistManagerOpen = false;
 let punchShowQr = false;
 let punchSubView = 'defects'; // 'defects' | 'checklist'
@@ -10528,7 +10530,7 @@ function defaultPunchChecklist(){
 }
 
 // ---- data builders ----
-function newPunchPlan(){ return {id:uid(), name:'', imageId:null, createdAt:new Date().toISOString()}; }
+function newPunchPlan(){ return {id:uid(), name:'', imageId:null, createdAt:new Date().toISOString(), annotations:[]}; }
 function newPunchItem(planId, x, y, radius){
   return {id:uid(), planId:planId||null, x:x==null?0.5:x, y:y==null?0.5:y, radius:radius||0,
     title:'', category:'', severity:'medium', assignedTo:'', dueDate:'', notes:'',
@@ -10606,6 +10608,7 @@ async function refreshPunchPlanImages(){
 // regardless of what most recently touched state.projects.
 function ensurePunchDefaults(proj){
   if(!Array.isArray(proj.punchPlans)) proj.punchPlans=[];
+  proj.punchPlans.forEach(pl=>{ if(!Array.isArray(pl.annotations)) pl.annotations=[]; });
   if(!Array.isArray(proj.punchItems)) proj.punchItems=[];
   if(!Array.isArray(proj.punchChecklist)) proj.punchChecklist=defaultPunchChecklist();
   if(!Array.isArray(proj.punchChecklistRuns)) proj.punchChecklistRuns=[];
@@ -10663,6 +10666,7 @@ function renderPunchDefectsView(proj){
       <button class="btn ghost sm ${punchDrawMode==='pin'?'active':''}" id="pu-mode-pin">📍 ${tf('ปักหมุด','Pin')}</button>
       <button class="btn ghost sm ${punchDrawMode==='circle'?'active':''}" id="pu-mode-circle">⭕ ${tf('วงพื้นที่','Circle area')}</button>
     </div>
+    ${plan.imageId? `<button class="btn ghost sm" id="pu-annotate-main-plan" style="width:100%;margin-top:8px">🖊️ ${tf('วาด/ไฮไลท์/พิมพ์ข้อความบนแปลน','Draw / highlight / add text on the plan')}</button>` : ''}
     <div class="punch-viewer" id="pu-viewer" style="margin-top:10px">
       ${plan.imageId? `<img data-plan-img="${plan.imageId}" alt="">` : `<div class="empty" style="padding:60px 10px"><span class="ic">📐</span>${tf('แปลนนี้ยังไม่มีรูปภาพ','This plan has no image yet')}</div>`}
       ${pinsHtml}
@@ -10674,6 +10678,34 @@ function renderPunchDefectsView(proj){
       <span style="margin-left:auto">💡 ${modeHint}</span>
     </div>
   </div>`;
+
+  // Named, savable copies of this plan with pen/highlight/circle/text marked
+  // on them (via the button above) -- separate from punchItems' before/after
+  // defect photos: these live on the plan itself (plan.annotations), are
+  // never tied to one defect, and never touch plan.imageId (see
+  // #pu-annotate-main-plan's onSave below). Shown as a small gallery with a
+  // lightbox (punchRecordLightboxId) reusing the same generic .lightbox-*
+  // CSS as the BOQ reference-photo gallery, just driven by our own state.
+  const planAnnotations = (plan.annotations||[]).slice().sort((a,b)=> (b.createdAt||'').localeCompare(a.createdAt||''));
+  const annotationsHtml = `<div class="card" style="margin-top:14px">
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
+      <b style="font-family:var(--font-display);font-size:13px">🖊️ ${tf('บันทึกการแก้ไขบนแปลน','Plan markup records')}</b>
+      <span class="hint">${tf('วาดแล้วบันทึกเป็นสำเนาแยก ตั้งชื่อได้ ไม่กระทบไฟล์แปลนต้นฉบับ','Each save is a separate, named copy -- the original blueprint file is never changed')}</span>
+    </div>
+    ${planAnnotations.length? `<div class="photo-grid" style="margin-top:10px">
+      ${planAnnotations.map(a=>`<div class="photo-item" data-pu-plan-record-open="${a.id}" style="cursor:zoom-in" title="${escapeHtml(a.title||'')}">
+        <img data-plan-img="${a.imageId}" alt="">
+        <button class="rm" data-pu-plan-record-del="${a.id}" title="${tf('ลบ','Delete')}">✕</button>
+        <div class="cap">${escapeHtml(a.title||tf('ไม่มีชื่อ','Untitled'))}</div>
+      </div>`).join('')}
+    </div>` : `<div class="empty" style="margin-top:10px;padding:16px"><span class="ic">🖊️</span>${tf('ยังไม่มีบันทึกการแก้ไขบนแปลนนี้','No markup records on this plan yet')}</div>`}
+  </div>`;
+  const recordLb = punchRecordLightboxId? planAnnotations.find(a=>a.id===punchRecordLightboxId) : null;
+  const recordLightboxHtml = recordLb? `<div class="lightbox-overlay" id="pu-record-lightbox">
+    <button class="lightbox-close" id="pu-record-lightbox-close" title="${tf('ปิด','Close')}">✕</button>
+    <img data-plan-img="${recordLb.imageId}" alt="">
+    <div class="lightbox-count">${escapeHtml(recordLb.title||tf('ไม่มีชื่อ','Untitled'))} · ${fmtDateTime(recordLb.createdAt)}</div>
+  </div>` : '';
 
   const usedCategories = Array.from(new Set(planItems.map(it=>it.category).filter(Boolean)));
   const filtersHtml = `<div class="card" style="margin-top:14px">
@@ -10708,7 +10740,7 @@ function renderPunchDefectsView(proj){
     }).join('') : `<div class="empty"><span class="ic">✅</span>${tf('ไม่มีรายการที่ตรงกับตัวกรอง','No defects match these filters')}</div>`}
   </div>`;
 
-  return statsHtml + planTabsHtml + viewerHtml + filtersHtml + listHtml + punchReportSectionHtml(proj);
+  return statsHtml + planTabsHtml + viewerHtml + annotationsHtml + filtersHtml + listHtml + punchReportSectionHtml(proj) + recordLightboxHtml;
 }
 
 function punchPhotoThumbHtml(existingId, pendingDataUrl, kind, mode, idx){
@@ -10882,6 +10914,54 @@ function wirePunchDefectsView(){
   };
   const modePinBtn = $('#pu-mode-pin'); if(modePinBtn) modePinBtn.onclick = ()=>{ punchDrawMode='pin'; render(); };
   const modeCircleBtn = $('#pu-mode-circle'); if(modeCircleBtn) modeCircleBtn.onclick = ()=>{ punchDrawMode='circle'; render(); };
+  const plan = proj.punchPlans.find(p=>p.id===punchSelectedPlanId);
+  // Main-plan "draw on plan" entry point -- unlike the per-defect-item one in
+  // wirePunchItemModal(), saving here has no defect to attach to, so onSave
+  // prompts for a name (prompt(), same convention as every other text input
+  // shortcut in this app) and stores the result as a new, independently
+  // viewable/deletable record on plan.annotations. plan.imageId itself is
+  // never touched -- same non-destructive guarantee as the per-item version.
+  const annotateMainBtn = $('#pu-annotate-main-plan');
+  if(annotateMainBtn && plan) annotateMainBtn.onclick = async ()=>{
+    const dataUrl = await loadRefPhoto(plan.imageId);
+    if(!dataUrl){ toast(tf('โหลดแปลนไม่สำเร็จ','Failed to load the plan')); return; }
+    const onSave = async (newDataUrl)=>{
+      const raw = prompt(tf('ตั้งชื่อบันทึกการแก้ไขนี้ (เช่น ตรวจแก้ครั้งที่ 1)','Name this markup record (e.g. Revision #1)'), '');
+      if(raw===null) return; // cancelled -- discard, nothing saved
+      const proj2 = P();
+      const pl = proj2.punchPlans.find(p=>p.id===plan.id);
+      if(!pl) return;
+      if(!Array.isArray(pl.annotations)) pl.annotations=[];
+      const imgId = uid();
+      await idbPut(imgId, newDataUrl);
+      pl.annotations.push({id:uid(), title:(raw||'').trim()||tf('บันทึกไม่มีชื่อ','Untitled record'), imageId:imgId, createdAt:new Date().toISOString(), createdBy:currentActorName()});
+      saveData();
+      toast(tf('บันทึกแล้ว','Saved'));
+    };
+    punchAnnotating = {dataUrl, marks:[], zoom:1, tool:'pen', onSave, isPlan:true, saveAsRecord:true};
+    render();
+  };
+  $$('[data-pu-plan-record-open]').forEach(el=> el.onclick = (e)=>{
+    if(e.target.closest('.rm')) return;
+    punchRecordLightboxId = el.dataset.puPlanRecordOpen; render();
+  });
+  $$('[data-pu-plan-record-del]').forEach(btn=> btn.onclick = async (e)=>{
+    e.stopPropagation();
+    if(!confirm(tf('ลบบันทึกนี้หรือไม่?','Delete this record?'))) return;
+    const id = btn.dataset.puPlanRecordDel;
+    const pl = proj.punchPlans.find(p=>p.id===punchSelectedPlanId);
+    if(!pl) return;
+    const rec = (pl.annotations||[]).find(a=>a.id===id);
+    pl.annotations = (pl.annotations||[]).filter(a=>a.id!==id);
+    if(punchRecordLightboxId===id) punchRecordLightboxId=null;
+    saveData();
+    if(rec) await idbDelete(rec.imageId);
+    render();
+  });
+  const recordLbClose = $('#pu-record-lightbox-close');
+  if(recordLbClose) recordLbClose.onclick = ()=>{ punchRecordLightboxId=null; render(); };
+  const recordLbOverlay = $('#pu-record-lightbox');
+  if(recordLbOverlay) recordLbOverlay.addEventListener('click', e=>{ if(e.target===recordLbOverlay){ punchRecordLightboxId=null; render(); } });
   const viewer = $('#pu-viewer');
   if(viewer){
     if(punchDrawMode==='circle'){
@@ -11451,10 +11531,11 @@ function punchAnnotateModalHtml(){
         <button class="btn ghost sm" id="pu-an-clear">🗑️ ${tf('ล้างทั้งหมด','Clear all')}</button>
       </div>
       <div class="hint" style="margin-top:6px">${toolHint}</div>
-      ${st.isPlan? `<div class="hint">💡 ${tf('บันทึกแล้วจะได้เป็นรูปสำเนาแนบไว้กับรายการนี้เท่านั้น — แปลนต้นฉบับจะไม่ถูกแก้ไข','Saving creates a copy attached only to this item -- the original blueprint is never changed')}</div>` : ''}
+      ${st.saveAsRecord? `<div class="hint">💡 ${tf('กดบันทึกแล้วตั้งชื่อได้ — จะถูกเก็บเป็นบันทึกการแก้ไขแยกของแปลนนี้ แปลนต้นฉบับจะไม่ถูกแก้ไข','Saving lets you name it -- it\'s kept as a separate markup record on this plan, the original blueprint is never changed')}</div>`
+        : st.isPlan? `<div class="hint">💡 ${tf('บันทึกแล้วจะได้เป็นรูปสำเนาแนบไว้กับรายการนี้เท่านั้น — แปลนต้นฉบับจะไม่ถูกแก้ไข','Saving creates a copy attached only to this item -- the original blueprint is never changed')}</div>` : ''}
       <div class="punch-annotate-wrap" id="pu-annotate-wrap" style="margin-top:10px"><canvas id="pu-annotate-canvas"></canvas></div>
       <div style="display:flex;gap:10px;margin-top:14px">
-        <button class="btn primary block" id="pu-annotate-save">${st.isPlan? tf('บันทึกเป็นรูปแนบของรายการนี้','Save as a photo on this item') : tf('บันทึกรูปที่วาด','Save annotated photo')}</button>
+        <button class="btn primary block" id="pu-annotate-save">${st.saveAsRecord? tf('บันทึกและตั้งชื่อ','Save and name it') : st.isPlan? tf('บันทึกเป็นรูปแนบของรายการนี้','Save as a photo on this item') : tf('บันทึกรูปที่วาด','Save annotated photo')}</button>
       </div>
     </div>
   </div>`;
