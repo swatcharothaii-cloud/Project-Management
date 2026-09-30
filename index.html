@@ -12693,10 +12693,22 @@ function cjobDetailModalHtml(){
       <div><div class="meta-lbl">${tf('จำนวนวันทำงาน','Working days')}</div><b class="tabular">${job.durationDays||'-'}</b></div>
       ${cjobDueDate(job)? `<div><div class="meta-lbl">${tf('กำหนดเสร็จ','Due')}</div><b class="tabular">${fmtDate(cjobDueDate(job))}</b></div>` : ''}
     </div>` : `<div class="hint" style="margin-top:12px">${tf('ยังไม่มีวันเริ่มงาน/จำนวนวันทำงาน — จะกำหนดจากใบเสนอราคาของผู้รับเหมาที่ได้รับเลือกโดยอัตโนมัติเมื่ออนุมัติราคา','No start date / working days yet -- these are set automatically from the awarded contractor’s quotation once a price is approved')}</div>`}
-    ${job.awardedPrice!=null? `<div class="field" style="max-width:320px;margin-top:14px">
-      <label>${tf('ชื่อผู้อนุมัติราคา','Price approved by')}</label>
-      <input type="text" id="cjob-approver-name" value="${escapeHtml(job.awardedBy||'')}" placeholder="${tf('ระบุชื่อผู้อนุมัติ','Enter approver name')}">
-    </div>` : ''}
+    ${job.awardedPrice!=null? (job.awardedBy
+      // Once a name has been entered and saved it's locked -- shown read-only
+      // (disabled input, same visual treatment as "Originally awarded price"
+      // above) rather than a plain editable field, since this is meant to
+      // record who actually approved the price, not something that should be
+      // silently changeable afterwards.
+      ? `<div class="field" style="max-width:320px;margin-top:14px">
+        <label>🔒 ${tf('ชื่อผู้อนุมัติราคา','Price approved by')}</label>
+        <input type="text" value="${escapeHtml(job.awardedBy)}" disabled>
+      </div>`
+      : `<div class="field" style="max-width:320px;margin-top:14px">
+        <label>${tf('ชื่อผู้อนุมัติราคา','Price approved by')}</label>
+        <input type="text" id="cjob-approver-name" value="" placeholder="${tf('ระบุชื่อผู้อนุมัติ','Enter approver name')}">
+        <div class="hint" style="margin-top:4px">${tf('กรอกครั้งเดียว บันทึกแล้วจะแก้ไขไม่ได้','Enter once -- locked after saving')}</div>
+      </div>`
+    ) : ''}
     <div class="card" style="margin-top:18px">
       <b style="font-family:var(--font-display)">📋 ${tf('ใบเสนอราคาจากผู้รับเหมา (แยกแต่ละเจ้า)','Contractor quotations (one per contractor)')}</b>
       <div style="display:flex;flex-direction:column;gap:10px;margin-top:10px">${bidsHtml}</div>
@@ -12726,7 +12738,10 @@ function awardCjob(job, contractorId){
   job.startDate = bid.startDate||'';
   job.durationDays = (bid.durationDays!=null && bid.durationDays!=='')? Number(bid.durationDays) : '';
   job.awardedAt=new Date().toISOString();
-  job.awardedBy=currentActorName();
+  // job.awardedBy is deliberately left blank here -- it's now a write-once
+  // "who actually approved this price" field the staff types in themselves
+  // (see cjobDetailModalHtml/wireCjobDetailModal), not auto-filled from
+  // whatever role/nickname happens to be selected in this browser session.
   bid.status='awarded';
   (job.bids||[]).forEach(b=>{ if(b.contractorId!==contractorId) b.status='rejected'; });
   const entry = newCostLogEntry();
@@ -12756,10 +12771,14 @@ function wireCjobDetailModal(){
   $('#cjob-detail-close').onclick = closeCjobDetail;
   bg.addEventListener('click', e=>{ if(e.target===bg) closeCjobDetail(); });
   const editBtn=$('#cjob-detail-edit'); if(editBtn) editBtn.onclick = ()=>{ openCjobDraft(job.id); render(); };
-  // Free-text, always-editable -- separate from the automatic timestamp/actor
-  // audit trail set by awardCjob(), so a name can be corrected or filled in
-  // retroactively for jobs that were approved before this field existed.
-  const approverEl=$('#cjob-approver-name'); if(approverEl) approverEl.onchange=()=>{ job.awardedBy=approverEl.value.trim(); saveData(); render(); };
+  // Only rendered while job.awardedBy is still empty (see cjobDetailModalHtml)
+  // -- write-once, so re-check here too rather than trusting the DOM alone.
+  const approverEl=$('#cjob-approver-name'); if(approverEl) approverEl.onchange=()=>{
+    if(job.awardedBy) { render(); return; }
+    const name = approverEl.value.trim();
+    if(!name) return;
+    job.awardedBy = name; saveData(); render();
+  };
   const cancelBtn=$('#cjob-detail-cancel'); if(cancelBtn) cancelBtn.onclick = ()=>{
     if(!confirm(tf('ยืนยันยกเลิกใบงานนี้?','Cancel this job?'))) return;
     job.status='cancelled'; saveData(); closeCjobDetail(); toast(tf('ยกเลิกใบงานแล้ว','Job cancelled'));
