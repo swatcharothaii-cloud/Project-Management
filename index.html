@@ -12385,7 +12385,12 @@ function cjobBidRowHtml(proj, job, contractor){
    shows the PNG in a tiny preview overlay the user can long-press/right-click
    to save -- no server round-trip, since this whole app is a static site. */
 let cjobShareImageUrl = null; // data: URL of the most recently generated slip, shown in cjobShareImageModalHtml()
-function cjobShareCardHtml(proj, job, contractor, bid, mode){
+// photoDataUrls: already-resolved data: URLs for job.photoIds (resolved by
+// the caller, exportCjobShareImage(), before this HTML is handed to
+// html2canvas -- an <img data-thumb-id> filled in asynchronously *after*
+// render() would still be blank at the instant html2canvas rasterizes this
+// off-screen node, so the real src has to be inlined here up front).
+function cjobShareCardHtml(proj, job, contractor, bid, mode, photoDataUrls){
   const approved = mode==='approved';
   const price = approved? job.awardedPrice : bid.price;
   const startDate = approved? job.startDate : bid.startDate;
@@ -12396,6 +12401,10 @@ function cjobShareCardHtml(proj, job, contractor, bid, mode){
   const statusLine = approved
     ? tf('✅ อนุมัติราคาแล้ว','✅ Price approved')+(job.awardedAt? ' · '+fmtDateTime(job.awardedAt) : '')
     : tf('🧾 เสนอราคาแล้ว รอพิจารณา','🧾 Quotation submitted, pending review');
+  const photos = photoDataUrls||[];
+  const photosHtml = photos.length? `<div style="margin-top:14px;display:grid;grid-template-columns:repeat(${photos.length===1?1:2},1fr);gap:6px">
+    ${photos.map(src=>`<img src="${src}" style="width:100%;height:${photos.length===1?'220px':'110px'};object-fit:cover;border-radius:10px;border:1px solid #E5E3F2">`).join('')}
+  </div>` : '';
   return `<div style="width:420px;font-family:'Noto Sans Thai',system-ui,sans-serif;background:#ffffff;border-radius:16px;overflow:hidden;border:1px solid #E5E3F2">
     <div style="background:${headerColor};color:#fff;padding:18px 22px">
       <div style="font-size:12.5px;opacity:.9;letter-spacing:.03em">${escapeHtml((state.contractor&&state.contractor.company)||'Project Management')}</div>
@@ -12406,6 +12415,7 @@ function cjobShareCardHtml(proj, job, contractor, bid, mode){
       <div style="font-weight:600;font-size:14.5px;color:#1E1B31;margin-top:2px">${escapeHtml(proj.name||'-')}</div>
       <div style="font-size:11.5px;color:#6B6784;letter-spacing:.02em;margin-top:12px">${tf('งาน','Job')}</div>
       <div style="font-weight:600;font-size:14.5px;color:#1E1B31;margin-top:2px">${escapeHtml(job.title||'-')}</div>
+      ${photosHtml}
       <div style="font-size:11.5px;color:#6B6784;letter-spacing:.02em;margin-top:12px">${tf('ผู้รับเหมา','Contractor')}</div>
       <div style="font-weight:600;font-size:14.5px;color:#1E1B31;margin-top:2px">${escapeHtml(cjobContractorLabel(contractor))}${contractor.phone? ' · 📞 '+escapeHtml(contractor.phone) : ''}</div>
       <div style="margin-top:16px;padding:14px 16px;background:#F7F8FE;border-radius:12px">
@@ -12434,13 +12444,23 @@ async function exportCjobShareImage(job, contractorId){
   const mode = job.awardedContractorId===contractorId? 'approved' : 'quoted';
   if(typeof html2canvas !== 'function'){ toast(cjobImgFallbackMsg()); return; }
   toast(tf('กำลังสร้างรูปภาพ...','Generating image...'));
+  // The job's own attached photos (job.photoIds) are shown on the card too,
+  // per the user's request -- resolved to real data: URLs up front (capped
+  // at 4) since html2canvas rasterizes the off-screen node immediately, well
+  // before the normal post-render [data-thumb-id] async fill would run.
+  const photoIds = (job.photoIds||[]).slice(0,4);
+  const photoDataUrls = (await Promise.all(photoIds.map(id=>loadRefPhoto(id)))).filter(Boolean);
   // html2canvas needs the node actually laid out in the document to read
   // computed styles/fonts -- rendered off-screen (not display:none, which
   // reports zero size) so nothing visible flashes on screen while it works.
   const holder = document.createElement('div');
   holder.style.cssText = 'position:fixed;left:-9999px;top:0;';
-  holder.innerHTML = cjobShareCardHtml(proj, job, contractor, bid, mode);
+  holder.innerHTML = cjobShareCardHtml(proj, job, contractor, bid, mode, photoDataUrls);
   document.body.appendChild(holder);
+  // Data: URL images still decode asynchronously -- wait for every <img> in
+  // the card to finish before handing it to html2canvas, or a photo can be
+  // captured blank/half-drawn.
+  await Promise.all($$('img', holder).map(img=> img.decode? img.decode().catch(()=>{}) : Promise.resolve()));
   try{
     const canvas = await html2canvas(holder.firstElementChild, {backgroundColor:'#ffffff', scale:2, useCORS:true});
     cjobShareImageUrl = canvas.toDataURL('image/png');
