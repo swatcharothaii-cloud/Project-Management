@@ -961,13 +961,32 @@ select.pp-status-select.pp-noneed{background:var(--surface-2);color:var(--ink-50
 .punch-plan-chip img{width:26px;height:26px;border-radius:50%;object-fit:cover;background:var(--surface-2);flex:none}
 .punch-plan-chip.active{border-color:var(--purple-600);background:var(--purple-50);color:var(--purple-700)}
 .punch-plan-chip .add{width:26px;height:26px;border-radius:50%;background:var(--surface-2);display:flex;align-items:center;justify-content:center;flex:none}
-.punch-viewer{position:relative;border-radius:var(--radius-sm);overflow:hidden;background:var(--surface-2);border:1px solid var(--line);cursor:crosshair;user-select:none}
+.punch-viewer{position:relative;border-radius:var(--radius-sm);overflow:hidden;background:var(--surface-2);border:1px solid var(--line);cursor:crosshair;user-select:none;touch-action:none}
 .punch-viewer img{display:block;width:100%;height:auto;pointer-events:none}
 .punch-pin{position:absolute;width:26px;height:26px;margin-left:-13px;margin-top:-26px;border-radius:50% 50% 50% 0;transform:rotate(-45deg);border:2px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,.35);cursor:pointer;display:flex;align-items:center;justify-content:center}
 .punch-pin span{transform:rotate(45deg);color:#fff;font-size:10.5px;font-weight:700}
 .punch-pin.open{background:var(--coral-500)}
 .punch-pin.fixed{background:var(--amber-500)}
 .punch-pin.closed{background:var(--mint-500)}
+/* Circle/area defect marker -- an alternative to the single-point pin above,
+   for a defect that covers a broader area (e.g. a whole wall or floor
+   section) rather than one spot. Drawn by dragging on the plan (see
+   wirePunchDefectsView's pointerdown/move/up handlers); size and position
+   are both stored as fractions of the viewer's own width, same convention
+   as x/y already used for pins, so it scales with the image at any zoom.
+   A small numbered badge sits at the circle's center so it still lines up
+   with the same numbering as pins in the list/report below. */
+.punch-circle{position:absolute;border-radius:50%;border:2.5px solid;transform:translate(-50%,-50%);cursor:pointer;box-sizing:border-box;display:flex;align-items:center;justify-content:center;pointer-events:auto}
+.punch-circle.open{border-color:var(--coral-500);background:color-mix(in srgb, var(--coral-500) 20%, transparent)}
+.punch-circle.fixed{border-color:var(--amber-500);background:color-mix(in srgb, var(--amber-500) 20%, transparent)}
+.punch-circle.closed{border-color:var(--mint-500);background:color-mix(in srgb, var(--mint-500) 20%, transparent)}
+.punch-circle.punch-circle-preview{pointer-events:none}
+.punch-circle-label{width:20px;height:20px;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#fff;font-size:10px;font-weight:700;box-shadow:0 1px 4px rgba(0,0,0,.3);flex:none}
+.punch-circle.open .punch-circle-label{background:var(--coral-500)}
+.punch-circle.fixed .punch-circle-label{background:var(--amber-500)}
+.punch-circle.closed .punch-circle-label{background:var(--mint-500)}
+.punch-mode-toggle{display:flex;gap:6px;margin-top:10px}
+.punch-mode-toggle button.active{background:var(--purple-600);border-color:var(--purple-600);color:#fff}
 .punch-legend{display:flex;gap:14px;flex-wrap:wrap;font-size:11.5px;color:var(--ink-500);margin-top:8px}
 .punch-legend span{display:inline-flex;align-items:center;gap:5px}
 .punch-legend i{width:9px;height:9px;border-radius:50%;display:inline-block}
@@ -4880,7 +4899,7 @@ function resetTransient(){
   cjobDraft=null; editingCjobId=null; cjobDetailId=null; cjobHandoverPending=[]; cjobViewTrash=false;
   cjobPoPending=[]; cjobPoDraft=null; cjobShareImageUrl=null;
   punchSelectedPlanId=null; punchPlanDraft=null; editingPunchPlanId=null;
-  punchItemDraft=null; editingPunchItemId=null; punchPendingPin=null;
+  punchItemDraft=null; editingPunchItemId=null; punchPendingPin=null; punchDrawMode='pin';
   punchFilterStatus='all'; punchFilterSeverity='all'; punchFilterCategory=''; punchFilterAssignee=''; punchFilterSearch='';
   punchAnnotating=null; punchChecklistManagerOpen=false; punchShowQr=false;
   punchSubView='defects'; punchSelectedRunId=null; punchNewRunZone=''; punchClExpanded=new Set();
@@ -10424,7 +10443,8 @@ let punchPlanDraft = null; // {name, imageId, pendingPhoto:{dataUrl}|null}
 let editingPunchPlanId = null; // null | 'new' | planId
 let punchItemDraft = null;
 let editingPunchItemId = null; // null | 'new' | itemId
-let punchPendingPin = null; // {x,y} captured from a viewer click, consumed by the next openPunchItemDraft(proj,'new',planId)
+let punchPendingPin = null; // {x,y,radius} captured from a viewer click/drag, consumed by the next openPunchItemDraft(proj,'new',planId) -- radius is 0 for a plain point pin, >0 for a dragged circle
+let punchDrawMode = 'pin'; // 'pin' (tap to place a point) | 'circle' (drag to mark an area) -- which interaction the plan viewer's pointer handlers use right now
 let punchFilterStatus='all', punchFilterSeverity='all', punchFilterCategory='', punchFilterAssignee='', punchFilterSearch='';
 let punchAnnotating = null; // {dataUrl, strokes:[], zoom, onSave} -- drives the annotate modal, opened on top of the item modal
 let punchChecklistManagerOpen = false;
@@ -10507,11 +10527,26 @@ function defaultPunchChecklist(){
 
 // ---- data builders ----
 function newPunchPlan(){ return {id:uid(), name:'', imageId:null, createdAt:new Date().toISOString()}; }
-function newPunchItem(planId, x, y){
-  return {id:uid(), planId:planId||null, x:x==null?0.5:x, y:y==null?0.5:y,
+function newPunchItem(planId, x, y, radius){
+  return {id:uid(), planId:planId||null, x:x==null?0.5:x, y:y==null?0.5:y, radius:radius||0,
     title:'', category:'', severity:'medium', assignedTo:'', dueDate:'', notes:'',
     status:'open', photosBefore:[], photosAfter:[],
     createdAt:new Date().toISOString(), createdBy:currentActorName(), history:[]};
+}
+// Renders one marker on a plan viewer -- either the classic single-point pin
+// (radius falsy/0) or a circle/area marker (radius>0, dragged via the
+// "Circle area" mode in wirePunchDefectsView). `interactive` adds the
+// data-pu-pin click hook + hover tooltip used by the live editable viewer;
+// the printable report reuses the exact same markup without them since it's
+// static. Both shapes share the same numbering so the list/report below
+// still lines up with whichever shape a given defect was marked with.
+function punchMarkerHtml(it, idx, interactive){
+  const hook = interactive? ` data-pu-pin="${it.id}" title="${escapeHtml(it.title)}"` : '';
+  if(it.radius){
+    const size = (it.radius*2*100).toFixed(2);
+    return `<div class="punch-circle ${it.status}" style="left:${(it.x*100).toFixed(2)}%;top:${(it.y*100).toFixed(2)}%;width:${size}%;height:${size}%"${hook}><span class="punch-circle-label">${idx+1}</span></div>`;
+  }
+  return `<div class="punch-pin ${it.status}" style="left:${(it.x*100).toFixed(2)}%;top:${(it.y*100).toFixed(2)}%"${hook}><span>${idx+1}</span></div>`;
 }
 function punchShareLink(proj){ return projectLink(proj.id)+'&tab=punch'; }
 function punchOverdueCount(proj){
@@ -10613,11 +10648,18 @@ function renderPunchDefectsView(proj){
   </div>`;
 
   const planItems = proj.punchItems.filter(it=>it.planId===plan.id);
-  const pinsHtml = planItems.map((it,idx)=>`<div class="punch-pin ${it.status}" style="left:${(it.x*100).toFixed(2)}%;top:${(it.y*100).toFixed(2)}%" data-pu-pin="${it.id}" title="${escapeHtml(it.title)}"><span>${idx+1}</span></div>`).join('');
+  const pinsHtml = planItems.map((it,idx)=> punchMarkerHtml(it, idx, true)).join('');
+  const modeHint = punchDrawMode==='circle'
+    ? tf('ลากบนแปลนเพื่อวงพื้นที่บกพร่อง','Drag on the plan to circle a defect area')
+    : tf('แตะบนแปลนเพื่อปักหมุดจุดบกพร่องใหม่','Tap the plan to pin a new defect');
   const viewerHtml = `<div class="card">
     <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
       <b style="font-family:var(--font-display);font-size:13.5px">📐 ${escapeHtml(plan.name||tf('แปลนไม่มีชื่อ','Untitled plan'))}</b>
       <button class="btn ghost sm" id="pu-edit-plan" data-plan-id="${plan.id}">✏️ ${tf('แก้ไขแปลน','Edit plan')}</button>
+    </div>
+    <div class="punch-mode-toggle">
+      <button class="btn ghost sm ${punchDrawMode==='pin'?'active':''}" id="pu-mode-pin">📍 ${tf('ปักหมุด','Pin')}</button>
+      <button class="btn ghost sm ${punchDrawMode==='circle'?'active':''}" id="pu-mode-circle">⭕ ${tf('วงพื้นที่','Circle area')}</button>
     </div>
     <div class="punch-viewer" id="pu-viewer" style="margin-top:10px">
       ${plan.imageId? `<img data-plan-img="${plan.imageId}" alt="">` : `<div class="empty" style="padding:60px 10px"><span class="ic">📐</span>${tf('แปลนนี้ยังไม่มีรูปภาพ','This plan has no image yet')}</div>`}
@@ -10627,7 +10669,7 @@ function renderPunchDefectsView(proj){
       <span><i style="background:var(--coral-500)"></i>${tf('รอแก้ไข','Open')}</span>
       <span><i style="background:var(--amber-500)"></i>${tf('รอตรวจซ้ำ','Awaiting re-check')}</span>
       <span><i style="background:var(--mint-500)"></i>${tf('ปิดงานแล้ว','Closed')}</span>
-      <span style="margin-left:auto">💡 ${tf('แตะบนแปลนเพื่อปักหมุดจุดบกพร่องใหม่','Tap the plan to pin a new defect')}</span>
+      <span style="margin-left:auto">💡 ${modeHint}</span>
     </div>
   </div>`;
 
@@ -10701,7 +10743,7 @@ function punchReportBodyHtml(proj){
   const plansHtml = proj.punchPlans.map(plan=>{
     const items = proj.punchItems.filter(it=>it.planId===plan.id);
     if(!items.length && !plan.imageId) return '';
-    const pins = items.map((it,idx)=>`<div class="punch-pin ${it.status}" style="left:${(it.x*100).toFixed(2)}%;top:${(it.y*100).toFixed(2)}%"><span>${idx+1}</span></div>`).join('');
+    const pins = items.map((it,idx)=> punchMarkerHtml(it, idx, false)).join('');
     const rows = items.map((it,idx)=>`<tr>
       <td class="tabular">${idx+1}</td>
       <td>${escapeHtml(it.title||'-')}</td>
@@ -10836,17 +10878,66 @@ function wirePunchDefectsView(){
     punchPlanDraft = {name:pl.name, imageId:pl.imageId, pendingPhoto:null};
     editingPunchPlanId = pl.id; render();
   };
+  const modePinBtn = $('#pu-mode-pin'); if(modePinBtn) modePinBtn.onclick = ()=>{ punchDrawMode='pin'; render(); };
+  const modeCircleBtn = $('#pu-mode-circle'); if(modeCircleBtn) modeCircleBtn.onclick = ()=>{ punchDrawMode='circle'; render(); };
   const viewer = $('#pu-viewer');
   if(viewer){
-    viewer.addEventListener('click', (e)=>{
-      if(e.target.closest('[data-pu-pin]')) return;
-      const rect = viewer.getBoundingClientRect();
-      const x = clamp((e.clientX-rect.left)/rect.width, 0.02, 0.98);
-      const y = clamp((e.clientY-rect.top)/rect.height, 0.02, 0.98);
-      punchPendingPin = {x,y};
-      openPunchItemDraft(proj, 'new', punchSelectedPlanId);
-      render();
-    });
+    if(punchDrawMode==='circle'){
+      // Drag-to-draw a circle/area marker -- mirrors the Gantt bar drag
+      // pattern elsewhere (direct style tweaks on a live preview element
+      // during the drag, a full render() only once on pointerup) so the
+      // circle grows smoothly under the finger/cursor instead of jumping
+      // between discrete re-renders. A short drag (below the ~1.5%-radius
+      // threshold) is treated as a plain tap and falls back to a normal
+      // point pin, so accidental micro-drags never create a near-invisible
+      // circle by mistake.
+      let dragging=false, startX=0, startY=0, previewEl=null;
+      viewer.addEventListener('pointerdown', (e)=>{
+        if(e.target.closest('[data-pu-pin]')) return;
+        const rect = viewer.getBoundingClientRect();
+        startX = clamp((e.clientX-rect.left)/rect.width, 0, 1);
+        startY = clamp((e.clientY-rect.top)/rect.height, 0, 1);
+        dragging = true;
+        previewEl = document.createElement('div');
+        previewEl.className = 'punch-circle punch-circle-preview open';
+        previewEl.style.left = (startX*100)+'%';
+        previewEl.style.top = (startY*100)+'%';
+        previewEl.style.width = '0%'; previewEl.style.height = '0%';
+        viewer.appendChild(previewEl);
+        try{ viewer.setPointerCapture(e.pointerId); }catch(err){}
+      });
+      viewer.addEventListener('pointermove', (e)=>{
+        if(!dragging || !previewEl) return;
+        const rect = viewer.getBoundingClientRect();
+        const curX = (e.clientX-rect.left)/rect.width, curY = (e.clientY-rect.top)/rect.height;
+        const r = Math.hypot(curX-startX, curY-startY);
+        previewEl.style.width = (r*2*100)+'%';
+        previewEl.style.height = (r*2*100)+'%';
+      });
+      viewer.addEventListener('pointerup', (e)=>{
+        if(!dragging) return;
+        dragging = false;
+        if(previewEl){ previewEl.remove(); previewEl=null; }
+        const rect = viewer.getBoundingClientRect();
+        const curX = clamp((e.clientX-rect.left)/rect.width, 0, 1), curY = clamp((e.clientY-rect.top)/rect.height, 0, 1);
+        const r = Math.hypot(curX-startX, curY-startY);
+        punchPendingPin = r<0.015
+          ? {x:clamp(startX,0.02,0.98), y:clamp(startY,0.02,0.98), radius:0}
+          : {x:clamp(startX,0.02,0.98), y:clamp(startY,0.02,0.98), radius:clamp(r,0.015,0.45)};
+        openPunchItemDraft(proj, 'new', punchSelectedPlanId);
+        render();
+      });
+    } else {
+      viewer.addEventListener('click', (e)=>{
+        if(e.target.closest('[data-pu-pin]')) return;
+        const rect = viewer.getBoundingClientRect();
+        const x = clamp((e.clientX-rect.left)/rect.width, 0.02, 0.98);
+        const y = clamp((e.clientY-rect.top)/rect.height, 0.02, 0.98);
+        punchPendingPin = {x,y,radius:0};
+        openPunchItemDraft(proj, 'new', punchSelectedPlanId);
+        render();
+      });
+    }
   }
   $$('[data-pu-pin]').forEach(el=> el.onclick = (e)=>{ e.stopPropagation(); openPunchItemDraft(proj, el.dataset.puPin); render(); });
   $$('[data-pu-item]').forEach(el=> el.onclick = ()=>{ openPunchItemDraft(proj, el.dataset.puItem); render(); });
@@ -10882,18 +10973,19 @@ function syncPunchItemDraftFromDom(){
   const assignee=g('#pu-assignee'); if(assignee!==undefined) d.assignedTo=assignee;
   const due=g('#pu-due'); if(due!==undefined) d.dueDate=due;
   const notes=g('#pu-notes'); if(notes!==undefined) d.notes=notes;
+  const radiusEl=$('#pu-radius'); if(radiusEl) d.radius=clamp((Number(radiusEl.value)||0)/100, 0, 0.45);
 }
 function openPunchItemDraft(proj, id, planId){
   if(id==='new'){
-    const pin = punchPendingPin || {x:0.5,y:0.5};
-    punchItemDraft = {planId: planId||punchSelectedPlanId||null, x:pin.x, y:pin.y,
+    const pin = punchPendingPin || {x:0.5,y:0.5,radius:0};
+    punchItemDraft = {planId: planId||punchSelectedPlanId||null, x:pin.x, y:pin.y, radius:pin.radius||0,
       title:'', category:'', severity:'medium', assignedTo:'', dueDate:'', notes:'', status:'open',
       existingBeforeIds:[], pendingBefore:[], removedBeforeIds:[],
       existingAfterIds:[], pendingAfter:[], removedAfterIds:[], history:[]};
   } else {
     const it = proj.punchItems.find(i=>i.id===id);
     if(!it) return;
-    punchItemDraft = {id:it.id, planId:it.planId, x:it.x, y:it.y,
+    punchItemDraft = {id:it.id, planId:it.planId, x:it.x, y:it.y, radius:it.radius||0,
       title:it.title, category:it.category||'', severity:it.severity||'medium', assignedTo:it.assignedTo||'',
       dueDate:it.dueDate||'', notes:it.notes||'', status:it.status,
       existingBeforeIds:(it.photosBefore||[]).slice(), pendingBefore:[], removedBeforeIds:[],
@@ -10925,9 +11017,9 @@ async function commitPunchItem(statusOverride, historyNote){
   const photosAfter = keptAfter.concat(newAfterIds);
   const finalStatus = statusOverride || d.status;
   const by = currentActorName();
-  const fields = {title, category:(d.category||'').trim(), severity:d.severity, assignedTo:(d.assignedTo||'').trim(), dueDate:d.dueDate||'', notes:(d.notes||'').trim(), x:d.x, y:d.y, planId:d.planId, photosBefore, photosAfter};
+  const fields = {title, category:(d.category||'').trim(), severity:d.severity, assignedTo:(d.assignedTo||'').trim(), dueDate:d.dueDate||'', notes:(d.notes||'').trim(), x:d.x, y:d.y, radius:d.radius||0, planId:d.planId, photosBefore, photosAfter};
   if(editingPunchItemId==='new'){
-    const item = newPunchItem(d.planId, d.x, d.y);
+    const item = newPunchItem(d.planId, d.x, d.y, d.radius);
     Object.assign(item, fields, {status:finalStatus});
     if(finalStatus!=='open') item.history.push({at:new Date().toISOString(), by, from:'open', to:finalStatus, note:historyNote||''});
     proj.punchItems.push(item);
@@ -10984,6 +11076,7 @@ function punchItemModalHtml(){
       ${!isNew? `<div style="margin-bottom:10px">${statusBadge}</div>` : ''}
       <div class="grid cols-2">
         <div class="field" style="grid-column:1/-1"><label>${tf('หัวข้อ/รายละเอียดสั้นๆ','Title / short description')}</label><input type="text" id="pu-title" value="${escapeHtml(d.title)}" placeholder="${tf('เช่น กระเบื้องพื้นแตกใกล้ประตู','e.g. floor tile cracked near door')}"></div>
+        <div class="field" style="grid-column:1/-1"><label>${tf('ขนาดวงพื้นที่บนแปลน (% , 0 = หมุดจุดเดียว)','Circle size on plan (%, 0 = single-point pin)')} <span class="hint">${tf('ลากบนแปลนเพื่อวาดวงใหม่ หรือปรับตัวเลขนี้เพื่อขยับขนาด','Drag on the plan to redraw, or adjust this number to resize')}</span></label><input type="number" id="pu-radius" min="0" max="45" step="0.5" value="${((d.radius||0)*100).toFixed(1)}"></div>
         <div class="field"><label>${tf('หมวดงาน','Category')}</label><input type="text" id="pu-category" list="pu-category-list" value="${escapeHtml(d.category)}"><datalist id="pu-category-list">${BOQ_CATEGORIES.map(c=>`<option value="${escapeHtml(c)}">`).join('')}</datalist></div>
         <div class="field"><label>${tf('ความรุนแรง','Severity')}</label><select id="pu-severity">${PUNCH_SEVERITY.map(s=>`<option value="${s.v}" ${d.severity===s.v?'selected':''}>${s.ic} ${tf(s.th,s.en)}</option>`).join('')}</select></div>
         <div class="field"><label>${tf('ผู้รับผิดชอบแก้ไข','Assigned to')}</label><input type="text" id="pu-assignee" list="pu-assignee-list" value="${escapeHtml(d.assignedTo)}" placeholder="${tf('ชื่อทีม/ผู้รับเหมา','team / contractor name')}"><datalist id="pu-assignee-list">${assigneeList.map(a=>`<option value="${escapeHtml(a)}">`).join('')}</datalist></div>
