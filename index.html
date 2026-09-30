@@ -826,8 +826,8 @@ select.pp-status-select.pp-noneed{background:var(--surface-2);color:var(--ink-50
 .pp-table td:nth-child(9),.pp-table th:nth-child(9){width:5%}
 .pp-table td:nth-child(10),.pp-table th:nth-child(10){white-space:nowrap;width:5.4%}
 .pp-table td:nth-child(11),.pp-table th:nth-child(11){white-space:nowrap;width:6.8%}
-.pp-table td:nth-child(12),.pp-table th:nth-child(12){width:5.8%}
-.pp-table td:nth-child(13),.pp-table th:nth-child(13){width:7.2%}
+.pp-table td:nth-child(12),.pp-table th:nth-child(12){width:10.4%}
+.pp-table td:nth-child(13),.pp-table th:nth-child(13){width:5.6%}
 .pp-table td:nth-child(14),.pp-table th:nth-child(14){width:10.4%}
 .pp-table td:nth-child(15),.pp-table th:nth-child(15){width:5.6%}
 .pp-table td:nth-child(16),.pp-table th:nth-child(16){width:7.6%}
@@ -4171,7 +4171,7 @@ let state = {
 // P() = the project currently open (state.view==='project'). Falls back to an
 // empty stub so calls made outside a project context never throw.
 function P(){
-  return state.projects.find(p=>p.id===state.currentProjectId) || {id:null,name:'',zone:'',boq:[],logs:[],materialRequests:[],costLog:[],contractorJobs:[],punchPlans:[],punchItems:[],punchChecklist:[],punchChecklistRuns:[]};
+  return state.projects.find(p=>p.id===state.currentProjectId) || {id:null,name:'',zone:'',boq:[],logs:[],materialRequests:[],costLog:[],contractorJobs:[],punchPlans:[],punchItems:[],punchChecklist:[],punchChecklistRuns:[],noteFeed:[],notePad:{text:'',updatedAt:'',updatedBy:''}};
 }
 
 // Field-worker restricted link: opening the app with #field&project=<id> in the
@@ -4441,6 +4441,23 @@ function bootstrap(){
     });
     if(addedPunch) saveData();
   }
+  // migration: Notes/Chat (proj.noteFeed -- a per-project timeline of typed
+  // messages, e.g. for meeting notes/task or order follow-ups -- and
+  // proj.notePad -- a single free-form auto-saving note) shipped after some
+  // installs already had saved projects -- same backfill pattern as costLog/
+  // contractorJobs/punch above. As with those, this alone isn't sufficient
+  // against a later cloud-sync overwrite reviving pre-migration data, so
+  // renderNotes() also calls ensureNoteDefaults(proj) defensively on every
+  // render (same lesson learned from the INSPECT crash -- see
+  // ensurePunchDefaults() above).
+  {
+    let addedNotes=false;
+    state.projects.forEach(p=>{
+      if(!Array.isArray(p.noteFeed)){ p.noteFeed=[]; addedNotes=true; }
+      if(!p.notePad || typeof p.notePad!=='object'){ p.notePad={text:'', updatedAt:'', updatedBy:''}; addedNotes=true; }
+    });
+    if(addedNotes) saveData();
+  }
   // price backfill: BOQ items for the Richmond project were originally
   // seeded before itemCode/unitPrice existed as fields, so installs with
   // data saved before those fields shipped are missing them on every item.
@@ -4653,6 +4670,7 @@ const TABS = [
   {id:'budget',th:'งบประมาณ',en:'Budget',ic:'💰'},
   {id:'billing',th:'เบิกเงินงวด',en:'Billing',ic:'💵'},
   {id:'dailylog',th:'บันทึกประจำวัน',en:'Daily Log',ic:'📝'},
+  {id:'notes',th:'บันทึก/แชท',en:'Notes/Chat',ic:'💬'},
   {id:'punch',th:'ตรวจสอบ (INSPECT)',en:'INSPECT',ic:'📍'},
   {id:'report',th:'รายงาน',en:'Report',ic:'🖨️'},
 ];
@@ -4812,6 +4830,7 @@ function renderScreen(){
     case 'budget': return renderBudget();
     case 'billing': return renderBilling();
     case 'dashboard': return renderDashboard();
+    case 'notes': return renderNotes();
     case 'punch': return renderPunch();
     case 'report': return renderReport();
     default: return renderMasterPlan();
@@ -4839,6 +4858,7 @@ function resetTransient(){
   punchFilterStatus='all'; punchFilterSeverity='all'; punchFilterCategory=''; punchFilterAssignee=''; punchFilterSearch='';
   punchAnnotating=null; punchChecklistManagerOpen=false; punchShowQr=false;
   punchSubView='defects'; punchSelectedRunId=null; punchNewRunZone=''; punchClExpanded=new Set();
+  noteSubView='feed';
 }
 function goToHub(){
   resetTransient();
@@ -5414,7 +5434,7 @@ function wireProjectModal(){
     if(!name){ toast(tf('กรุณาระบุชื่อโครงการ','Please enter a project name')); return; }
     if(editingProjectId==='new'){
       const importedBoq = buildBoqFromImport();
-      state.projects.push({id:uid(), name, zone, groupName, driveFolderId, driveSyncedFileIds:[], billingFolderId, paymentFolderId, billingMilestones:[], boq:importedBoq, logs:[], materialRequests:[], costLog:[], inspectionReports:[], contractorJobs:[], punchPlans:[], punchItems:[], punchChecklist:defaultPunchChecklist(), punchChecklistRuns:[], createdAt:new Date().toISOString()});
+      state.projects.push({id:uid(), name, zone, groupName, driveFolderId, driveSyncedFileIds:[], billingFolderId, paymentFolderId, billingMilestones:[], boq:importedBoq, logs:[], materialRequests:[], costLog:[], inspectionReports:[], contractorJobs:[], punchPlans:[], punchItems:[], punchChecklist:defaultPunchChecklist(), punchChecklistRuns:[], noteFeed:[], notePad:{text:'',updatedAt:'',updatedBy:''}, createdAt:new Date().toISOString()});
       saveData(); closeProjectModal();
       toast(importedBoq.length? tf('สร้างโปรเจ็คใหม่แล้ว พร้อม BOQ ','Project created with a BOQ of ')+importedBoq.length+tf(' รายการ',' items') : tf('สร้างโปรเจ็คใหม่แล้ว','Project created'));
     } else {
@@ -8798,22 +8818,31 @@ function renderPurchasePlan(proj=P()){
     const key = g.cat || '__uncategorized__';
     const expanded = ppExpandedCats.has(key);
     const label = g.cat? escapeHtml(g.cat) : tf('ไม่ระบุหมวดหมู่','Uncategorized');
-    const catHeader = `<tr class="budget-cat-row" data-toggle-pp-cat="${escapeHtml(key)}" style="cursor:pointer"><td colspan="14"><span class="mp-cat-chevron">${expanded?'▾':'▸'}</span>📁 ${label} <span class="mp-cat-count">${filteredItems.length} ${tf('รายการ','item(s)')}</span></td></tr>`;
+    const catHeader = `<tr class="budget-cat-row" data-toggle-pp-cat="${escapeHtml(key)}" style="cursor:pointer"><td colspan="13"><span class="mp-cat-chevron">${expanded?'▾':'▸'}</span>📁 ${label} <span class="mp-cat-count">${filteredItems.length} ${tf('รายการ','item(s)')}</span></td></tr>`;
     if(!expanded) return catHeader;
     const itemRows = filteredItems.map(item=>{
       const orderStatus = item.ppOrderStatus || 'not_ordered';
       const orderStatusDef = PP_ORDER_STATUS.find(s=>s.v===orderStatus) || PP_ORDER_STATUS[0];
-      const paymentStatus = item.ppPaymentStatus || 'pending';
       const needDate = ppNeedOnSiteDate(item);
       const orderByDate = ppOrderByDate(item);
       const alert = ppAlertStatus(item);
       const alertHtml = alert==='overdue'? `<span class="badge pp-cancelled">🔴 ${tf('เกินกำหนด','Overdue')}</span>`
         : alert==='duesoon'? `<span class="badge pp-not-ordered">🟡 ${tf('ใกล้ถึงกำหนด','Due soon')}</span>` : '';
       const orderStatusLabel = escapeHtml(tf(orderStatusDef.th,orderStatusDef.en));
-      const paymentStatusDef = PP_PAYMENT_STATUS.find(s=>s.v===paymentStatus)||PP_PAYMENT_STATUS[0];
-      const paymentStatusLabel = escapeHtml(tf(paymentStatusDef.th,paymentStatusDef.en));
-      const deliverySourceDef = PP_DELIVERY_SOURCE.find(s=>s.v===item.ppDeliverySource);
-      const deliverySourceLabel = deliverySourceDef? escapeHtml(tf(deliverySourceDef.th,deliverySourceDef.en)) : '-';
+      // Same reference-photo box as Master Plan (item.refPhotoIds), reused
+      // as-is rather than a separate photo field -- per the user's request,
+      // whatever photo is already attached in Master Plan should just show
+      // up here too, and attaching one here (data-quick-attach) or opening
+      // the gallery (data-open-gallery) edits that SAME field, so the two
+      // screens can never drift out of sync. refreshMasterPlanThumbs() (its
+      // existing name, unchanged) already does a generic P().boq lookup by
+      // item id, so it fills these thumbnails in too with no changes needed.
+      const ppThumbIds = item.refPhotoIds||[];
+      const ppHasThumb = ppThumbIds.length>0;
+      const ppThumbBox = `<div class="mp-thumb" ${ppHasThumb? `data-open-gallery="${item.id}"` : `data-quick-attach="${item.id}"`} title="${tf('ภาพชุดงาน','Reference photos')}">
+        ${ppHasThumb? `<img data-mp-thumb="${item.id}" alt="">` : `<span class="mp-thumb-empty">📷</span>`}
+        ${ppThumbIds.length>1? `<span class="mp-thumb-count">+${ppThumbIds.length-1}</span>` : ''}
+      </div>`;
       return `<tr data-pp-row="${item.id}" class="${alert==='overdue'?'pp-row-overdue':alert==='duesoon'?'pp-row-duesoon':''}">
         <td class="tabular hint">${escapeHtml(item.itemCode||'-')}</td>
         <td title="${escapeHtml(item.name)}">${escapeHtml(item.name)}</td>
@@ -8826,9 +8855,8 @@ function renderPurchasePlan(proj=P()){
         <td><input type="number" step="0.01" data-pp-field="ppActualOrderQty" value="${item.ppActualOrderQty==null?'':item.ppActualOrderQty}"></td>
         <td><input type="text" data-pp-field="ppPoNo" value="${escapeHtml(item.ppPoNo||'')}" placeholder="${tf('เลขที่ PO','PO no.')}" title="${escapeHtml(item.ppPoNo||'')}"></td>
         <td><select data-pp-field="ppOrderStatus" class="pp-status-select ${orderStatusDef.cls}" title="${orderStatusLabel}">${PP_ORDER_STATUS.map(s=>`<option value="${s.v}" ${orderStatus===s.v?'selected':''}>${escapeHtml(tf(s.th,s.en))}</option>`).join('')}</select></td>
-        <td><select data-pp-field="ppDeliverySource" title="${deliverySourceLabel}"><option value="">-</option>${PP_DELIVERY_SOURCE.map(s=>`<option value="${s.v}" ${item.ppDeliverySource===s.v?'selected':''}>${escapeHtml(tf(s.th,s.en))}</option>`).join('')}</select></td>
-        <td><select data-pp-field="ppPaymentStatus" class="pp-status-select ${paymentStatusDef.cls}" title="${paymentStatusLabel}">${PP_PAYMENT_STATUS.map(s=>`<option value="${s.v}" ${paymentStatus===s.v?'selected':''}>${escapeHtml(tf(s.th,s.en))}</option>`).join('')}</select></td>
         <td><input type="text" data-pp-field="ppNotes" value="${escapeHtml(item.ppNotes||'')}" placeholder="${tf('หมายเหตุ','note')}" title="${escapeHtml(item.ppNotes||'')}"></td>
+        <td>${ppThumbBox}</td>
       </tr>`;
     }).join('');
     return catHeader + itemRows;
@@ -8871,7 +8899,7 @@ function renderPurchasePlan(proj=P()){
     <th>${tf('วันที่ต้องถึงหน้างาน','Need-on-Site Date')}</th><th>${tf('ซัพพลายเออร์','Supplier')}</th><th>${tf('Lead Time (วัน)','Lead Time (days)')}</th>
     <th>${tf('วันที่ต้องสั่งซื้อ','Order-by Date')}</th><th>${tf('สถานะแจ้งเตือน','Alert')}</th>
     <th>${tf('จำนวนที่สั่งจริง','Actual Order Qty')}</th><th>${tf('เลขที่ใบสั่งซื้อ','PO No.')}</th><th>${tf('สถานะการสั่งของ','Order Status')}</th>
-    <th>${tf('แหล่งจัดส่ง','Delivery Source')}</th><th>${tf('สถานะการจ่ายเงิน','Payment Status')}</th><th>${tf('หมายเหตุ','Notes')}</th>
+    <th>${tf('หมายเหตุ','Notes')}</th><th>${tf('รูปภาพ','Photo')}</th>
   </tr></thead><tbody>${rows}</tbody></table></div>
   ` : `<div class="empty"><span class="ic">📦</span>${tf('ไม่มีรายการในสถานะนี้','No items with this status')}</div>`}
   `;
@@ -8910,6 +8938,26 @@ function wirePurchasePlan(proj=P()){
   };
   const collapseAllBtn = $('#btn-pp-collapse-all-cat');
   if(collapseAllBtn) collapseAllBtn.onclick = ()=>{ ppExpandedCats.clear(); render(); };
+  // Reference-photo thumbnail box -- identical handlers to wireMasterPlan()'s
+  // own (same data-open-gallery/data-quick-attach convention, same
+  // item.refPhotoIds field), so a photo attached from either screen shows up
+  // on both immediately.
+  $$('[data-open-gallery]').forEach(el=> el.onclick = ()=>{ refGalleryItemId=el.dataset.openGallery; render(); });
+  $$('[data-quick-attach]').forEach(el=> el.onclick = ()=>{
+    const itemId = el.dataset.quickAttach;
+    const inp = document.createElement('input');
+    inp.type='file'; inp.accept='image/*'; inp.multiple=true;
+    inp.onchange = async ()=>{
+      const files = Array.from(inp.files||[]);
+      if(!files.length) return;
+      const it = proj.boq.find(i=>i.id===itemId); if(!it) return;
+      it.refPhotoIds = it.refPhotoIds||[];
+      for(const f of files){ try{ const dataUrl = await compressImage(f); const pid=uid(); await idbPut(pid,dataUrl); it.refPhotoIds.push(pid); }catch(err){} }
+      saveData(); render(); toast(tf('แนบรูปแล้ว','Photo attached'));
+    };
+    inp.click();
+  });
+  refreshMasterPlanThumbs();
   $$('[data-pp-row]').forEach(row=>{
     const item = proj.boq.find(i=>i.id===row.dataset.ppRow);
     if(!item) return;
@@ -10169,6 +10217,105 @@ function buildSCurve(asOf){
   return {svg};
 }
 
+/* ============================= SCREEN: NOTES/CHAT ============================= *
+   Per-project scratchpad (tab id 'notes'), for typing during a meeting or
+   tracking work/material follow-ups -- per the user's own words: "อยากเพิ่ม
+   Chat หรือ Note ในแต่ละโปรเจ็ค เอาไว้พิมพ์ในการประชุมหรือติดตามงาน
+   ติดตามของ". Two sub-views sharing one tab, same punchSubView convention
+   as INSPECT below (a module-level `noteSubView` toggled by two pill
+   buttons, reset in resetTransient()):
+     feed  proj.noteFeed[] -- a chronological list of short typed messages
+           (each {id, text, author, at}), newest at the top, with an input
+           box to post a new one. For a quick note during a call, or logging
+           "ordered the tiles today" as it happens.
+     pad   proj.notePad {text, updatedAt, updatedBy} -- a single free-form,
+           auto-saving note per project (not per-entry), for the kind of
+           running scratch note people keep open during a meeting and edit
+           in place rather than post as discrete messages.
+   Deliberately NOT linked to any BOQ/Master Plan work item (per the user's
+   own choice when asked) -- this is a general project notebook, not a
+   comment thread on a specific line item. */
+let noteSubView = 'feed'; // 'feed' | 'pad'
+// Cloud sync (initCloudSync()'s "Firestore is now the source of truth"
+// branch) replaces state.projects wholesale, and any project's Firestore
+// document saved before this feature shipped predates noteFeed/notePad
+// entirely -- same lesson as ensurePunchDefaults() above: the one-time
+// bootstrap() migration isn't enough on its own, so this also runs
+// defensively at the top of renderNotes() on every render.
+function ensureNoteDefaults(proj){
+  if(!Array.isArray(proj.noteFeed)) proj.noteFeed=[];
+  if(!proj.notePad || typeof proj.notePad!=='object') proj.notePad={text:'', updatedAt:'', updatedBy:''};
+}
+function renderNoteFeedHtml(proj){
+  const msgs = (proj.noteFeed||[]).slice().sort((a,b)=> (b.at||'').localeCompare(a.at||''));
+  const list = msgs.length? msgs.map(m=>`
+    <div class="card" style="padding:10px 14px">
+      <div style="display:flex;justify-content:space-between;gap:10px;align-items:baseline">
+        <b style="font-size:12.5px">${escapeHtml(m.author||tf('ผู้ใช้งาน','User'))}</b>
+        <div style="display:flex;gap:8px;align-items:center">
+          <span class="hint" style="font-size:11px">${fmtDateTime(m.at)}</span>
+          <button class="iconbtn" data-note-del="${m.id}" title="${tf('ลบ','Delete')}" style="width:20px;height:20px;font-size:10px">✕</button>
+        </div>
+      </div>
+      <div style="margin-top:4px;white-space:pre-wrap;font-size:13.5px">${escapeHtml(m.text)}</div>
+    </div>`).join('') : `<div class="empty"><span class="ic">💬</span>${tf('ยังไม่มีข้อความ — พิมพ์ข้อความแรกได้เลยด้านล่าง','No messages yet -- type the first one below')}</div>`;
+  return `
+  <div class="card tint" style="margin-bottom:14px">
+    <textarea id="note-feed-input" rows="2" placeholder="${tf('พิมพ์ข้อความ... เช่น สรุปการประชุม ติดตามงาน ติดตามของ','Type a message... e.g. meeting notes, task follow-ups, order tracking')}"></textarea>
+    <button class="btn primary sm" id="note-feed-send" style="margin-top:8px">${tf('ส่งข้อความ','Send')}</button>
+  </div>
+  <div style="display:flex;flex-direction:column;gap:10px">${list}</div>`;
+}
+function renderNotePadHtml(proj){
+  const pad = proj.notePad;
+  const meta = pad.updatedAt? `<div class="hint" style="margin-top:8px">${tf('แก้ไขล่าสุดโดย ','Last edited by ')}${escapeHtml(pad.updatedBy||'-')} · ${fmtDateTime(pad.updatedAt)}</div>` : `<div class="hint" style="margin-top:8px">${tf('บันทึกอัตโนมัติเมื่อออกจากช่องพิมพ์','Auto-saves when you click away')}</div>`;
+  return `<div class="card">
+    <textarea id="note-pad-text" rows="18" style="width:100%;font-family:var(--font-body);font-size:13.5px;line-height:1.6" placeholder="${tf('พิมพ์โน้ตของโปรเจกต์นี้ได้เลย เช่น สรุปสำคัญ รายการที่ต้องติดตาม ฯลฯ','Type this project’s notes here -- key points, follow-up items, etc.')}">${escapeHtml(pad.text||'')}</textarea>
+    ${meta}
+  </div>`;
+}
+function renderNotes(){
+  const proj = P();
+  ensureNoteDefaults(proj);
+  return `
+  <div class="page-head">
+    <div><h2>💬 ${tf('บันทึก/แชท','Notes/Chat')}</h2><div class="sub">${tf('พื้นที่พิมพ์อิสระของโปรเจกต์นี้ สำหรับจดระหว่างประชุม ติดตามงาน หรือติดตามของ','A free-typing space for this project -- for meeting notes, task follow-ups, or order tracking')}</div></div>
+  </div>
+  <div class="punch-subnav">
+    <button data-note-sub="feed" class="${noteSubView==='feed'?'active':''}">💬 ${tf('ไทม์ไลน์ข้อความ','Message timeline')}</button>
+    <button data-note-sub="pad" class="${noteSubView==='pad'?'active':''}">📝 ${tf('โน้ต','Note')}</button>
+  </div>
+  ${noteSubView==='pad'? renderNotePadHtml(proj) : renderNoteFeedHtml(proj)}
+  `;
+}
+function wireNotes(){
+  const proj = P();
+  $$('[data-note-sub]').forEach(b=> b.onclick=()=>{ noteSubView=b.dataset.noteSub; render(); });
+  const sendBtn = $('#note-feed-send');
+  if(sendBtn) sendBtn.onclick = ()=>{
+    const ta = $('#note-feed-input');
+    const text = ta? ta.value.trim() : '';
+    if(!text){ toast(tf('พิมพ์ข้อความก่อนกดส่ง','Type a message before sending')); return; }
+    proj.noteFeed = proj.noteFeed||[];
+    proj.noteFeed.push({id:uid(), text, author:currentActorName(), at:new Date().toISOString()});
+    saveData(); render(); toast(tf('ส่งข้อความแล้ว','Message sent'));
+  };
+  $$('[data-note-del]').forEach(b=> b.onclick=()=>{
+    if(!confirm(tf('ลบข้อความนี้?','Delete this message?'))) return;
+    proj.noteFeed = (proj.noteFeed||[]).filter(m=>m.id!==b.dataset.noteDel);
+    saveData(); render(); toast(tf('ลบข้อความแล้ว','Message deleted'));
+  });
+  const padText = $('#note-pad-text');
+  if(padText){
+    padText.oninput = ()=>{ proj.notePad.text = padText.value; };
+    padText.onblur = ()=>{
+      proj.notePad.updatedAt = new Date().toISOString();
+      proj.notePad.updatedBy = currentActorName();
+      saveData(); render();
+    };
+  }
+}
+
 /* ============================= SCREEN: INSPECT ============================= *
    "INSPECT" (internal id 'punch', proj.punchPlans/punchItems/punchChecklist/
    punchChecklistRuns) is a separate tool from both the existing "ใบตรวจงาน"
@@ -10208,7 +10355,7 @@ let punchShowQr = false;
 let punchSubView = 'defects'; // 'defects' | 'checklist'
 let punchSelectedRunId = null;
 let punchNewRunZone = '';
-let punchClExpanded = new Set(); // checklist template-group names currently expanded (collapsed by default, same convention as Master Plan's mpExpandedCats)
+let punchClExpanded = new Set(); // checklist run: which of the 3 inspection-stage sections (PUNCH_CL_STAGES values) are currently expanded (collapsed by default, same convention as Master Plan's mpExpandedCats)
 
 const PUNCH_STATUS = [
   {v:'open', th:'รอแก้ไข', en:'Open', cls:'bad'},
@@ -10550,40 +10697,50 @@ function renderPunchChecklistView(proj){
   const failN = items.filter(it=> run.results[it.id] && run.results[it.id].status==='fail').length;
   const pct = total? Math.round(done/total*100) : 0;
 
-  const groups = {};
-  items.forEach(it=>{ (groups[it.group]=groups[it.group]||[]).push(it); });
-  const groupsHtml = Object.keys(groups).map(g=>{
-    const gItems = groups[g];
-    const gDone = gItems.filter(it=>run.results[it.id]&&run.results[it.id].status).length;
-    const expanded = punchClExpanded.has(g);
-    const stagesHtml = !expanded ? '' : PUNCH_CL_STAGES.map(st=>{
-      const stItems = gItems.filter(it=>it.stage===st.v);
-      if(!stItems.length) return '';
-      const rowsHtml = stItems.map(it=>{
-        const res = run.results[it.id] || {status:'', note:'', photoIds:[]};
-        const photosHtml = (res.photoIds||[]).map(pid=>`<div class="photo-item" style="width:60px;height:60px;display:inline-block;vertical-align:middle"><img data-thumb-id="${pid}" alt=""><button class="rm" data-pu-cl-rm-photo="${it.id}|${pid}">✕</button></div>`).join('');
-        return `<div class="punch-cl-item">
-          <div class="row1">
-            <div class="txt"><b>${escapeHtml(it.text)}</b>${it.detail? `<p>${escapeHtml(it.detail)}</p>` : ''}</div>
-            <div class="punch-cl-status">
-              <button class="${res.status==='pass'?'on pass':''}" data-pu-cl-set="${it.id}|pass" title="${tf('ผ่าน','Pass')}">✅</button>
-              <button class="${res.status==='fail'?'on fail':''}" data-pu-cl-set="${it.id}|fail" title="${tf('ไม่ผ่าน','Fail')}">❌</button>
-              <button class="${res.status==='na'?'on na':''}" data-pu-cl-set="${it.id}|na" title="${tf('ไม่เกี่ยวข้อง','N/A')}">➖</button>
+  // Top-level sections are now the 3 inspection stages (per the user's
+  // request: "หัวข้อหลักคือ 🔹ก่อนดำเนินงาน/🔸ระหว่างดำเนินงาน/✅หลังดำเนินงาน
+  // ส่วนหัวข้อให้คัดแยกตามระยะการตรวจ" -- items sorted/grouped by stage
+  // first for easier scanning), with each stage section sub-grouped by
+  // trade (item.group) underneath -- the reverse nesting of before, where
+  // trade was the top level and stage was nested inside. punchClExpanded is
+  // now keyed by stage value instead of trade-group name.
+  const itemsByStage = (st)=> items.filter(it=>it.stage===st);
+  const stagesHtml = PUNCH_CL_STAGES.map(st=>{
+    const stItems = itemsByStage(st.v);
+    if(!stItems.length) return '';
+    const stDone = stItems.filter(it=>run.results[it.id]&&run.results[it.id].status).length;
+    const expanded = punchClExpanded.has(st.v);
+    const tradesHtml = !expanded ? '' : (()=>{
+      const byTrade = {};
+      stItems.forEach(it=>{ (byTrade[it.group]=byTrade[it.group]||[]).push(it); });
+      return Object.keys(byTrade).map(g=>{
+        const gItems = byTrade[g];
+        const rowsHtml = gItems.map(it=>{
+          const res = run.results[it.id] || {status:'', note:'', photoIds:[]};
+          const photosHtml = (res.photoIds||[]).map(pid=>`<div class="photo-item" style="width:60px;height:60px;display:inline-block;vertical-align:middle"><img data-thumb-id="${pid}" alt=""><button class="rm" data-pu-cl-rm-photo="${it.id}|${pid}">✕</button></div>`).join('');
+          return `<div class="punch-cl-item">
+            <div class="row1">
+              <div class="txt"><b>${escapeHtml(it.text)}</b>${it.detail? `<p>${escapeHtml(it.detail)}</p>` : ''}</div>
+              <div class="punch-cl-status">
+                <button class="${res.status==='pass'?'on pass':''}" data-pu-cl-set="${it.id}|pass" title="${tf('ผ่าน','Pass')}">✅</button>
+                <button class="${res.status==='fail'?'on fail':''}" data-pu-cl-set="${it.id}|fail" title="${tf('ไม่ผ่าน','Fail')}">❌</button>
+                <button class="${res.status==='na'?'on na':''}" data-pu-cl-set="${it.id}|na" title="${tf('ไม่เกี่ยวข้อง','N/A')}">➖</button>
+              </div>
             </div>
-          </div>
-          <div style="display:flex;gap:8px;align-items:center;margin-top:6px;flex-wrap:wrap">
-            <label class="photo-drop" style="padding:4px 10px;font-size:11px" for="pu-cl-photo-${it.id}">📷 ${tf('แนบรูป','Attach photo')}</label>
-            <input type="file" id="pu-cl-photo-${it.id}" data-pu-cl-photo-input="${it.id}" accept="image/*" multiple style="display:none">
-            ${photosHtml}
-          </div>
-          ${res.status==='fail'? `<input type="text" data-pu-cl-note="${it.id}" value="${escapeHtml(res.note||'')}" placeholder="${tf('หมายเหตุ (สาเหตุ/สิ่งที่ต้องแก้)','note (cause / what to fix)')}" style="margin-top:6px;width:100%;font-size:12px">` : ''}
-        </div>`;
+            <div style="display:flex;gap:8px;align-items:center;margin-top:6px;flex-wrap:wrap">
+              <label class="photo-drop" style="padding:4px 10px;font-size:11px" for="pu-cl-photo-${it.id}">📷 ${tf('แนบรูป','Attach photo')}</label>
+              <input type="file" id="pu-cl-photo-${it.id}" data-pu-cl-photo-input="${it.id}" accept="image/*" multiple style="display:none">
+              ${photosHtml}
+            </div>
+            ${res.status==='fail'? `<input type="text" data-pu-cl-note="${it.id}" value="${escapeHtml(res.note||'')}" placeholder="${tf('หมายเหตุ (สาเหตุ/สิ่งที่ต้องแก้)','note (cause / what to fix)')}" style="margin-top:6px;width:100%;font-size:12px">` : ''}
+          </div>`;
+        }).join('');
+        return `<div class="punch-cl-stage"><div class="punch-cl-stage-label">${escapeHtml(g)}</div>${rowsHtml}</div>`;
       }).join('');
-      return `<div class="punch-cl-stage"><div class="punch-cl-stage-label">${st.ic} ${tf(st.th,st.en)}</div>${rowsHtml}</div>`;
-    }).join('');
+    })();
     return `<div class="punch-cl-group">
-      <div class="punch-cl-group-head" data-pu-cl-toggle="${escapeHtml(g)}"><span>${expanded?'▾':'▸'} ${escapeHtml(g)}</span><span class="count">${gDone}/${gItems.length}</span></div>
-      ${stagesHtml}
+      <div class="punch-cl-group-head" data-pu-cl-toggle="${st.v}"><span>${expanded?'▾':'▸'} ${st.ic} ${tf(st.th,st.en)}</span><span class="count">${stDone}/${stItems.length}</span></div>
+      ${tradesHtml}
     </div>`;
   }).join('');
 
@@ -10599,7 +10756,7 @@ function renderPunchChecklistView(proj){
     <div class="sub" style="margin-top:6px">${tf('ตรวจแล้ว','Checked')} ${done}/${total} · ✅ ${passN} · ❌ ${failN}</div>
     <div class="punch-cl-progress"><i style="width:${pct}%"></i></div>
   </div>
-  <div style="margin-top:14px">${groupsHtml}</div>
+  <div style="margin-top:14px">${stagesHtml}</div>
   `;
 }
 
@@ -12569,6 +12726,7 @@ function wireScreen(){
   else if(state.tab==='costlog') wireCostLog();
   else if(state.tab==='budget') wireBudget();
   else if(state.tab==='dashboard') wireDashboard();
+  else if(state.tab==='notes') wireNotes();
   else if(state.tab==='punch') wirePunch();
   else if(state.tab==='billing') wireBilling();
   else if(state.tab==='report') wireReport();
