@@ -1000,6 +1000,8 @@ select.pp-status-select.pp-noneed{background:var(--surface-2);color:var(--ink-50
 .photo-item .edit-ic{position:absolute;left:5px;bottom:5px;width:22px;height:22px;border-radius:50%;background:rgba(20,18,36,.62);color:#fff;display:flex;align-items:center;justify-content:center;font-size:11px;cursor:pointer}
 .punch-annotate-wrap{background:#111;border-radius:var(--radius-sm);overflow:auto;text-align:center;max-height:60vh}
 .punch-annotate-wrap canvas{touch-action:none;cursor:crosshair;max-width:none}
+.punch-an-toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.punch-an-toolbar button.active{background:var(--purple-600);border-color:var(--purple-600);color:#fff}
 .punch-cl-group{border:1px solid var(--line);border-radius:var(--radius-sm);margin-bottom:10px;overflow:hidden}
 .punch-cl-group-head{padding:10px 14px;background:var(--surface-2);cursor:pointer;display:flex;align-items:center;justify-content:space-between;font-family:var(--font-display);font-size:13px}
 .punch-cl-stage{padding:10px 14px;border-top:1px solid var(--line)}
@@ -10446,7 +10448,7 @@ let editingPunchItemId = null; // null | 'new' | itemId
 let punchPendingPin = null; // {x,y,radius} captured from a viewer click/drag, consumed by the next openPunchItemDraft(proj,'new',planId) -- radius is 0 for a plain point pin, >0 for a dragged circle
 let punchDrawMode = 'pin'; // 'pin' (tap to place a point) | 'circle' (drag to mark an area) -- which interaction the plan viewer's pointer handlers use right now
 let punchFilterStatus='all', punchFilterSeverity='all', punchFilterCategory='', punchFilterAssignee='', punchFilterSearch='';
-let punchAnnotating = null; // {dataUrl, strokes:[], zoom, onSave} -- drives the annotate modal, opened on top of the item modal
+let punchAnnotating = null; // {dataUrl, marks:[], zoom, tool, onSave, isPlan} -- drives the annotate modal, opened on top of the item modal. marks is a mixed list of {type:'stroke'|'circle'|'text', ...} in draw order (replaces the old single-purpose `strokes` list so pen/highlight/circle/text all undo and redraw together in the order they were drawn). `tool` is whichever of 'pen'|'highlight'|'circle'|'text' is currently selected in the toolbar. `isPlan` is true when annotating a copy of the blueprint (as opposed to a before/after defect photo) -- purely cosmetic (title/hint text), the save behavior itself is entirely decided by the caller's own `onSave`.
 let punchChecklistManagerOpen = false;
 let punchShowQr = false;
 let punchSubView = 'defects'; // 'defects' | 'checklist'
@@ -11042,6 +11044,7 @@ function punchItemModalHtml(){
   const d = punchItemDraft;
   const isNew = editingPunchItemId==='new';
   const proj = P();
+  const planForAnnotate = proj.punchPlans.find(p=>p.id===d.planId);
   const assigneeList = Array.from(new Set(
     (state.contractors||[]).filter(c=>c.active!==false).map(c=>c.name).filter(Boolean)
     .concat(STANDARD_TEAMS)
@@ -11087,6 +11090,7 @@ function punchItemModalHtml(){
         <label>📷 ${tf('รูปถ่ายจุดบกพร่อง (ก่อนแก้ไข)','Defect photos (before)')}</label>
         <label class="photo-drop" for="pu-photo-before-input">📷 ${tf('แตะเพื่อเลือกรูปภาพ','Tap to choose photos')}</label>
         <input type="file" id="pu-photo-before-input" accept="image/*" multiple style="display:none">
+        ${planForAnnotate&&planForAnnotate.imageId? `<button type="button" class="btn ghost sm" id="pu-annotate-plan" style="margin-top:8px">📐 ${tf('วาด/ไฮไลท์/พิมพ์ข้อความบนแปลน','Draw / highlight / add text on the plan')}</button>` : ''}
         ${(existingBefore.length||d.pendingBefore.length)? `<div class="photo-grid" style="margin-top:10px">${beforeThumbs}</div>` : ''}
       </div>
       ${(d.status==='fixed'||d.status==='closed'||existingAfter.length||d.pendingAfter.length)? `<div class="field" style="margin-top:12px">
@@ -11145,9 +11149,28 @@ function wirePunchItemModal(){
       onSave = async (newDataUrl)=>{ if(arr[idx]) arr[idx].dataUrl = newDataUrl; };
     }
     if(!dataUrl){ toast(tf('โหลดรูปไม่สำเร็จ','Failed to load photo')); return; }
-    punchAnnotating = {dataUrl, strokes:[], zoom:1, onSave};
+    punchAnnotating = {dataUrl, marks:[], zoom:1, tool:'pen', onSave};
     render();
   });
+  // "Draw on plan" -- loads a read-only copy of this item's own blueprint
+  // (proj.punchPlans, looked up by d.planId) into the same annotate canvas
+  // used for before/after photos above, but onSave never touches the
+  // plan's own imageId: it idbPut()s a brand-new id and pushes it onto
+  // d.pendingBefore, exactly like a freshly-taken photo would be, so the
+  // annotated result becomes one more "before" photo on THIS defect only.
+  // Multiple defects can each annotate the same blueprint independently
+  // without ever disturbing the master plan image other screens rely on.
+  const annotatePlanBtn = $('#pu-annotate-plan');
+  if(annotatePlanBtn) annotatePlanBtn.onclick = async ()=>{
+    syncPunchItemDraftFromDom();
+    const plan = proj.punchPlans.find(p=>p.id===d.planId);
+    if(!plan || !plan.imageId){ toast(tf('แปลนนี้ยังไม่มีรูปภาพ','This plan has no image yet')); return; }
+    const dataUrl = await loadRefPhoto(plan.imageId);
+    if(!dataUrl){ toast(tf('โหลดแปลนไม่สำเร็จ','Failed to load the plan')); return; }
+    const onSave = async (newDataUrl)=>{ d.pendingBefore.push({dataUrl:newDataUrl}); };
+    punchAnnotating = {dataUrl, marks:[], zoom:1, tool:'pen', onSave, isPlan:true};
+    render();
+  };
   const saveBtn=$('#pu-item-save'); if(saveBtn) saveBtn.onclick = async ()=>{ if(await commitPunchItem(null,'')){ closePunchItemDraft(); toast(tf('บันทึกแล้ว','Saved')); } };
   const markFixedBtn=$('#pu-mark-fixed'); if(markFixedBtn) markFixedBtn.onclick = async ()=>{ if(await commitPunchItem('fixed', tf('ทำเครื่องหมายว่าแก้ไขแล้ว รอตรวจซ้ำ','marked fixed, awaiting re-check'))){ closePunchItemDraft(); toast(tf('บันทึกแล้ว','Saved')); } };
   const failBtn=$('#pu-reinspect-fail'); if(failBtn) failBtn.onclick = async ()=>{ if(await commitPunchItem('open', tf('ตรวจซ้ำไม่ผ่าน ส่งกลับแก้ไข','failed re-check, sent back'))){ closePunchItemDraft(); toast(tf('ส่งกลับแก้ไขแล้ว','Sent back')); } };
@@ -11400,37 +11423,86 @@ function wirePunchChecklistModal(){
    Zoom go through a full redraw from the stored stroke list. ---- */
 function punchAnnotateModalHtml(){
   if(!punchAnnotating) return '';
+  const st = punchAnnotating;
+  const tool = st.tool||'pen';
+  const tools = [
+    {v:'pen', ic:'✏️', label:tf('ปากกา','Pen')},
+    {v:'highlight', ic:'🖍️', label:tf('ไฮไลท์','Highlight')},
+    {v:'circle', ic:'⭕', label:tf('วงกลม','Circle')},
+    {v:'text', ic:'🔤', label:tf('ข้อความ','Text')},
+  ];
+  const toolHint = tool==='text'
+    ? tf('แตะบนรูปเพื่อพิมพ์ข้อความ','Tap the photo to type a text label')
+    : tool==='circle'
+    ? tf('ลากบนรูปเพื่อวาดวงกลม','Drag on the photo to draw a circle')
+    : tool==='highlight'
+    ? tf('ลากบนรูปเพื่อไฮไลท์','Drag on the photo to highlight an area')
+    : tf('ลากนิ้ว/เมาส์บนรูปเพื่อวาดเส้นสีแดงชี้จุดบกพร่อง','Drag your finger/mouse on the photo to draw a red line pointing at the defect');
   return `
   <div class="modal-bg" id="pu-annotate-modal-bg">
     <div class="modal">
-      <div class="modal-head"><h3>✏️ ${tf('วาดชี้จุด / ซูมดูรายละเอียด','Draw / zoom to point out the defect')}</h3><button class="iconbtn" id="pu-annotate-close">✕</button></div>
-      <div style="display:flex;gap:8px;margin-bottom:8px;flex-wrap:wrap;align-items:center">
+      <div class="modal-head"><h3>✏️ ${st.isPlan? tf('วาด/ไฮไลท์/พิมพ์ข้อความบนแปลน','Draw / highlight / add text on the plan') : tf('วาดชี้จุด / ซูมดูรายละเอียด','Draw / zoom to point out the defect')}</h3><button class="iconbtn" id="pu-annotate-close">✕</button></div>
+      <div class="punch-an-toolbar">
+        ${tools.map(t=>`<button class="btn ghost sm ${tool===t.v?'active':''}" data-an-tool="${t.v}">${t.ic} ${t.label}</button>`).join('')}
+        <span style="flex:1"></span>
         <button class="btn ghost sm" id="pu-an-zoom-out">🔍−</button>
         <button class="btn ghost sm" id="pu-an-zoom-in">🔍+</button>
         <button class="btn ghost sm" id="pu-an-undo">↩️ ${tf('เลิกทำ','Undo')}</button>
         <button class="btn ghost sm" id="pu-an-clear">🗑️ ${tf('ล้างทั้งหมด','Clear all')}</button>
       </div>
-      <div class="hint">${tf('ลากนิ้ว/เมาส์บนรูปเพื่อวาดเส้นสีแดงชี้จุดบกพร่อง','Drag your finger/mouse on the photo to draw a red line pointing at the defect')}</div>
+      <div class="hint" style="margin-top:6px">${toolHint}</div>
+      ${st.isPlan? `<div class="hint">💡 ${tf('บันทึกแล้วจะได้เป็นรูปสำเนาแนบไว้กับรายการนี้เท่านั้น — แปลนต้นฉบับจะไม่ถูกแก้ไข','Saving creates a copy attached only to this item -- the original blueprint is never changed')}</div>` : ''}
       <div class="punch-annotate-wrap" id="pu-annotate-wrap" style="margin-top:10px"><canvas id="pu-annotate-canvas"></canvas></div>
       <div style="display:flex;gap:10px;margin-top:14px">
-        <button class="btn primary block" id="pu-annotate-save">${tf('บันทึกรูปที่วาด','Save annotated photo')}</button>
+        <button class="btn primary block" id="pu-annotate-save">${st.isPlan? tf('บันทึกเป็นรูปแนบของรายการนี้','Save as a photo on this item') : tf('บันทึกรูปที่วาด','Save annotated photo')}</button>
       </div>
     </div>
   </div>`;
 }
-let _puAnImg=null, _puAnDrawing=false, _puAnCurrentStroke=null;
-function punchAnDrawStroke(ctx, pts){
-  if(pts.length<2) return;
-  ctx.strokeStyle='#FF3B30'; ctx.lineWidth=4; ctx.lineJoin='round'; ctx.lineCap='round';
+// ---- Multi-tool canvas annotator: pen (freehand line), highlight (thick
+// translucent freehand), circle (drag an outlined+filled ellipse), and text
+// (tap, then a prompt() for the label -- same pattern the app already uses
+// elsewhere for a short one-line input, e.g. the PIN/rejection-reason
+// prompts). All four live in one `marks` list in draw order, so Undo/Clear
+// and redraw don't need to know or care which tool made which mark.
+let _puAnImg=null, _puAnDrawing=false, _puAnCurrentStroke=null, _puAnDragStart=null;
+function punchAnDrawStrokeMark(ctx, m){
+  const pts = m.pts;
+  if(!pts || pts.length<2) return;
+  if(m.tool==='highlight'){ ctx.strokeStyle='#FFD500'; ctx.lineWidth=22; ctx.globalAlpha=0.4; }
+  else { ctx.strokeStyle='#FF3B30'; ctx.lineWidth=4; ctx.globalAlpha=1; }
+  ctx.lineJoin='round'; ctx.lineCap='round';
   ctx.beginPath(); ctx.moveTo(pts[0].x, pts[0].y);
   for(let i=1;i<pts.length;i++) ctx.lineTo(pts[i].x, pts[i].y);
   ctx.stroke();
+  ctx.globalAlpha=1;
+}
+function punchAnDrawCircleMark(ctx, m){
+  const cx=(m.x1+m.x2)/2, cy=(m.y1+m.y2)/2, rx=Math.abs(m.x2-m.x1)/2, ry=Math.abs(m.y2-m.y1)/2;
+  if(rx<1 || ry<1) return;
+  ctx.beginPath(); ctx.ellipse(cx,cy,rx,ry,0,0,Math.PI*2);
+  ctx.fillStyle='rgba(255,59,48,0.15)'; ctx.fill();
+  ctx.strokeStyle='#FF3B30'; ctx.lineWidth=3; ctx.stroke();
+}
+function punchAnDrawTextMark(ctx, m){
+  ctx.font='bold 22px sans-serif'; ctx.textBaseline='top';
+  const metrics = ctx.measureText(m.text);
+  const padX=6, padY=4;
+  ctx.fillStyle='rgba(255,255,255,0.85)';
+  ctx.fillRect(m.x-padX, m.y-padY, metrics.width+padX*2, 22+padY*2);
+  ctx.fillStyle='#D0021B';
+  ctx.fillText(m.text, m.x, m.y);
+}
+function punchAnDrawMark(ctx, m){
+  if(m.type==='stroke') punchAnDrawStrokeMark(ctx, m);
+  else if(m.type==='circle') punchAnDrawCircleMark(ctx, m);
+  else if(m.type==='text') punchAnDrawTextMark(ctx, m);
 }
 function punchAnRedraw(canvas, img, st){
   const ctx = canvas.getContext('2d');
   ctx.clearRect(0,0,canvas.width,canvas.height);
   ctx.drawImage(img,0,0,canvas.width,canvas.height);
-  st.strokes.forEach(s=> punchAnDrawStroke(ctx,s));
+  (st.marks||[]).forEach(m=> punchAnDrawMark(ctx,m));
 }
 function punchAnApplyZoom(canvas, st){
   canvas.style.width = Math.round(canvas.width*st.zoom)+'px';
@@ -11440,6 +11512,8 @@ function wirePunchAnnotateModal(){
   const bg = $('#pu-annotate-modal-bg');
   if(!bg || !punchAnnotating) return;
   const st = punchAnnotating;
+  if(!Array.isArray(st.marks)) st.marks=[];
+  if(!st.tool) st.tool='pen';
   const close = ()=>{ punchAnnotating=null; render(); };
   $('#pu-annotate-close').onclick = close;
   bg.addEventListener('click', e=>{ if(e.target===bg) close(); });
@@ -11461,25 +11535,50 @@ function wirePunchAnnotateModal(){
     const clientY = e.touches? e.touches[0].clientY : e.clientY;
     return {x:(clientX-rect.left)/rect.width*canvas.width, y:(clientY-rect.top)/rect.height*canvas.height};
   };
-  canvas.onpointerdown = (e)=>{ e.preventDefault(); _puAnDrawing=true; _puAnCurrentStroke=[getPos(e)]; };
+  canvas.onpointerdown = (e)=>{
+    e.preventDefault();
+    const pos = getPos(e);
+    if(st.tool==='text'){
+      const text = (prompt(tf('พิมพ์ข้อความที่จะแปะบนรูป:','Type the text to place on the photo:'))||'').trim();
+      if(text) st.marks.push({type:'text', x:pos.x, y:pos.y, text});
+      if(_puAnImg) punchAnRedraw(canvas, _puAnImg, st);
+      return;
+    }
+    _puAnDrawing=true;
+    if(st.tool==='circle') _puAnDragStart=pos;
+    else _puAnCurrentStroke=[pos];
+  };
   canvas.onpointermove = (e)=>{
     if(!_puAnDrawing || !_puAnImg) return;
     e.preventDefault();
-    _puAnCurrentStroke.push(getPos(e));
-    punchAnRedraw(canvas, _puAnImg, st);
-    punchAnDrawStroke(canvas.getContext('2d'), _puAnCurrentStroke);
+    const pos = getPos(e);
+    if(st.tool==='circle'){
+      punchAnRedraw(canvas, _puAnImg, st);
+      punchAnDrawCircleMark(canvas.getContext('2d'), {x1:_puAnDragStart.x, y1:_puAnDragStart.y, x2:pos.x, y2:pos.y});
+    } else {
+      _puAnCurrentStroke.push(pos);
+      punchAnRedraw(canvas, _puAnImg, st);
+      punchAnDrawStrokeMark(canvas.getContext('2d'), {tool:st.tool, pts:_puAnCurrentStroke});
+    }
   };
-  const endStroke = ()=>{
+  const endStroke = (e)=>{
     if(!_puAnDrawing) return;
     _puAnDrawing=false;
-    if(_puAnCurrentStroke && _puAnCurrentStroke.length>1) st.strokes.push(_puAnCurrentStroke);
-    _puAnCurrentStroke=null;
+    if(st.tool==='circle' && _puAnDragStart){
+      const pos = getPos(e);
+      st.marks.push({type:'circle', x1:_puAnDragStart.x, y1:_puAnDragStart.y, x2:pos.x, y2:pos.y});
+    } else if(_puAnCurrentStroke && _puAnCurrentStroke.length>1){
+      st.marks.push({type:'stroke', tool:st.tool, pts:_puAnCurrentStroke});
+    }
+    _puAnCurrentStroke=null; _puAnDragStart=null;
+    if(_puAnImg) punchAnRedraw(canvas, _puAnImg, st);
   };
   canvas.onpointerup = endStroke; canvas.onpointerleave = endStroke; canvas.onpointercancel = endStroke;
+  $$('[data-an-tool]').forEach(b=> b.onclick = ()=>{ st.tool = b.dataset.anTool; render(); });
   $('#pu-an-zoom-in').onclick = ()=>{ st.zoom = Math.min(3, (st.zoom||1)+0.5); punchAnApplyZoom(canvas, st); };
   $('#pu-an-zoom-out').onclick = ()=>{ st.zoom = Math.max(1, (st.zoom||1)-0.5); punchAnApplyZoom(canvas, st); };
-  $('#pu-an-undo').onclick = ()=>{ st.strokes.pop(); if(_puAnImg) punchAnRedraw(canvas, _puAnImg, st); };
-  $('#pu-an-clear').onclick = ()=>{ st.strokes=[]; if(_puAnImg) punchAnRedraw(canvas, _puAnImg, st); };
+  $('#pu-an-undo').onclick = ()=>{ st.marks.pop(); if(_puAnImg) punchAnRedraw(canvas, _puAnImg, st); };
+  $('#pu-an-clear').onclick = ()=>{ st.marks=[]; if(_puAnImg) punchAnRedraw(canvas, _puAnImg, st); };
   $('#pu-annotate-save').onclick = async ()=>{
     const finalUrl = canvas.toDataURL('image/jpeg',0.85);
     const onSave = st.onSave;
