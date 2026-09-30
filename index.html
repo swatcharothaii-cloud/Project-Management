@@ -197,47 +197,25 @@ a{color:inherit}
 .status-pill.bad .dot{background:#FCA5A5;box-shadow:0 0 0 3px rgba(252,165,165,.25)}
 .status-pill.idle .dot{background:#E0E4FD}
 
+/* Tabs wrap onto as many rows as needed rather than scrolling horizontally,
+   so every tab label is always fully visible on screen without the user
+   having to discover or use any scroll affordance (a horizontal-scroll +
+   fade/arrow version of this was tried first and wasn't enough -- users
+   still perceived cut-off tabs as "missing" even with a scroll hint). */
 .tabbar{
   position:sticky;top:66px;z-index:39;
-  display:flex;gap:2px;background:var(--surface);
+  display:flex;flex-wrap:wrap;gap:3px 2px;background:var(--surface);
   border-bottom:1px solid var(--line);
-  padding:0 10px;overflow-x:auto;scrollbar-width:none;
+  padding:4px 10px 0;
 }
-.tabbar::-webkit-scrollbar{display:none}
 .tabbtn{
   flex:none;display:flex;align-items:center;gap:7px;
-  padding:13px 15px;font-size:13.5px;font-weight:600;color:var(--ink-500);
+  padding:11px 14px;font-size:13.5px;font-weight:600;color:var(--ink-500);
   border:none;background:none;border-bottom:2.5px solid transparent;
   white-space:nowrap;
 }
 .tabbtn .ic{font-size:15px}
 .tabbtn.active{color:var(--purple-700);border-bottom-color:var(--purple-600)}
-/* With many tabs (especially the longer Thai labels), the bar is wider than
-   the viewport and scrolls horizontally (overflow-x:auto above) -- but a
-   hidden scrollbar with no other hint left users unaware anything was cut
-   off past the right edge. tabbar-wrap adds: a fade at whichever edge(s)
-   still have more tabs to scroll to, and a pair of click-to-scroll arrow
-   buttons doing the same. Both are toggled by wireTabbarScroll() (see
-   wireGlobal()), which also lets mouse-wheel scroll the bar sideways and
-   keeps the active tab scrolled into view after every render(). */
-.tabbar-wrap{position:sticky;top:66px;z-index:39;}
-.tabbar-wrap .tabbar{position:static}
-.tabbar-wrap::before,.tabbar-wrap::after{
-  content:'';position:absolute;top:0;bottom:0;width:28px;z-index:2;pointer-events:none;
-  opacity:0;transition:opacity .15s;
-}
-.tabbar-wrap::before{left:0;background:linear-gradient(90deg,var(--surface),transparent)}
-.tabbar-wrap::after{right:0;background:linear-gradient(270deg,var(--surface),transparent)}
-.tabbar-wrap.can-scroll-left::before,.tabbar-wrap.can-scroll-right::after{opacity:1}
-.tabbar-arrow{
-  position:absolute;top:0;bottom:0;width:26px;z-index:3;display:none;
-  align-items:center;justify-content:center;border:none;cursor:pointer;
-  background:var(--surface);color:var(--ink-500);font-size:15px;
-  box-shadow:0 0 8px 4px var(--surface);
-}
-.tabbar-wrap.can-scroll-left .tabbar-arrow.left{display:flex;left:0}
-.tabbar-wrap.can-scroll-right .tabbar-arrow.right{display:flex;right:0}
-.tabbar-arrow:hover{color:var(--purple-700)}
 
 main{flex:1;width:100%;max-width:1180px;margin:0 auto;padding:22px 18px 64px;}
 .screen{display:flex;flex-direction:column;gap:18px;animation:rise .28s ease both}
@@ -4782,11 +4760,7 @@ function render(){
   app.className = screenTone;
   app.innerHTML = `
     ${renderTopbar()}
-    <div class="tabbar-wrap" id="tabbar-wrap">
-      ${renderTabbar()}
-      <button class="tabbar-arrow left" id="tabbar-arrow-left" aria-label="${tf('เลื่อนซ้าย','Scroll left')}">‹</button>
-      <button class="tabbar-arrow right" id="tabbar-arrow-right" aria-label="${tf('เลื่อนขวา','Scroll right')}">›</button>
-    </div>
+    ${renderTabbar()}
     <main><div class="screen">${renderScreen()}</div></main>
     ${renderModalRoot()}
   `;
@@ -4959,38 +4933,7 @@ function enterProject(id){
   render(); window.scrollTo({top:0});
 }
 
-// The tabbar scrolls horizontally when its tabs (especially the longer Thai
-// labels) don't all fit -- but with a hidden scrollbar (see .tabbar's own
-// CSS) that overflow was invisible: tabs past the edge just disappeared with
-// no hint more existed. This adds the discoverability back: edge fade +
-// click-to-scroll arrows (toggled on/off via .tabbar-wrap's can-scroll-left/
-// -right classes, kept in sync with actual scroll position), lets a plain
-// mouse wheel scroll the bar sideways (trackpads already sending their own
-// deltaX are left alone), and scrolls the active tab into view after every
-// render so switching tabs never leaves the new active one hidden off-screen.
-function wireTabbarScroll(){
-  const wrap = $('#tabbar-wrap');
-  const bar = wrap ? wrap.querySelector('.tabbar') : null;
-  if(!wrap || !bar) return;
-  const update = ()=>{
-    wrap.classList.toggle('can-scroll-left', bar.scrollLeft > 2);
-    wrap.classList.toggle('can-scroll-right', bar.scrollLeft < bar.scrollWidth-bar.clientWidth-2);
-  };
-  update();
-  setTimeout(update, 50); // re-check once fonts/layout settle
-  bar.addEventListener('scroll', update, {passive:true});
-  bar.addEventListener('wheel', (e)=>{
-    if(Math.abs(e.deltaY) <= Math.abs(e.deltaX)) return; // trackpad already scrolling sideways
-    bar.scrollLeft += e.deltaY;
-    e.preventDefault();
-  }, {passive:false});
-  const leftBtn = $('#tabbar-arrow-left'); if(leftBtn) leftBtn.onclick = ()=> bar.scrollBy({left:-220, behavior:'smooth'});
-  const rightBtn = $('#tabbar-arrow-right'); if(rightBtn) rightBtn.onclick = ()=> bar.scrollBy({left:220, behavior:'smooth'});
-  const activeBtn = bar.querySelector('.tabbtn.active');
-  if(activeBtn) activeBtn.scrollIntoView({inline:'nearest', block:'nearest'});
-}
 function wireGlobal(){
-  wireTabbarScroll();
   // data-nav switches only state.tab within the current project screen, which
   // is exactly what the field-mode tabbar (Daily Log <-> Order materials) and
   // its in-form quick-link button need too, so this stays unconditional.
