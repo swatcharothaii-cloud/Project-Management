@@ -10315,7 +10315,26 @@ async function refreshPunchPlanImages(){
   }
 }
 
+// Cloud sync (initCloudSync()/its onSnapshot listeners, see the big comment
+// above "IMPORTANT: Firestore is now the source of truth") replaces
+// state.projects wholesale with whatever Firestore holds, and every existing
+// project's Firestore document predates the punch* fields entirely -- so the
+// one-time bootstrap() migration (which only ever runs once, against the
+// state that existed at load) is not enough on its own; a cloud sync some
+// time later can silently overwrite a project back to having no punchPlans/
+// punchItems/punchChecklist/punchChecklistRuns at all, which crashed every
+// render here with "Cannot read properties of undefined (reading 'length')".
+// Self-healing at the top of renderPunch() -- called before every render,
+// on the exact same proj object reference P() always returns -- fixes that
+// regardless of what most recently touched state.projects.
+function ensurePunchDefaults(proj){
+  if(!Array.isArray(proj.punchPlans)) proj.punchPlans=[];
+  if(!Array.isArray(proj.punchItems)) proj.punchItems=[];
+  if(!Array.isArray(proj.punchChecklist)) proj.punchChecklist=defaultPunchChecklist();
+  if(!Array.isArray(proj.punchChecklistRuns)) proj.punchChecklistRuns=[];
+}
 function renderPunch(){
+  ensurePunchDefaults(P());
   return `
   <div class="page-head"><div><h2>📍 ${tf('ตรวจสอบ (INSPECT)','INSPECT')}</h2><div class="sub">${tf('ปักหมุดจุดบกพร่องบนแปลนดิจิทัล ติดตามการแก้ไข และเช็กลิสต์ตรวจงาน 3 ระยะพร้อมแนบรูปภาพ','Pin defects on the digital blueprint, track repairs, and run the 3-stage inspection checklist with photo evidence')}</div></div></div>
   <div class="punch-subnav">
