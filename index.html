@@ -490,13 +490,15 @@ tbody tr:hover{background:var(--surface-2)}
 .mp-cat-count{font-weight:400;opacity:.75;font-size:11.5px}
 .mp-expand-controls{display:flex;gap:8px;margin:0 0 12px}
 
-/* ---------- Master Plan: full-bleed breakout ----------
+/* ---------- Full-bleed breakout (Master Plan, Contractor Jobs) ----------
    main{} centers content at max-width:1180px, which is right for every
-   other screen but leaves distracting blank margins beside a wide
-   table+timeline. This one screen breaks out to the actual viewport width
-   (the classic negative-margin trick: 50% of the centered parent minus 50%
-   of the viewport cancels the parent's own centering) while keeping its own
-   side padding so content still isn't flush against the browser edge. */
+   other screen but leaves distracting blank margins beside a wide table
+   (Master Plan's timeline, the Contractor Jobs summary table). Any screen
+   with a wide table can opt into this same class to break out to the actual
+   viewport width (the classic negative-margin trick: 50% of the centered
+   parent minus 50% of the viewport cancels the parent's own centering)
+   while keeping its own side padding so content still isn't flush against
+   the browser edge. */
 .mp-full-bleed{width:100vw;margin-left:calc(-50vw + 50%);margin-right:calc(-50vw + 50%);padding:0 18px;box-sizing:border-box}
 @media(max-width:900px){.mp-full-bleed{padding:0 10px}}
 
@@ -12175,11 +12177,11 @@ function renderContractorJobs(proj=P()){
     <div><h2>${cjobViewTrash? '🗑️ '+tf('ใบงานที่ยกเลิก','Cancelled jobs') : '👷 '+tf('งานจ้างเหมา (RFQ)','Contractor Jobs (RFQ)')}</h2><div class="sub">${cjobViewTrash? tf('ใบงานจ้างเหมาที่ถูกยกเลิกทั้งหมด แยกไว้ต่างหากจากรายการงานที่ใช้งานอยู่','All cancelled contractor jobs, kept separate from the active job list') : tf('เปิดใบงาน ส่งให้ผู้รับเหมาหลายคนเสนอราคา ต่อรอง อนุมัติ ไปจนถึงนัดตรวจงานและเบิกเงิน','Post a job, invite several contractors to bid, negotiate, approve, then track inspection through to payout')}</div></div>
     ${cjobViewTrash? `<button class="btn ghost" id="btn-cjob-back-active">← ${tf('กลับไปหน้ารายการงาน','Back to job list')}</button>` : `<div style="display:flex;gap:8px">${cancelledCount? `<button class="btn ghost" id="btn-cjob-view-trash">🗑️ ${tf('ใบงานที่ยกเลิก','Cancelled')} (${cancelledCount})</button>` : ''}<button class="btn primary" id="btn-add-cjob">+ ${tf('เปิดใบงานใหม่','New job')}</button></div>`}
   </div>
-  ${jobs.length? `<div class="table-wrap"><table class="budget-table cjob-table"><thead><tr>
+  ${jobs.length? `<div class="mp-full-bleed"><div class="table-wrap"><table class="budget-table cjob-table"><thead><tr>
     <th>${tf('ชื่องาน','Job')}</th><th>${tf('สถานะ','Status')}</th><th>${tf('ผู้รับเหมาที่เชิญ','Invited')}</th>
     <th>${tf('ราคาต่ำสุดที่เสนอ','Lowest bid')}</th><th>${tf('ราคาที่อนุมัติ','Awarded')}</th>
     <th>${tf('วันเริ่มงาน','Start')}</th><th>${tf('กำหนดเสร็จ','Due')}</th><th>${tf('แจ้งเตือน','Alert')}</th>
-  </tr></thead><tbody>${body}</tbody></table></div>` : emptyMsg}
+  </tr></thead><tbody>${body}</tbody></table></div></div>` : emptyMsg}
   `;
 }
 function cjobRowHtml(job){
@@ -12199,7 +12201,7 @@ function cjobRowHtml(job){
     <td><span class="badge ${sdef.cls}">${cjobStatusLabel(job.status)}</span></td>
     <td class="tabular">${bidCount}</td>
     <td class="tabular">${lowest!=null? '฿'+fmtNum(lowest,0) : '-'}</td>
-    <td class="tabular">${job.awardedPrice!=null? '฿'+fmtNum(job.awardedPrice,0) : '-'}</td>
+    <td class="tabular">${job.awardedPrice!=null? `฿${fmtNum(job.awardedPrice,0)}${job.awardedBy? `<div class="hint" style="white-space:normal;margin-top:2px">${tf('โดย ','by ')}${escapeHtml(job.awardedBy)}</div>` : ''}` : '-'}</td>
     <td>${scheduleHtml}</td>
     <td class="tabular">${due? fmtDate(due) : '-'}</td>
     <td>${alertHtml}</td>
@@ -12399,7 +12401,7 @@ function cjobShareCardHtml(proj, job, contractor, bid, mode, photoDataUrls){
   const headerLabel = approved? tf('ใบอนุมัติราคา','Price Approval') : tf('ใบเสนอราคา','Quotation');
   const headerColor = approved? 'linear-gradient(135deg,#0D9668,#10B981)' : 'linear-gradient(135deg,#4F46E5,#6366F1)';
   const statusLine = approved
-    ? tf('✅ อนุมัติราคาแล้ว','✅ Price approved')+(job.awardedAt? ' · '+fmtDateTime(job.awardedAt) : '')
+    ? tf('✅ อนุมัติราคาแล้ว','✅ Price approved')+(job.awardedAt? ' · '+fmtDateTime(job.awardedAt) : '')+(job.awardedBy? ' · '+tf('โดย ','by ')+escapeHtml(job.awardedBy) : '')
     : tf('🧾 เสนอราคาแล้ว รอพิจารณา','🧾 Quotation submitted, pending review');
   const photos = photoDataUrls||[];
   const photosHtml = photos.length? `<div style="margin-top:14px;display:grid;grid-template-columns:repeat(${photos.length===1?1:2},1fr);gap:6px">
@@ -12691,6 +12693,10 @@ function cjobDetailModalHtml(){
       <div><div class="meta-lbl">${tf('จำนวนวันทำงาน','Working days')}</div><b class="tabular">${job.durationDays||'-'}</b></div>
       ${cjobDueDate(job)? `<div><div class="meta-lbl">${tf('กำหนดเสร็จ','Due')}</div><b class="tabular">${fmtDate(cjobDueDate(job))}</b></div>` : ''}
     </div>` : `<div class="hint" style="margin-top:12px">${tf('ยังไม่มีวันเริ่มงาน/จำนวนวันทำงาน — จะกำหนดจากใบเสนอราคาของผู้รับเหมาที่ได้รับเลือกโดยอัตโนมัติเมื่ออนุมัติราคา','No start date / working days yet -- these are set automatically from the awarded contractor’s quotation once a price is approved')}</div>`}
+    ${job.awardedPrice!=null? `<div class="field" style="max-width:320px;margin-top:14px">
+      <label>${tf('ชื่อผู้อนุมัติราคา','Price approved by')}</label>
+      <input type="text" id="cjob-approver-name" value="${escapeHtml(job.awardedBy||'')}" placeholder="${tf('ระบุชื่อผู้อนุมัติ','Enter approver name')}">
+    </div>` : ''}
     <div class="card" style="margin-top:18px">
       <b style="font-family:var(--font-display)">📋 ${tf('ใบเสนอราคาจากผู้รับเหมา (แยกแต่ละเจ้า)','Contractor quotations (one per contractor)')}</b>
       <div style="display:flex;flex-direction:column;gap:10px;margin-top:10px">${bidsHtml}</div>
@@ -12750,6 +12756,10 @@ function wireCjobDetailModal(){
   $('#cjob-detail-close').onclick = closeCjobDetail;
   bg.addEventListener('click', e=>{ if(e.target===bg) closeCjobDetail(); });
   const editBtn=$('#cjob-detail-edit'); if(editBtn) editBtn.onclick = ()=>{ openCjobDraft(job.id); render(); };
+  // Free-text, always-editable -- separate from the automatic timestamp/actor
+  // audit trail set by awardCjob(), so a name can be corrected or filled in
+  // retroactively for jobs that were approved before this field existed.
+  const approverEl=$('#cjob-approver-name'); if(approverEl) approverEl.onchange=()=>{ job.awardedBy=approverEl.value.trim(); saveData(); render(); };
   const cancelBtn=$('#cjob-detail-cancel'); if(cancelBtn) cancelBtn.onclick = ()=>{
     if(!confirm(tf('ยืนยันยกเลิกใบงานนี้?','Cancel this job?'))) return;
     job.status='cancelled'; saveData(); closeCjobDetail(); toast(tf('ยกเลิกใบงานแล้ว','Job cancelled'));
