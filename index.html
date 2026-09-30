@@ -531,7 +531,7 @@ tbody tr:hover{background:var(--surface-2)}
 /* Item row grid: task name+sub, start, end, days, [order date | delivery
    date | status -- the purchasing-plan columns folded in from the old
    separate "table" view], progress%. */
-.gantt-label-col.item-cols{display:grid;grid-template-columns:1fr 92px 92px 30px 92px 92px 98px 58px;column-gap:6px;align-items:center}
+.gantt-label-col.item-cols{display:grid;grid-template-columns:1fr 92px 92px 30px 92px 92px 98px 70px;column-gap:6px;align-items:center}
 .gantt-label-col.item-cols>div{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:10.5px;color:var(--ink-500)}
 .gantt-label-col.item-cols .gl-name-cell{display:flex;align-items:center;gap:8px;min-width:0}
 .gantt-label-col.item-cols .gl-taskwrap{min-width:0;overflow:hidden}
@@ -549,10 +549,19 @@ input.gl-mini-input[type="date"]::-webkit-calendar-picker-indicator{padding:2px;
 .gl-mini-input:focus,.gl-mini-select:focus{outline:2px solid var(--purple-100,var(--purple-50));border-color:var(--purple-500)}
 .gl-mini-badge{font-size:9px!important;padding:1px 5px!important;border-radius:999px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:inline-block;max-width:100%;box-sizing:border-box}
 .gl-progress-wrap{position:relative}
-.gl-progress-input{padding-right:15px!important;text-align:right}
-.gl-progress-input::-webkit-inner-spin-button,.gl-progress-input::-webkit-outer-spin-button{margin-left:2px}
+/* The native up/down spinner (webkit) used to eat ~18px out of this
+   already-narrow 70px column, on top of the padding-right reserved for the
+   "%" suffix -- together they left barely enough room for a single digit,
+   so a value like "100" was rendered clipped/invisible even though the
+   underlying <input> held the correct number (see the "% numbers don't show
+   completely" report on the Master Plan Gantt table). Hiding the spinner
+   reclaims that space; the field is still editable by typing a number or,
+   once focused, with the keyboard up/down arrows (step=5, from the input's
+   own attribute above -- unaffected by removing just the visible button). */
+.gl-progress-input{padding-right:16px!important;text-align:right;-moz-appearance:textfield}
+.gl-progress-input::-webkit-inner-spin-button,.gl-progress-input::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}
 .gl-pct{position:absolute;right:4px;top:50%;transform:translateY(-50%);font-size:9px;color:var(--ink-400);pointer-events:none}
-.gantt-header-row .gantt-label-col{display:grid;grid-template-columns:1fr 92px 92px 30px 92px 92px 98px 58px;column-gap:6px;align-items:center;font-size:10px;font-weight:700;color:var(--ink-500);text-transform:uppercase;letter-spacing:.02em}
+.gantt-header-row .gantt-label-col{display:grid;grid-template-columns:1fr 92px 92px 30px 92px 92px 98px 70px;column-gap:6px;align-items:center;font-size:10px;font-weight:700;color:var(--ink-500);text-transform:uppercase;letter-spacing:.02em}
 .gantt-header-row .gantt-label-col>div{text-align:center;white-space:nowrap;overflow:hidden}
 .gantt-header-row .gantt-label-col>div:first-child{text-align:left}
 /* Pin the header row (task-column titles + month/day timeline strip) to the
@@ -915,6 +924,53 @@ select.pp-status-select.pp-noneed{background:var(--surface-2);color:var(--ink-50
   .kcol{padding:0;border-right:none!important}
   .kcol:not(:last-child){padding-bottom:14px;border-bottom:1px solid var(--line)}
 }
+
+/* ---------- INSPECT (punch list + 3-stage checklist), see "SCREEN: INSPECT"
+   below ---------- */
+.punch-subnav{display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap}
+.punch-subnav button{background:var(--surface-2);border:1.5px solid var(--line);border-radius:999px;padding:7px 16px;font-size:12.5px;font-weight:600;color:var(--ink-500);cursor:pointer;font-family:var(--font-body)}
+.punch-subnav button.active{background:var(--purple-600);border-color:var(--purple-600);color:#fff}
+.punch-plan-tabs{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+.punch-plan-chip{display:flex;align-items:center;gap:7px;background:var(--surface);border:1.5px solid var(--line);border-radius:999px;padding:5px 8px 5px 5px;cursor:pointer;font-size:12.5px;font-weight:600}
+.punch-plan-chip img{width:26px;height:26px;border-radius:50%;object-fit:cover;background:var(--surface-2);flex:none}
+.punch-plan-chip.active{border-color:var(--purple-600);background:var(--purple-50);color:var(--purple-700)}
+.punch-plan-chip .add{width:26px;height:26px;border-radius:50%;background:var(--surface-2);display:flex;align-items:center;justify-content:center;flex:none}
+.punch-viewer{position:relative;border-radius:var(--radius-sm);overflow:hidden;background:var(--surface-2);border:1px solid var(--line);cursor:crosshair;user-select:none}
+.punch-viewer img{display:block;width:100%;height:auto;pointer-events:none}
+.punch-pin{position:absolute;width:26px;height:26px;margin-left:-13px;margin-top:-26px;border-radius:50% 50% 50% 0;transform:rotate(-45deg);border:2px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,.35);cursor:pointer;display:flex;align-items:center;justify-content:center}
+.punch-pin span{transform:rotate(45deg);color:#fff;font-size:10.5px;font-weight:700}
+.punch-pin.open{background:var(--coral-500)}
+.punch-pin.fixed{background:var(--amber-500)}
+.punch-pin.closed{background:var(--mint-500)}
+.punch-legend{display:flex;gap:14px;flex-wrap:wrap;font-size:11.5px;color:var(--ink-500);margin-top:8px}
+.punch-legend span{display:inline-flex;align-items:center;gap:5px}
+.punch-legend i{width:9px;height:9px;border-radius:50%;display:inline-block}
+.punch-list{display:flex;flex-direction:column;gap:8px;margin-top:12px}
+.punch-item-card{border:1px solid var(--line);border-left:3px solid var(--line);border-radius:var(--radius-sm);padding:10px 12px;cursor:pointer;background:var(--surface);display:flex;flex-direction:column;gap:4px}
+.punch-item-card.open{border-left-color:var(--coral-500)}
+.punch-item-card.fixed{border-left-color:var(--amber-500)}
+.punch-item-card.closed{border-left-color:var(--mint-500)}
+.punch-item-card .title{font-weight:600;font-size:13.5px}
+.punch-item-card .meta{font-size:11.5px;color:var(--ink-500)}
+.photo-item .edit-ic{position:absolute;left:5px;bottom:5px;width:22px;height:22px;border-radius:50%;background:rgba(20,18,36,.62);color:#fff;display:flex;align-items:center;justify-content:center;font-size:11px;cursor:pointer}
+.punch-annotate-wrap{background:#111;border-radius:var(--radius-sm);overflow:auto;text-align:center;max-height:60vh}
+.punch-annotate-wrap canvas{touch-action:none;cursor:crosshair;max-width:none}
+.punch-cl-group{border:1px solid var(--line);border-radius:var(--radius-sm);margin-bottom:10px;overflow:hidden}
+.punch-cl-group-head{padding:10px 14px;background:var(--surface-2);cursor:pointer;display:flex;align-items:center;justify-content:space-between;font-family:var(--font-display);font-size:13px}
+.punch-cl-stage{padding:10px 14px;border-top:1px solid var(--line)}
+.punch-cl-stage-label{font-size:11px;font-weight:700;color:var(--purple-600);text-transform:uppercase;letter-spacing:.02em;margin-bottom:8px}
+.punch-cl-item{padding:9px 0;border-top:1px dashed var(--line-soft)}
+.punch-cl-item:first-child{border-top:none}
+.punch-cl-item .row1{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}
+.punch-cl-item .txt b{font-size:12.5px}
+.punch-cl-item .txt p{font-size:11.5px;color:var(--ink-500);margin-top:2px;line-height:1.5}
+.punch-cl-status{display:flex;gap:5px;flex:none}
+.punch-cl-status button{width:30px;height:26px;border-radius:6px;border:1.5px solid var(--line);background:var(--surface);cursor:pointer;font-size:13px;display:flex;align-items:center;justify-content:center}
+.punch-cl-status button.on.pass{background:var(--mint-50);border-color:var(--mint-500)}
+.punch-cl-status button.on.fail{background:var(--coral-50);border-color:var(--coral-500)}
+.punch-cl-status button.on.na{background:var(--surface-2);border-color:var(--ink-300)}
+.punch-cl-progress{height:6px;border-radius:999px;background:var(--surface-2);overflow:hidden;margin-top:6px}
+.punch-cl-progress i{display:block;height:100%;background:linear-gradient(90deg,var(--mint-500),var(--mint-600))}
 
 /* ---------- Request detail / timeline ---------- */
 .rq-lines{display:flex;flex-direction:column;gap:8px}
@@ -4115,7 +4171,7 @@ let state = {
 // P() = the project currently open (state.view==='project'). Falls back to an
 // empty stub so calls made outside a project context never throw.
 function P(){
-  return state.projects.find(p=>p.id===state.currentProjectId) || {id:null,name:'',zone:'',boq:[],logs:[],materialRequests:[],costLog:[],contractorJobs:[]};
+  return state.projects.find(p=>p.id===state.currentProjectId) || {id:null,name:'',zone:'',boq:[],logs:[],materialRequests:[],costLog:[],contractorJobs:[],punchPlans:[],punchItems:[],punchChecklist:[],punchChecklistRuns:[]};
 }
 
 // Field-worker restricted link: opening the app with #field&project=<id> in the
@@ -4128,6 +4184,18 @@ function fieldProjectIdFromHash(){
   const parts = location.hash.replace('#','').split('&');
   const m = parts.find(s=> s.indexOf('project=')===0);
   return m ? decodeURIComponent(m.slice('project='.length)) : null;
+}
+// Optional &tab=<id> alongside #open&project=<id> (see OPEN_PROJECT_MODE
+// below) -- lets a deep link land on a specific tab (e.g. INSPECT's "copy
+// link" report button) instead of always defaulting to the dashboard.
+// Validated against TABS so a stale/typo'd value just falls through to the
+// dashboard rather than leaving state.tab pointing at nothing renderScreen()
+// recognizes.
+function tabFromHash(){
+  const parts = location.hash.replace('#','').split('&');
+  const m = parts.find(s=> s.indexOf('tab=')===0);
+  const v = m ? decodeURIComponent(m.slice('tab='.length)) : null;
+  return (v && TABS.some(t=>t.id===v)) ? v : null;
 }
 function fieldLink(projectId){
   return location.origin + location.pathname + location.search + '#field&project=' + encodeURIComponent(projectId);
@@ -4338,6 +4406,22 @@ function bootstrap(){
     state.projects.forEach(p=>{ if(!Array.isArray(p.contractorJobs)){ p.contractorJobs=[]; addedCjobs=true; } });
     if(addedCjobs) saveData();
   }
+  // migration: INSPECT (punch list + 3-stage checklist, proj.punchPlans/
+  // punchItems/punchChecklist/punchChecklistRuns) shipped after some installs
+  // already had saved projects -- same backfill pattern as costLog/
+  // contractorJobs above. punchChecklist (the editable template) is seeded
+  // from the default 3-stage checklist the first time only, so a project
+  // that already customized its template is never clobbered on reload.
+  {
+    let addedPunch=false;
+    state.projects.forEach(p=>{
+      if(!Array.isArray(p.punchPlans)){ p.punchPlans=[]; addedPunch=true; }
+      if(!Array.isArray(p.punchItems)){ p.punchItems=[]; addedPunch=true; }
+      if(!Array.isArray(p.punchChecklist)){ p.punchChecklist=defaultPunchChecklist(); addedPunch=true; }
+      if(!Array.isArray(p.punchChecklistRuns)){ p.punchChecklistRuns=[]; addedPunch=true; }
+    });
+    if(addedPunch) saveData();
+  }
   // price backfill: BOQ items for the Richmond project were originally
   // seeded before itemCode/unitPrice existed as fields, so installs with
   // data saved before those fields shipped are missing them on every item.
@@ -4410,7 +4494,7 @@ function bootstrap(){
     // link does.
     const pid = fieldProjectIdFromHash();
     const proj = state.projects.find(p=>p.id===pid);
-    if(proj){ state.currentProjectId = proj.id; state.view='project'; state.tab='dashboard'; }
+    if(proj){ state.currentProjectId = proj.id; state.view='project'; state.tab = tabFromHash() || 'dashboard'; }
   } else if(APPROVE_LINK_MODE){
     // Approval deep link: jump straight to Purchasing & Approval with the
     // one request's detail modal open. If this browser's local copy of the
@@ -4550,6 +4634,7 @@ const TABS = [
   {id:'budget',th:'งบประมาณ',en:'Budget',ic:'💰'},
   {id:'billing',th:'เบิกเงินงวด',en:'Billing',ic:'💵'},
   {id:'dailylog',th:'บันทึกประจำวัน',en:'Daily Log',ic:'📝'},
+  {id:'punch',th:'ตรวจสอบ (INSPECT)',en:'INSPECT',ic:'📍'},
   {id:'report',th:'รายงาน',en:'Report',ic:'🖨️'},
 ];
 
@@ -4599,6 +4684,15 @@ function render(){
 // computed transform isn't "none" -- .screen briefly has one during its
 // mount animation, which would misplace/clip a nested modal.
 function renderModalRoot(){
+  // punchAnnotating is checked first: it opens *on top of* an in-progress
+  // punchItemDraft (drawing on a defect photo mid-edit) or punchChecklistRun
+  // photo, and this app only ever shows one modal-bg at a time -- the
+  // underlying draft object is left untouched in memory so closing the
+  // annotator just falls through to whichever modal was open before it.
+  if(punchAnnotating) return punchAnnotateModalHtml();
+  if(punchItemDraft) return punchItemModalHtml();
+  if(punchPlanDraft) return punchPlanModalHtml();
+  if(punchChecklistManagerOpen) return punchChecklistModalHtml();
   if(itemDraft) return itemModalHtml();
   if(creatingRequest) return requestModalHtml();
   if(procureDetailId) return detailModalHtml();
@@ -4699,6 +4793,7 @@ function renderScreen(){
     case 'budget': return renderBudget();
     case 'billing': return renderBilling();
     case 'dashboard': return renderDashboard();
+    case 'punch': return renderPunch();
     case 'report': return renderReport();
     default: return renderMasterPlan();
   }
@@ -4720,6 +4815,11 @@ function resetTransient(){
   billingPickerRowId=null; billingPickerFiles=null; billingPickerLoading=false; billingPickerError='';
   cjobDraft=null; editingCjobId=null; cjobDetailId=null; cjobHandoverPending=[]; cjobViewTrash=false;
   cjobPoPending=[]; cjobPoDraft=null; cjobShareImageUrl=null;
+  punchSelectedPlanId=null; punchPlanDraft=null; editingPunchPlanId=null;
+  punchItemDraft=null; editingPunchItemId=null; punchPendingPin=null;
+  punchFilterStatus='all'; punchFilterSeverity='all'; punchFilterCategory=''; punchFilterAssignee=''; punchFilterSearch='';
+  punchAnnotating=null; punchChecklistManagerOpen=false; punchShowQr=false;
+  punchSubView='defects'; punchSelectedRunId=null; punchNewRunZone=''; punchClExpanded=new Set();
 }
 function goToHub(){
   resetTransient();
@@ -5295,7 +5395,7 @@ function wireProjectModal(){
     if(!name){ toast(tf('กรุณาระบุชื่อโครงการ','Please enter a project name')); return; }
     if(editingProjectId==='new'){
       const importedBoq = buildBoqFromImport();
-      state.projects.push({id:uid(), name, zone, groupName, driveFolderId, driveSyncedFileIds:[], billingFolderId, paymentFolderId, billingMilestones:[], boq:importedBoq, logs:[], materialRequests:[], costLog:[], inspectionReports:[], contractorJobs:[], createdAt:new Date().toISOString()});
+      state.projects.push({id:uid(), name, zone, groupName, driveFolderId, driveSyncedFileIds:[], billingFolderId, paymentFolderId, billingMilestones:[], boq:importedBoq, logs:[], materialRequests:[], costLog:[], inspectionReports:[], contractorJobs:[], punchPlans:[], punchItems:[], punchChecklist:defaultPunchChecklist(), punchChecklistRuns:[], createdAt:new Date().toISOString()});
       saveData(); closeProjectModal();
       toast(importedBoq.length? tf('สร้างโปรเจ็คใหม่แล้ว พร้อม BOQ ','Project created with a BOQ of ')+importedBoq.length+tf(' รายการ',' items') : tf('สร้างโปรเจ็คใหม่แล้ว','Project created'));
     } else {
@@ -10031,6 +10131,966 @@ function buildSCurve(asOf){
   return {svg};
 }
 
+/* ============================= SCREEN: INSPECT ============================= *
+   "INSPECT" (internal id 'punch', proj.punchPlans/punchItems/punchChecklist/
+   punchChecklistRuns) is a separate tool from both the existing "ใบตรวจงาน"
+   (Inspection Reports, proj.inspectionReports, a printed-form QC document with
+   an approval chain) and the Daily Log's own quick "issues" list -- neither
+   of those does on-plan defect pinning or a structured multi-stage checklist,
+   so this reuses the "punch" (industry term "punch list") naming internally
+   to avoid colliding with editingInspectionId/inspectionDraft/etc. above,
+   while still labeling the tab "ตรวจสอบ (INSPECT)" / "INSPECT" per spec. Two
+   sub-views share one tab (punchSubView):
+     defects   -- ปักหมุด (Digital Blueprint Pinning): upload a plan image per
+                  zone/floor, tap it to drop a pin, track each defect through
+                  open -> fixed (awaiting re-check) -> closed, with before/
+                  after photos (each annotatable: freehand red pen + zoom) and
+                  a print/PDF + copy-link + QR "one-click" report.
+     checklist -- the 3-stage (Pre-Operation / In-Progress / Post-Operation)
+                  standard checklist: an editable per-project template
+                  (punchChecklist) run against a named zone/location
+                  (punchChecklistRuns[].results), each item markable
+                  pass/fail/n-a with a note and photo evidence.
+   Photo storage reuses the app's existing idbPut/idbGet + compressImage
+   pattern (same as itemDraft/cjob photos above); the annotate tool draws
+   directly onto a <canvas> and flattens it back to a JPEG via toDataURL. */
+
+// ---- transient UI state (reset in resetTransient() above on every project
+// enter/leave; none of this is persisted -- only proj.punch* fields are) ----
+let punchSelectedPlanId = null;
+let punchPlanDraft = null; // {name, imageId, pendingPhoto:{dataUrl}|null}
+let editingPunchPlanId = null; // null | 'new' | planId
+let punchItemDraft = null;
+let editingPunchItemId = null; // null | 'new' | itemId
+let punchPendingPin = null; // {x,y} captured from a viewer click, consumed by the next openPunchItemDraft(proj,'new',planId)
+let punchFilterStatus='all', punchFilterSeverity='all', punchFilterCategory='', punchFilterAssignee='', punchFilterSearch='';
+let punchAnnotating = null; // {dataUrl, strokes:[], zoom, onSave} -- drives the annotate modal, opened on top of the item modal
+let punchChecklistManagerOpen = false;
+let punchShowQr = false;
+let punchSubView = 'defects'; // 'defects' | 'checklist'
+let punchSelectedRunId = null;
+let punchNewRunZone = '';
+let punchClExpanded = new Set(); // checklist template-group names currently expanded (collapsed by default, same convention as Master Plan's mpExpandedCats)
+
+const PUNCH_STATUS = [
+  {v:'open', th:'รอแก้ไข', en:'Open', cls:'bad'},
+  {v:'fixed', th:'แก้ไขแล้ว รอตรวจซ้ำ', en:'Fixed, awaiting re-check', cls:'warn'},
+  {v:'closed', th:'ปิดงานแล้ว', en:'Closed', cls:'ok'},
+];
+function punchStatusDef(v){ return PUNCH_STATUS.find(s=>s.v===v) || PUNCH_STATUS[0]; }
+function punchStatusLabel(v){ const s=punchStatusDef(v); return tf(s.th,s.en); }
+const PUNCH_SEVERITY = [
+  {v:'low', ic:'🟢', th:'เล็กน้อย', en:'Minor'},
+  {v:'medium', ic:'🟡', th:'ปานกลาง', en:'Medium'},
+  {v:'high', ic:'🔴', th:'รุนแรง', en:'Severe'},
+];
+function punchSeverityDef(v){ return PUNCH_SEVERITY.find(s=>s.v===v) || PUNCH_SEVERITY[1]; }
+function punchSeverityLabel(v){ const s=punchSeverityDef(v); return s.ic+' '+tf(s.th,s.en); }
+const PUNCH_CL_STAGES = [
+  {v:'pre', ic:'🔹', th:'ก่อนดำเนินงาน', en:'Pre-Operation'},
+  {v:'progress', ic:'🔸', th:'ระหว่างดำเนินงาน', en:'In-Progress'},
+  {v:'post', ic:'✅', th:'หลังดำเนินงาน', en:'Post-Operation'},
+];
+
+// ---- default 3-stage checklist template content (seeded once per project
+// into proj.punchChecklist, then freely editable via the "⚙️ จัดการเช็กลิสต์"
+// manager modal -- see punchChecklistModalHtml() below) ----
+const PUNCH_CHECKLIST_GROUPS = [
+  {group:'🚿 งานติดตั้งระบบสุขาภิบาลและห้องน้ำ', groupEn:'Sanitary & Bathroom Installation', items:[
+    {stage:'pre', text:'การตรวจสอบสเปกท่อและข้อต่อ', detail:'ตรวจเช็กยี่ห้อ ชั้นคุณภาพ (เช่น ท่อ PVC ชั้น 13.5), ขนาดท่อ และกาวประสานท่อ ว่าถูกต้องตามแบบและมาตรฐานโครงการ'},
+    {stage:'pre', text:'การเช็กตำแหน่งเจาะและแนวท่อ (Layout)', detail:'ตรวจสอบพิกัดการเจาะสลีฟ (Sleeve) ท่อน้ำดี ท่อน้ำทิ้ง และท่อส้วม ให้ตรงตามระยะสเปกของสุขภัณฑ์ที่จะนำมาติดตั้งจริง (ป้องกันระยะเยื้องศูนย์)'},
+    {stage:'pre', text:'ความสะอาดของพื้นที่ผิว', detail:'พื้นผิวคอนกรีตบริเวณห้องน้ำต้องสะอาด ไม่มีเศษปูนหรือสิ่งสกปรก เพื่อเตรียมพร้อมสำหรับงานระบบและการทาระบบกันซึม'},
+    {stage:'progress', text:'ความลาดเอียงของท่อ (Slope)', detail:'ตรวจสอบระดับความลาดเอียงของท่อน้ำทิ้ง (Floor Drain) และท่อส้วม (Soil Pipe) ให้ได้ตามมาตรฐาน (ไม่น้อยกว่า 1:100 หรือตามที่ระบุในแบบ)'},
+    {stage:'progress', text:'การเชื่อมต่อและดักกลิ่น', detail:'ตรวจสอบรอยต่อท่อว่าทากาวสม่ำเสมอแน่นหนา และมีการติดตั้งอุปกรณ์ดักกลิ่น (P-Trap / U-Trap) ในจุดที่กำหนด'},
+    {stage:'progress', text:'การทดสอบแรงดันน้ำ (Pressure Test)', detail:'อุดปลายท่อน้ำดีและทำการอัดแรงดันน้ำทิ้งไว้ตามเวลาที่กำหนด (เช่น 100-150 PSI เป็นเวลา 4-24 ชั่วโมง) เพื่อเช็กการรั่วซึมก่อนปิดทับผนังหรือเทพื้น'},
+    {stage:'progress', text:'การทำระบบกันซึม (Waterproofing)', detail:'ตรวจสอบการทาเคมีภัณฑ์กันซึมบริเวณพื้นและผนังห้องน้ำ (โดยเฉพาะบริเวณรอยต่อพื้นกับผนังต้องทาขึ้นมาสูงอย่างน้อย 20-30 ซม.)'},
+    {stage:'post', text:'การทดสอบขังน้ำพื้นห้องน้ำ (Water Leakage Test)', detail:'อุดท่อระบายน้ำที่พื้น ขังน้ำไว้สูงประมาณ 5-10 ซม. ทิ้งไว้อย่างน้อย 24 ชั่วโมง เพื่อตรวจดูการรั่วซึมที่ใต้ท้องพื้น (Floor Slab)'},
+    {stage:'post', text:'ความลาดเอียงของการระบายน้ำ (Floor Drain Slope)', detail:'ทดลองเทน้ำลงพื้นห้องน้ำเพื่อเช็กว่าน้ำไหลลงท่อได้รวดเร็ว ไม่มีน้ำขังเป็นแอ่ง'},
+    {stage:'post', text:'การติดตั้งและฟังก์ชันสุขภัณฑ์', detail:'ตรวจสอบความแน่นหนาของการติดตั้งชักโครก อ่างล้างหน้า ก๊อกน้ำ, ความแรงของน้ำ และระบบกดชำระ (Flush) ว่าทำงานสมบูรณ์ ไม่มีน้ำรั่วหยดตามข้อต่อ'},
+    {stage:'post', text:'ความสะอาดและการปกป้องผิว', detail:'สุขภัณฑ์และก๊อกน้ำต้องได้รับการทำความสะอาด ไม่มีคราบปูน/คราบกาว และมีการห่อปกป้องผิว (Protection) กันรอยขีดข่วนจนกว่าจะส่งมอบ'},
+  ]},
+  {group:'🧱 งานฉาบปูนและทาสีผนัง', groupEn:'Plastering & Wall Painting', items:[
+    {stage:'pre', text:'การเตรียมผิวผนัง', detail:'ผนังก่ออิฐต้องเคลียร์เศษปูนออก รดน้ำให้อิ่มตัวเพื่อป้องกันผิวอิฐแย่งน้ำจากปูนฉาบ (ลดการแตกร้าว)'},
+    {stage:'pre', text:'การติดตั้งลวดกรงไก่และเซี้ยม', detail:'ตรวจสอบการติดลวดตาข่ายกรงไก่บริเวณรอยต่อโครงสร้าง (เช่น รอยต่ออิฐกับเสา/คาน, มุมวงกบประตู-หน้าต่าง) และตรวจสอบดิ่ง-ฉากของการจับเซี้ยม/ปุ่มฉาบ'},
+    {stage:'pre', text:'การตรวจสเปกปูนและสี', detail:'ตรวจสอบประเภทปูนฉาบ (ฉาบทั่วไป หรือฉาบผิวบาง/Skim coat) และเฉดสี/รุ่นของสีทาภายนอก-ภายในให้ตรงตาม Spec'},
+    {stage:'progress', text:'ความหนาในการฉาบ', detail:'ควบคุมการฉาบปูนไม่ให้หนาเกินไปในเที่ยวเดียว (หากต้องฉาบหนาต้องแบ่งเป็นชั้นๆ) เพื่อป้องกันปูนหลุดร่อนหรือแตกลายงา'},
+    {stage:'progress', text:'ระยะเวลาบ่มปูน', detail:'มีการรดน้ำบ่มผิวปูนฉาบอย่างน้อย 3-7 วัน และทิ้งให้ผนังแห้งสนิท (เช็กค่าความชื้นผนังก่อนเริ่มงานทาสี)'},
+    {stage:'progress', text:'ขั้นตอนการทาสี', detail:'ตรวจสอบการทาสีนองพื้นกันด่าง 1 เที่ยว และทาสีทับหน้าอย่างน้อย 2 เที่ยว โดยต้องทิ้งระยะเวลาให้สีแต่ละเที่ยวแห้งสนิทก่อนทาทับ'},
+    {stage:'post', text:'ความเรียบเนียนและรอยแตกร้าว (Visual Finish)', detail:'ตรวจสอบผิวผนังฉาบ/ทาสี ต้องเรียบเนียน ไม่มีรอยแตกลายงา (Hairline Cracks) ไม่มีรอยด่าง หรือสีพองล่อน'},
+    {stage:'post', text:'ความสม่ำเสมอของเนื้อสี', detail:'ตรวจดูความสม่ำเสมอของเฉดสีทั่วทั้งผืนผนัง ไม่มีรอยแปรงหรือรอยลูกกลิ้งหนาเป็นคลื่น'},
+    {stage:'post', text:'ความสะอาดของขอบและจุดตัด', detail:'ตรวจสอบแนวเส้นตัดขอบสีระหว่างผนังกับฝ้า หรือผนังกับบัวพื้น ว่าคมชัด เรียบร้อย และไม่มีคราบสีเปื้อนบนวัสดุอื่น เช่น วงกบหรือปลั๊กไฟ'},
+  ]},
+  {group:'🏗️ งานติดตั้งฝ้าเพดาน', groupEn:'Ceiling Installation', items:[
+    {stage:'pre', text:'เคลียร์งานระบบเหนือฝ้า', detail:'ตรวจสอบให้มั่นใจว่างานระบบไฟฟ้า ประปา และปรับอากาศเหนือฝ้าเพดาน ได้รับการตรวจสอบและปิดงาน (Sign-off) เรียบร้อยแล้วก่อนปิดฝ้า'},
+    {stage:'pre', text:'เช็กระดับและสเปกวัสดุ', detail:'ตรวจสอบระดับความสูงของฝ้าเพดานตามแบบสถาปัตย์ ตรวจเช็กชนิดของแผ่นยิปซั่ม (เช่น แผ่นธรรมดา, แผ่นกันชื้นสำหรับห้องน้ำ, แผ่นทนไฟ) และขนาดโครงคร่าว'},
+    {stage:'pre', text:'ความแข็งแรงของจุดยึดโครง', detail:'ตรวจสอบระยะการเจาะยึดพุกเหล็กและชุดแขวนโครงคร่าวกับท้องพื้นคอนกรีต ว่าแน่นหนาและได้ระยะตามมาตรฐาน'},
+    {stage:'progress', text:'ระยะโครงคร่าว (Grid Spacing)', detail:'ตรวจสอบระยะห่างของโครงคร่าวหลักและโครงคร่าวซอย (เช่น ระยะ 40x120 ซม. หรือตามสเปก) เพื่อไม่ให้ฝ้าแอ่นตัวในอนาคต'},
+    {stage:'progress', text:'การยึดแผ่นยิปซั่ม', detail:'ตรวจสอบระยะการยิงสกรูยึดแผ่นยิปซั่ม หัวสกรูต้องจมลงไปในผิวแผ่นเล็กน้อยเพื่อเตรียมฉาบโป๊ว และมีการเว้นรอยต่อแผ่นอย่างเหมาะสม'},
+    {stage:'progress', text:'การฉาบรอยต่อและมุม', detail:'ตรวจสอบการติดผ้าเทปฉาบฝ้าบริเวณรอยต่อแผ่น และการฉาบปูนโป๊วปิดหัวสกรูและรอยต่ออย่างน้อย 2-3 เที่ยว พร้อมขัดเรียบ'},
+    {stage:'post', text:'ความราบเรียบของผืนฝ้า', detail:'ใช้ไฟส่องแนบผิวฝ้าเพื่อตรวจเช็กความราบเรียบ ต้องไม่มีรอยนูนตรงตะเข็บรอยต่อแผ่น และฝ้าต้องได้ระดับ ไม่แอ่นหรือตกท้องช้าง'},
+    {stage:'post', text:'ความเรียบร้อยของช่องเซอร์วิสและโคมไฟ', detail:'ตรวจเช็กการเจาะช่องเปิดเซอร์วิส (Service Knob) และช่องดาวน์ไลท์ ว่าเรียบร้อย แข็งแรง และตำแหน่งตรงตามแบบ'},
+    {stage:'post', text:'งานทาสีฝ้า', detail:'ผิวฝ้าเพดานหลังทาสีต้องเนียนสม่ำเสมอ ไม่มีรอยคราบด่างหรือรอยปูดพอง'},
+  ]},
+  {group:'⚡ ระบบไฟฟ้า', groupEn:'Electrical System', items:[
+    {stage:'pre', text:'การตรวจเช็กวัสดุและอุปกรณ์', detail:'ตรวจสอบสเปกสายไฟ (ขนาดตัวนำ THW, VAF, NYY), ท่อร้อยสายไฟ (ท่อ PVC สีเหลือง/สีขาว หรือท่อเหล็ก EMT), ตู้ Consumer Unit และเบรกเกอร์ ให้ตรงตามแบบไฟฟ้า'},
+    {stage:'pre', text:'แนวการเดินท่อและบล็อกฝัง', detail:'ตรวจสอบตำแหน่งการวางบล็อกสวิตช์-ปลั๊กไฟ และแนวการฝังท่อในผนัง/พื้น ให้ได้ระดับและความสูงตามแบบสถาปัตย์'},
+    {stage:'progress', text:'การร้อยสายและต่อสายไฟ', detail:'ตรวจสอบไม่ให้มีรอยต่อสายไฟภายในท่อร้อยสาย (ต้องต่อภายในกล่องพักสาย/Junction Box เท่านั้น) และการพันเทปพันสายไฟหรือใช้ Wire Nut อย่างแน่นหนา'},
+    {stage:'progress', text:'การแยกสีสายไฟและการจัดสายในตู้', detail:'ตรวจสอบการเดินสายตามมาตรฐานสีใหม่ (เช่น L=น้ำตาล, N=ฟ้า, G=เขียวแถบเหลือง) และการจัดเรียงสายในตู้ไฟให้เป็นระเบียบ เรียบร้อย มีป้ายเนมเพลท (Label) ระบุวงจรชัดเจน'},
+    {stage:'progress', text:'ระบบกราวด์ (Earthing System)', detail:'ตรวจสอบการติดตั้งแท่งกราวด์ (Ground Rod) และการต่อสายดินเข้ากับเครื่องใช้ไฟฟ้าหลัก เช่น เครื่องทำน้ำอุ่น และเต้ารับสามตา'},
+    {stage:'post', text:'การทดสอบความต่อเนื่องและแรงดันไฟฟ้า (Voltage & Continuity Test)', detail:'ทดสอบวัดแรงดันไฟฟ้าตามเต้ารับ (ต้องได้ประมาณ 220V) และตรวจเช็กว่าไม่มีการสลับสายระหว่าง Line และ Neutral'},
+    {stage:'post', text:'การทดสอบระบบกราวด์และ RCD', detail:'ใช้เครื่องทดสอบเต้ารับ (Socket Tester) เช็กระบบสายดิน และกดทดสอบปุ่ม Test ของอุปกรณ์ป้องกันไฟดูด (RCCB/RCBO) ว่าตัดวงจรจริง'},
+    {stage:'post', text:'ฟังก์ชันการทำงานของสวิตช์และดวงโคม', detail:'ทดลองเปิด-ปิดสวิตช์ไฟทุกจุด ดวงโคมดาวน์ไลท์และไฟกิ่งต้องติดครบถ้วน สวิตช์สองทาง (ถ้ามี) ต้องทำงานถูกต้อง'},
+    {stage:'post', text:'ความสมบูรณ์ภายนอก', detail:'หน้ากากสวิตช์และปลั๊กไฟติดตั้งได้ระนาบ แนบสนิทกับผนัง ไม่มีรอยแตกหัก และทำความสะอาดคราบสกปรกเรียบร้อย'},
+  ]},
+  {group:'📋 เช็กลิสต์มาตรฐานทั่วไป (3 ระยะ)', groupEn:'General Standard Checklist (3-Stage)', items:[
+    {stage:'pre', text:'การอนุมัติแบบและเอกสาร (Shop Drawing Approval)', detail:'ตรวจสอบว่าแบบขยายสำหรับหน้างาน (Shop Drawing) และขั้นตอนการทำงาน (Method Statement) ได้รับการอนุมัติจากวิศวกรหรือสถาปนิกแล้ว'},
+    {stage:'pre', text:'การตรวจสอบวัสดุ (Material Inspection)', detail:'ตรวจเช็กชนิด รุ่น ขนาด และแบรนด์ของวัสดุที่จัดส่งมาหน้างาน ว่าถูกต้องตรงตามสเปกและไม่มีความเสียหาย'},
+    {stage:'pre', text:'ความพร้อมของพื้นที่ (Site Readiness)', detail:'ตรวจสอบความสะอาด การเคลียร์พื้นที่ และระดับหรือพิกัดของพื้นที่ที่จะลงมือทำงาน'},
+    {stage:'pre', text:'ความปลอดภัยหน้างาน (Safety & Tools Inspection)', detail:'ตรวจเช็กอุปกรณ์ป้องกันส่วนบุคคล (PPE) ของช่าง เครื่องมือช่าง และระบบไฟฟ้าชั่วคราวหน้างานว่าพร้อมและปลอดภัย'},
+    {stage:'progress', text:'ความถูกต้องตามตำแหน่ง (Layout & Alignment)', detail:'ตรวจสอบแนว ดิ่ง ฉาก และระยะของการติดตั้งอย่างต่อเนื่อง (เช่น การตั้งเซี้ยมผนัง หรือการเดินแนวท่อ)'},
+    {stage:'progress', text:'มาตรฐานฝีมือช่าง (Workmanship)', detail:'ตรวจเช็กความประณีตในการทำงาน เช่น การผสมปูนตามสัดส่วน การเชื่อมรอยต่อเหล็ก หรือการทากันซึมตามจำนวนรอบที่กำหนด'},
+    {stage:'progress', text:'งานระบบฝังในสถาปัตยกรรม (MEP Embedded System)', detail:'ก่อนจะปิดผิว (เช่น เทคอนกรีตหรือปิดฝ้า) ต้องตรวจเช็กท่อร้อยสายไฟ ท่อน้ำดี-น้ำเสีย และการทดสอบแรงดันระบบเบื้องต้น'},
+    {stage:'progress', text:'การปกป้องพื้นผิว (Surface Protection)', detail:'ตรวจดูว่ามีการคลุมหน้างานหรือป้องกันความเสียหายที่อาจเกิดขึ้นกับวัสดุรอบข้างที่ทำเสร็จแล้วหรือไม่'},
+    {stage:'post', text:'ความสมบูรณ์ของผิวหน้า (Surface & Visual Finish)', detail:'ตรวจเช็กความเรียบร้อย ความเรียบเนียน เม็ดสี รอยร้าว รอยขีดข่วน หรือรอยด่างบนผิวงาน (ผนัง พื้น ฝ้า หรือเฟอร์นิเจอร์)'},
+    {stage:'post', text:'การทดสอบฟังก์ชันและการทำงาน (Functional Testing)', detail:'ทดสอบเปิด-ปิดสวิตช์ไฟ, ทดลองเปิดน้ำเพื่อเช็กการไหลและรอยรั่วซึม (Water Test), ทดสอบการลาดเอียงของพื้นห้องน้ำ (Floor Drain Slope)'},
+    {stage:'post', text:'ความถูกต้องของแบบแปลนจริง (As-Built Verification)', detail:'ตรวจสอบว่างานที่สร้างเสร็จจริงตรงตามแบบที่มีการแก้ไขล่าสุดหรือไม่'},
+    {stage:'post', text:'การทำความสะอาดและส่งมอบ (Final Cleaning & Clearance)', detail:'ตรวจเช็กการจัดเก็บขยะ เศษวัสดุ และการทำความสะอาดพื้นผิวให้พร้อมสำหรับขั้นตอนการตรวจรับงานขั้นต่อไป'},
+  ]},
+];
+function defaultPunchChecklist(){
+  const out=[];
+  PUNCH_CHECKLIST_GROUPS.forEach(g=>{
+    g.items.forEach(it=> out.push({id:uid(), group:g.group, groupEn:g.groupEn, stage:it.stage, text:it.text, detail:it.detail||''}));
+  });
+  return out;
+}
+
+// ---- data builders ----
+function newPunchPlan(){ return {id:uid(), name:'', imageId:null, createdAt:new Date().toISOString()}; }
+function newPunchItem(planId, x, y){
+  return {id:uid(), planId:planId||null, x:x==null?0.5:x, y:y==null?0.5:y,
+    title:'', category:'', severity:'medium', assignedTo:'', dueDate:'', notes:'',
+    status:'open', photosBefore:[], photosAfter:[],
+    createdAt:new Date().toISOString(), createdBy:currentActorName(), history:[]};
+}
+function punchShareLink(proj){ return projectLink(proj.id)+'&tab=punch'; }
+function punchOverdueCount(proj){
+  const today = todayStr();
+  return proj.punchItems.filter(it=> it.status==='open' && it.dueDate && it.dueDate<today).length;
+}
+// Applies every active module-level filter (status/severity/category/
+// assignee/search) plus the given plan scope, newest-first -- shared by both
+// the on-screen list and (indirectly, via the same status/counts) the KPI
+// cards above it.
+function punchFilteredItems(proj, planId){
+  let items = proj.punchItems.filter(it=> it.planId===planId);
+  if(punchFilterStatus!=='all') items = items.filter(it=>it.status===punchFilterStatus);
+  if(punchFilterSeverity!=='all') items = items.filter(it=>it.severity===punchFilterSeverity);
+  if(punchFilterCategory) items = items.filter(it=>it.category===punchFilterCategory);
+  if(punchFilterAssignee.trim()){
+    const q = punchFilterAssignee.trim().toLowerCase();
+    items = items.filter(it=>(it.assignedTo||'').toLowerCase().includes(q));
+  }
+  if(punchFilterSearch.trim()){
+    const q = punchFilterSearch.trim().toLowerCase();
+    items = items.filter(it=> (it.title||'').toLowerCase().includes(q) || (it.notes||'').toLowerCase().includes(q));
+  }
+  return items.slice().sort((a,b)=> (b.createdAt||'').localeCompare(a.createdAt||''));
+}
+// Generic [data-thumb-id]/[data-plan-img] async thumbnail fillers -- same
+// idbGet-via-loadRefPhoto cache every other photo feature in the app already
+// shares (BOQ reference photos, contractor-job photos, etc.), so a plan
+// image or defect photo uploaded here is instantly cached for every other
+// screen that happens to reference the same id, and vice versa.
+async function refreshPunchPhotos(){
+  const imgs = $$('[data-thumb-id]');
+  for(const img of imgs){ const data = await loadRefPhoto(img.dataset.thumbId); if(data) img.src = data; }
+}
+async function refreshPunchPlanImages(){
+  const imgs = $$('[data-plan-img]');
+  for(const img of imgs){
+    if(!img.dataset.planImg) continue;
+    const data = await loadRefPhoto(img.dataset.planImg);
+    if(data) img.src = data;
+  }
+}
+
+function renderPunch(){
+  return `
+  <div class="page-head"><div><h2>📍 ${tf('ตรวจสอบ (INSPECT)','INSPECT')}</h2><div class="sub">${tf('ปักหมุดจุดบกพร่องบนแปลนดิจิทัล ติดตามการแก้ไข และเช็กลิสต์ตรวจงาน 3 ระยะพร้อมแนบรูปภาพ','Pin defects on the digital blueprint, track repairs, and run the 3-stage inspection checklist with photo evidence')}</div></div></div>
+  <div class="punch-subnav">
+    <button data-punch-sub="defects" class="${punchSubView==='defects'?'active':''}">📍 ${tf('รายการ Defect บนแปลน','Defect Punch List')}</button>
+    <button data-punch-sub="checklist" class="${punchSubView==='checklist'?'active':''}">📋 ${tf('เช็กลิสต์ตรวจงาน 3 ระยะ','3-Stage Checklist')}</button>
+  </div>
+  ${punchSubView==='checklist'? renderPunchChecklistView(P()) : renderPunchDefectsView(P())}
+  `;
+}
+
+function renderPunchDefectsView(proj){
+  const total = proj.punchItems.length;
+  const openN = proj.punchItems.filter(it=>it.status==='open').length;
+  const fixedN = proj.punchItems.filter(it=>it.status==='fixed').length;
+  const closedN = proj.punchItems.filter(it=>it.status==='closed').length;
+  const overdueN = punchOverdueCount(proj);
+  const statsHtml = `<div class="grid cols-auto" style="margin-bottom:16px">
+    <div class="card kpi"><div class="stat"><span class="lbl">${tf('รายการทั้งหมด','Total defects')}</span><span class="num tabular">${total}</span></div></div>
+    <div class="card kpi"><div class="stat"><span class="lbl">🔴 ${tf('รอแก้ไข','Open')}</span><span class="num tabular" style="color:var(--coral-600)">${openN}</span></div></div>
+    <div class="card kpi"><div class="stat"><span class="lbl">🟡 ${tf('รอตรวจซ้ำ','Awaiting re-check')}</span><span class="num tabular" style="color:var(--amber-600)">${fixedN}</span></div></div>
+    <div class="card kpi"><div class="stat"><span class="lbl">🟢 ${tf('ปิดงานแล้ว','Closed')}</span><span class="num tabular" style="color:var(--mint-600)">${closedN}</span></div></div>
+    <div class="card kpi"><div class="stat"><span class="lbl">⏰ ${tf('เลยกำหนดแก้ไข','Overdue')}</span><span class="num tabular" style="color:${overdueN?'var(--coral-600)':'inherit'}">${overdueN}</span></div></div>
+  </div>`;
+
+  if(!proj.punchPlans.length){
+    return statsHtml + `<div class="card" style="text-align:center;padding:40px 20px">
+      <div class="empty"><span class="ic">📐</span>${tf('ยังไม่มีแปลนดิจิทัล — อัปโหลดรูปแปลน (ผังห้อง/ผังชั้น) เพื่อเริ่มปักหมุดจุดบกพร่อง','No digital blueprint yet -- upload a plan image (room/floor layout) to start pinning defects')}</div>
+      <button class="btn primary" style="margin-top:10px" id="pu-add-plan">+ ${tf('เพิ่มแปลน','Add blueprint')}</button>
+    </div>`;
+  }
+  if(!punchSelectedPlanId || !proj.punchPlans.find(p=>p.id===punchSelectedPlanId)) punchSelectedPlanId = proj.punchPlans[0].id;
+  const plan = proj.punchPlans.find(p=>p.id===punchSelectedPlanId);
+  const planTabsHtml = `<div class="punch-plan-tabs">
+    ${proj.punchPlans.map(p=>`<div class="punch-plan-chip ${p.id===punchSelectedPlanId?'active':''}" data-pu-plan="${p.id}"><img data-plan-img="${p.imageId||''}" alt="">${escapeHtml(p.name||tf('แปลนไม่มีชื่อ','Untitled plan'))}</div>`).join('')}
+    <div class="punch-plan-chip" id="pu-add-plan"><span class="add">➕</span>${tf('เพิ่มแปลน','Add plan')}</div>
+  </div>`;
+
+  const planItems = proj.punchItems.filter(it=>it.planId===plan.id);
+  const pinsHtml = planItems.map((it,idx)=>`<div class="punch-pin ${it.status}" style="left:${(it.x*100).toFixed(2)}%;top:${(it.y*100).toFixed(2)}%" data-pu-pin="${it.id}" title="${escapeHtml(it.title)}"><span>${idx+1}</span></div>`).join('');
+  const viewerHtml = `<div class="card">
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
+      <b style="font-family:var(--font-display);font-size:13.5px">📐 ${escapeHtml(plan.name||tf('แปลนไม่มีชื่อ','Untitled plan'))}</b>
+      <button class="btn ghost sm" id="pu-edit-plan" data-plan-id="${plan.id}">✏️ ${tf('แก้ไขแปลน','Edit plan')}</button>
+    </div>
+    <div class="punch-viewer" id="pu-viewer" style="margin-top:10px">
+      ${plan.imageId? `<img data-plan-img="${plan.imageId}" alt="">` : `<div class="empty" style="padding:60px 10px"><span class="ic">📐</span>${tf('แปลนนี้ยังไม่มีรูปภาพ','This plan has no image yet')}</div>`}
+      ${pinsHtml}
+    </div>
+    <div class="punch-legend">
+      <span><i style="background:var(--coral-500)"></i>${tf('รอแก้ไข','Open')}</span>
+      <span><i style="background:var(--amber-500)"></i>${tf('รอตรวจซ้ำ','Awaiting re-check')}</span>
+      <span><i style="background:var(--mint-500)"></i>${tf('ปิดงานแล้ว','Closed')}</span>
+      <span style="margin-left:auto">💡 ${tf('แตะบนแปลนเพื่อปักหมุดจุดบกพร่องใหม่','Tap the plan to pin a new defect')}</span>
+    </div>
+  </div>`;
+
+  const usedCategories = Array.from(new Set(planItems.map(it=>it.category).filter(Boolean)));
+  const filtersHtml = `<div class="card" style="margin-top:14px">
+    <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">
+      <div class="field" style="min-width:140px"><label>${tf('สถานะ','Status')}</label><select id="pu-f-status">
+        <option value="all" ${punchFilterStatus==='all'?'selected':''}>${tf('ทั้งหมด','All')}</option>
+        ${PUNCH_STATUS.map(s=>`<option value="${s.v}" ${punchFilterStatus===s.v?'selected':''}>${tf(s.th,s.en)}</option>`).join('')}
+      </select></div>
+      <div class="field" style="min-width:120px"><label>${tf('ความรุนแรง','Severity')}</label><select id="pu-f-severity">
+        <option value="all" ${punchFilterSeverity==='all'?'selected':''}>${tf('ทั้งหมด','All')}</option>
+        ${PUNCH_SEVERITY.map(s=>`<option value="${s.v}" ${punchFilterSeverity===s.v?'selected':''}>${s.ic} ${tf(s.th,s.en)}</option>`).join('')}
+      </select></div>
+      <div class="field" style="min-width:160px"><label>${tf('หมวดงาน','Category')}</label><select id="pu-f-category">
+        <option value="">${tf('ทั้งหมด','All')}</option>
+        ${usedCategories.map(c=>`<option value="${escapeHtml(c)}" ${punchFilterCategory===c?'selected':''}>${escapeHtml(c)}</option>`).join('')}
+      </select></div>
+      <div class="field" style="min-width:150px"><label>${tf('ผู้รับผิดชอบ','Assignee')}</label><input type="text" id="pu-f-assignee" value="${escapeHtml(punchFilterAssignee)}" placeholder="${tf('ค้นหาชื่อ','search name')}"></div>
+      <div class="field" style="flex:1;min-width:150px"><label>${tf('ค้นหา','Search')}</label><input type="text" id="pu-f-search" value="${escapeHtml(punchFilterSearch)}" placeholder="${tf('ค้นหาหัวข้อ/รายละเอียด','search title/notes')}"></div>
+      <button class="btn primary" id="pu-add-item">+ ${tf('เพิ่มรายการ Defect','Add defect')}</button>
+    </div>
+  </div>`;
+
+  const filtered = punchFilteredItems(proj, plan.id);
+  const listHtml = `<div class="punch-list">
+    ${filtered.length? filtered.map(it=>{
+      const idx = planItems.indexOf(it);
+      return `<div class="punch-item-card ${it.status}" data-pu-item="${it.id}">
+        <div class="title">#${idx+1} ${escapeHtml(it.title||tf('(ไม่มีหัวข้อ)','(untitled)'))} <span class="badge ${punchStatusDef(it.status).cls}" style="margin-left:6px">${punchStatusLabel(it.status)}</span></div>
+        <div class="meta">${punchSeverityLabel(it.severity)}${it.category? ' · '+escapeHtml(it.category):''}${it.assignedTo? ' · 👷 '+escapeHtml(it.assignedTo):''}</div>
+        ${it.dueDate? `<div class="meta" style="${it.status==='open'&&it.dueDate<todayStr()?'color:var(--coral-600);font-weight:600':''}">📅 ${tf('กำหนดแก้ไข','Due')} ${fmtDate(it.dueDate)}</div>` : ''}
+      </div>`;
+    }).join('') : `<div class="empty"><span class="ic">✅</span>${tf('ไม่มีรายการที่ตรงกับตัวกรอง','No defects match these filters')}</div>`}
+  </div>`;
+
+  return statsHtml + planTabsHtml + viewerHtml + filtersHtml + listHtml + punchReportSectionHtml(proj);
+}
+
+function punchPhotoThumbHtml(existingId, pendingDataUrl, kind, mode, idx){
+  const imgTag = mode==='existing' ? `<img data-thumb-id="${existingId}" alt="">` : `<img src="${pendingDataUrl}" alt="">`;
+  const rmAttr = mode==='existing' ? `data-pu-rm-${kind}-existing="${existingId}"` : `data-pu-rm-${kind}-pending="${idx}"`;
+  const anId = mode==='existing' ? existingId : idx;
+  return `<div class="photo-item">${imgTag}<button class="rm" ${rmAttr}>✕</button><div class="edit-ic" data-pu-annotate="${anId}" data-pu-annotate-kind="${kind}" data-pu-annotate-mode="${mode}" title="${tf('วาด/ซูม','Draw/zoom')}">✏️</div></div>`;
+}
+
+// "One-click" report: print/PDF (reuses id="reportPrintable" + the existing
+// @media print rules -- see reportBodyHtml() above; only one tab's content
+// is ever in the DOM at a time so reusing the id is safe), a copy-able deep
+// link (projectLink()+'&tab=punch', see tabFromHash() near OPEN_PROJECT_MODE
+// above), and an on-demand QR of that same link via a public QR image API
+// (no library needed; only fetched once the person taps "QR" to show it).
+function punchReportSectionHtml(proj){
+  const total = proj.punchItems.length;
+  const link = punchShareLink(proj);
+  return `<div class="card" style="margin-top:14px" id="reportPrintable">
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px">
+      <div><b style="font-family:var(--font-display);font-size:14px">🖨️ ${tf('รายงานสรุปผลตรวจ Defect','Defect Inspection Summary Report')}</b><div class="sub">${tf('รวมทุกแปลนในโปรเจ็คนี้','Covers every plan in this project')}</div></div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn ghost sm" id="pu-print">🖨️ ${tf('พิมพ์ / PDF','Print / PDF')}</button>
+        <button class="btn ghost sm" id="pu-copy-link">🔗 ${tf('คัดลอกลิงก์','Copy link')}</button>
+        <button class="btn ghost sm" id="pu-toggle-qr">${punchShowQr? '🙈':'📱'} QR</button>
+      </div>
+    </div>
+    ${punchShowQr? `<div style="margin-top:10px"><img src="https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=${encodeURIComponent(link)}" alt="QR" width="160" height="160"><div class="sub" style="margin-top:4px;word-break:break-all">${escapeHtml(link)}</div></div>` : ''}
+    ${!total? `<div class="empty" style="margin-top:14px"><span class="ic">📄</span>${tf('ยังไม่มีรายการ Defect สำหรับสรุปรายงาน','No defects yet to summarize')}</div>` : punchReportBodyHtml(proj)}
+  </div>`;
+}
+function punchReportBodyHtml(proj){
+  const c = state.contractor||{};
+  const plansHtml = proj.punchPlans.map(plan=>{
+    const items = proj.punchItems.filter(it=>it.planId===plan.id);
+    if(!items.length && !plan.imageId) return '';
+    const pins = items.map((it,idx)=>`<div class="punch-pin ${it.status}" style="left:${(it.x*100).toFixed(2)}%;top:${(it.y*100).toFixed(2)}%"><span>${idx+1}</span></div>`).join('');
+    const rows = items.map((it,idx)=>`<tr>
+      <td class="tabular">${idx+1}</td>
+      <td>${escapeHtml(it.title||'-')}</td>
+      <td>${escapeHtml(it.category||'-')}</td>
+      <td>${punchSeverityLabel(it.severity)}</td>
+      <td>${escapeHtml(it.assignedTo||'-')}</td>
+      <td><span class="badge ${punchStatusDef(it.status).cls}">${punchStatusLabel(it.status)}</span></td>
+      <td class="tabular">${it.dueDate? fmtDate(it.dueDate) : '-'}</td>
+    </tr>`).join('');
+    return `<div class="rp-section" style="page-break-inside:avoid">
+      <h3>📐 ${escapeHtml(plan.name||tf('แปลนไม่มีชื่อ','Untitled plan'))}</h3>
+      ${plan.imageId? `<div class="punch-viewer" style="max-width:520px"><img data-plan-img="${plan.imageId}" alt="">${pins}</div>` : ''}
+      ${items.length? `<div class="table-wrap" style="margin-top:10px"><table><thead><tr><th>#</th><th>${tf('รายการ','Item')}</th><th>${tf('หมวดงาน','Category')}</th><th>${tf('ความรุนแรง','Severity')}</th><th>${tf('ผู้รับผิดชอบ','Assignee')}</th><th>${tf('สถานะ','Status')}</th><th>${tf('กำหนดแก้ไข','Due')}</th></tr></thead><tbody>${rows}</tbody></table></div>` : `<div class="empty">${tf('ไม่มีรายการในแปลนนี้','No defects on this plan')}</div>`}
+    </div>`;
+  }).join('');
+  return `
+    <div class="rp-head">
+      <div style="display:flex;align-items:center;gap:14px">
+        ${c.logo? `<img src="${c.logo}" alt="" style="width:44px;height:44px;object-fit:contain;background:#fff;border-radius:10px;flex:none">` : ''}
+        <div><div class="tag">INSPECT Report</div><h1>${tf('รายงานสรุปผลการตรวจ Defect','Defect Inspection Summary Report')}</h1></div>
+      </div>
+    </div>
+    <div class="rp-meta">
+      <div><b>${tf('โครงการ','Project')}</b>${escapeHtml(proj.name||'-')}</div>
+      <div><b>${tf('สร้างรายงานเมื่อ','Generated')}</b>${fmtDate(todayStr())}</div>
+    </div>
+    ${plansHtml || `<div class="rp-section"><div class="empty">${tf('ยังไม่มีแปลน','No plans yet')}</div></div>`}
+    <div class="rp-foot"><span>${escapeHtml(c.company||'Project Management')}</span><span>${tf('สร้างรายงานเมื่อ','Report generated')} ${fmtDate(todayStr())}</span></div>
+  `;
+}
+
+/* ---- 3-stage checklist run view ---- */
+function renderPunchChecklistView(proj){
+  const runs = proj.punchChecklistRuns||[];
+  if(!punchSelectedRunId || !runs.find(r=>r.id===punchSelectedRunId)) punchSelectedRunId = runs.length? runs[runs.length-1].id : null;
+  const runTabsHtml = `<div class="punch-plan-tabs">
+    ${runs.map(r=>`<div class="punch-plan-chip ${r.id===punchSelectedRunId?'active':''}" data-pu-run="${r.id}">📋 ${escapeHtml(r.zone||tf('(ยังไม่ระบุโซน)','(unnamed zone)'))}</div>`).join('')}
+    <div class="punch-plan-chip" id="pu-add-run"><span class="add">➕</span>${tf('เริ่มตรวจจุดใหม่','New checklist run')}</div>
+  </div>`;
+  if(!runs.length){
+    return runTabsHtml + `<div class="card" style="text-align:center;padding:30px 20px"><div class="empty"><span class="ic">📋</span>${tf('ยังไม่มีการตรวจเช็กลิสต์ — เริ่มตรวจจุดแรกได้เลย','No checklist runs yet -- start your first one')}</div></div>`;
+  }
+  const run = runs.find(r=>r.id===punchSelectedRunId);
+  const items = proj.punchChecklist||[];
+  const total = items.length;
+  const done = items.filter(it=> run.results[it.id] && run.results[it.id].status).length;
+  const passN = items.filter(it=> run.results[it.id] && run.results[it.id].status==='pass').length;
+  const failN = items.filter(it=> run.results[it.id] && run.results[it.id].status==='fail').length;
+  const pct = total? Math.round(done/total*100) : 0;
+
+  const groups = {};
+  items.forEach(it=>{ (groups[it.group]=groups[it.group]||[]).push(it); });
+  const groupsHtml = Object.keys(groups).map(g=>{
+    const gItems = groups[g];
+    const gDone = gItems.filter(it=>run.results[it.id]&&run.results[it.id].status).length;
+    const expanded = punchClExpanded.has(g);
+    const stagesHtml = !expanded ? '' : PUNCH_CL_STAGES.map(st=>{
+      const stItems = gItems.filter(it=>it.stage===st.v);
+      if(!stItems.length) return '';
+      const rowsHtml = stItems.map(it=>{
+        const res = run.results[it.id] || {status:'', note:'', photoIds:[]};
+        const photosHtml = (res.photoIds||[]).map(pid=>`<div class="photo-item" style="width:60px;height:60px;display:inline-block;vertical-align:middle"><img data-thumb-id="${pid}" alt=""><button class="rm" data-pu-cl-rm-photo="${it.id}|${pid}">✕</button></div>`).join('');
+        return `<div class="punch-cl-item">
+          <div class="row1">
+            <div class="txt"><b>${escapeHtml(it.text)}</b>${it.detail? `<p>${escapeHtml(it.detail)}</p>` : ''}</div>
+            <div class="punch-cl-status">
+              <button class="${res.status==='pass'?'on pass':''}" data-pu-cl-set="${it.id}|pass" title="${tf('ผ่าน','Pass')}">✅</button>
+              <button class="${res.status==='fail'?'on fail':''}" data-pu-cl-set="${it.id}|fail" title="${tf('ไม่ผ่าน','Fail')}">❌</button>
+              <button class="${res.status==='na'?'on na':''}" data-pu-cl-set="${it.id}|na" title="${tf('ไม่เกี่ยวข้อง','N/A')}">➖</button>
+            </div>
+          </div>
+          <div style="display:flex;gap:8px;align-items:center;margin-top:6px;flex-wrap:wrap">
+            <label class="photo-drop" style="padding:4px 10px;font-size:11px" for="pu-cl-photo-${it.id}">📷 ${tf('แนบรูป','Attach photo')}</label>
+            <input type="file" id="pu-cl-photo-${it.id}" data-pu-cl-photo-input="${it.id}" accept="image/*" multiple style="display:none">
+            ${photosHtml}
+          </div>
+          ${res.status==='fail'? `<input type="text" data-pu-cl-note="${it.id}" value="${escapeHtml(res.note||'')}" placeholder="${tf('หมายเหตุ (สาเหตุ/สิ่งที่ต้องแก้)','note (cause / what to fix)')}" style="margin-top:6px;width:100%;font-size:12px">` : ''}
+        </div>`;
+      }).join('');
+      return `<div class="punch-cl-stage"><div class="punch-cl-stage-label">${st.ic} ${tf(st.th,st.en)}</div>${rowsHtml}</div>`;
+    }).join('');
+    return `<div class="punch-cl-group">
+      <div class="punch-cl-group-head" data-pu-cl-toggle="${escapeHtml(g)}"><span>${expanded?'▾':'▸'} ${escapeHtml(g)}</span><span class="count">${gDone}/${gItems.length}</span></div>
+      ${stagesHtml}
+    </div>`;
+  }).join('');
+
+  return `${runTabsHtml}
+  <div class="card">
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px">
+      <div class="field" style="max-width:280px;margin:0"><input type="text" id="pu-run-zone" value="${escapeHtml(run.zone)}" placeholder="${tf('ระบุชื่อจุด/โซนที่ตรวจ เช่น ห้องนอนใหญ่','enter zone/location, e.g. Master bedroom')}" style="font-family:var(--font-display);font-size:14px;font-weight:600"></div>
+      <div style="display:flex;gap:8px">
+        <button class="btn ghost sm" id="pu-cl-manage">⚙️ ${tf('จัดการเช็กลิสต์','Manage template')}</button>
+        <button class="btn ghost sm" id="pu-run-delete" data-run-id="${run.id}">🗑️ ${tf('ลบการตรวจนี้','Delete run')}</button>
+      </div>
+    </div>
+    <div class="sub" style="margin-top:6px">${tf('ตรวจแล้ว','Checked')} ${done}/${total} · ✅ ${passN} · ❌ ${failN}</div>
+    <div class="punch-cl-progress"><i style="width:${pct}%"></i></div>
+  </div>
+  <div style="margin-top:14px">${groupsHtml}</div>
+  `;
+}
+
+/* ---- wiring ---- */
+function wirePunch(){
+  $$('[data-punch-sub]').forEach(b=> b.onclick=()=>{ punchSubView=b.dataset.punchSub; render(); });
+  if(punchSubView==='checklist') wirePunchChecklistView(); else wirePunchDefectsView();
+  wirePunchItemModal();
+  wirePunchPlanModal();
+  wirePunchChecklistModal();
+  wirePunchAnnotateModal();
+}
+function wirePunchDefectsView(){
+  const proj = P();
+  const addPlanBtn = $('#pu-add-plan');
+  if(addPlanBtn) addPlanBtn.onclick = ()=>{ punchPlanDraft = {name:'', imageId:null, pendingPhoto:null}; editingPunchPlanId='new'; render(); };
+  $$('[data-pu-plan]').forEach(el=> el.onclick = ()=>{ punchSelectedPlanId = el.dataset.puPlan; render(); });
+  const editPlanBtn = $('#pu-edit-plan');
+  if(editPlanBtn) editPlanBtn.onclick = ()=>{
+    const pl = proj.punchPlans.find(p=>p.id===editPlanBtn.dataset.planId);
+    if(!pl) return;
+    punchPlanDraft = {name:pl.name, imageId:pl.imageId, pendingPhoto:null};
+    editingPunchPlanId = pl.id; render();
+  };
+  const viewer = $('#pu-viewer');
+  if(viewer){
+    viewer.addEventListener('click', (e)=>{
+      if(e.target.closest('[data-pu-pin]')) return;
+      const rect = viewer.getBoundingClientRect();
+      const x = clamp((e.clientX-rect.left)/rect.width, 0.02, 0.98);
+      const y = clamp((e.clientY-rect.top)/rect.height, 0.02, 0.98);
+      punchPendingPin = {x,y};
+      openPunchItemDraft(proj, 'new', punchSelectedPlanId);
+      render();
+    });
+  }
+  $$('[data-pu-pin]').forEach(el=> el.onclick = (e)=>{ e.stopPropagation(); openPunchItemDraft(proj, el.dataset.puPin); render(); });
+  $$('[data-pu-item]').forEach(el=> el.onclick = ()=>{ openPunchItemDraft(proj, el.dataset.puItem); render(); });
+  const addItemBtn = $('#pu-add-item');
+  if(addItemBtn) addItemBtn.onclick = ()=>{ punchPendingPin=null; openPunchItemDraft(proj,'new',punchSelectedPlanId); render(); };
+  // Filters use onchange (not oninput) so typing in the search/assignee
+  // fields never triggers a mid-keystroke render() -- same reasoning as the
+  // Daily Log item-search field (see the comment above #de-item-search).
+  const fStatus=$('#pu-f-status'); if(fStatus) fStatus.onchange=()=>{ punchFilterStatus=fStatus.value; render(); };
+  const fSev=$('#pu-f-severity'); if(fSev) fSev.onchange=()=>{ punchFilterSeverity=fSev.value; render(); };
+  const fCat=$('#pu-f-category'); if(fCat) fCat.onchange=()=>{ punchFilterCategory=fCat.value; render(); };
+  const fAssignee=$('#pu-f-assignee');
+  if(fAssignee){ fAssignee.oninput=()=>{ punchFilterAssignee=fAssignee.value; }; fAssignee.onchange=()=>{ punchFilterAssignee=fAssignee.value; render(); }; }
+  const fSearch=$('#pu-f-search');
+  if(fSearch){ fSearch.oninput=()=>{ punchFilterSearch=fSearch.value; }; fSearch.onchange=()=>{ punchFilterSearch=fSearch.value; render(); }; }
+  const printBtn=$('#pu-print'); if(printBtn) printBtn.onclick=()=> window.print();
+  const copyBtn=$('#pu-copy-link');
+  if(copyBtn) copyBtn.onclick = async ()=>{
+    const link = punchShareLink(proj);
+    try{ await navigator.clipboard.writeText(link); toast(tf('คัดลอกลิงก์แล้ว','Link copied')); }
+    catch(e){ toast(link); }
+  };
+  const qrBtn=$('#pu-toggle-qr'); if(qrBtn) qrBtn.onclick=()=>{ punchShowQr=!punchShowQr; render(); };
+  refreshPunchPlanImages();
+}
+function syncPunchItemDraftFromDom(){
+  if(!punchItemDraft) return;
+  const g=(sel)=>{ const el=$(sel); return el?el.value:undefined; };
+  const d = punchItemDraft;
+  const title=g('#pu-title'); if(title!==undefined) d.title=title;
+  const category=g('#pu-category'); if(category!==undefined) d.category=category;
+  const severity=g('#pu-severity'); if(severity!==undefined) d.severity=severity;
+  const assignee=g('#pu-assignee'); if(assignee!==undefined) d.assignedTo=assignee;
+  const due=g('#pu-due'); if(due!==undefined) d.dueDate=due;
+  const notes=g('#pu-notes'); if(notes!==undefined) d.notes=notes;
+}
+function openPunchItemDraft(proj, id, planId){
+  if(id==='new'){
+    const pin = punchPendingPin || {x:0.5,y:0.5};
+    punchItemDraft = {planId: planId||punchSelectedPlanId||null, x:pin.x, y:pin.y,
+      title:'', category:'', severity:'medium', assignedTo:'', dueDate:'', notes:'', status:'open',
+      existingBeforeIds:[], pendingBefore:[], removedBeforeIds:[],
+      existingAfterIds:[], pendingAfter:[], removedAfterIds:[], history:[]};
+  } else {
+    const it = proj.punchItems.find(i=>i.id===id);
+    if(!it) return;
+    punchItemDraft = {id:it.id, planId:it.planId, x:it.x, y:it.y,
+      title:it.title, category:it.category||'', severity:it.severity||'medium', assignedTo:it.assignedTo||'',
+      dueDate:it.dueDate||'', notes:it.notes||'', status:it.status,
+      existingBeforeIds:(it.photosBefore||[]).slice(), pendingBefore:[], removedBeforeIds:[],
+      existingAfterIds:(it.photosAfter||[]).slice(), pendingAfter:[], removedAfterIds:[],
+      history:(it.history||[]).slice()};
+  }
+  editingPunchItemId = id;
+  punchPendingPin = null;
+}
+function closePunchItemDraft(){ editingPunchItemId=null; punchItemDraft=null; render(); }
+// Shared by the plain "Save" button and every status-transition button
+// (mark fixed / re-check fail / re-check pass / reopen) -- a transition is
+// just a save that also changes .status and appends a history entry, so
+// text/photo edits made just before tapping e.g. "mark fixed" are never
+// silently dropped.
+async function commitPunchItem(statusOverride, historyNote){
+  syncPunchItemDraftFromDom();
+  const d = punchItemDraft;
+  const title = (d.title||'').trim();
+  if(!title){ toast(tf('กรุณากรอกหัวข้อ','Please enter a title')); return false; }
+  const proj = P();
+  const keptBefore = d.existingBeforeIds.filter(id=>!d.removedBeforeIds.includes(id));
+  const newBeforeIds = [];
+  for(const p of d.pendingBefore){ const id=uid(); await idbPut(id,p.dataUrl); newBeforeIds.push(id); }
+  const photosBefore = keptBefore.concat(newBeforeIds);
+  const keptAfter = d.existingAfterIds.filter(id=>!d.removedAfterIds.includes(id));
+  const newAfterIds = [];
+  for(const p of d.pendingAfter){ const id=uid(); await idbPut(id,p.dataUrl); newAfterIds.push(id); }
+  const photosAfter = keptAfter.concat(newAfterIds);
+  const finalStatus = statusOverride || d.status;
+  const by = currentActorName();
+  const fields = {title, category:(d.category||'').trim(), severity:d.severity, assignedTo:(d.assignedTo||'').trim(), dueDate:d.dueDate||'', notes:(d.notes||'').trim(), x:d.x, y:d.y, planId:d.planId, photosBefore, photosAfter};
+  if(editingPunchItemId==='new'){
+    const item = newPunchItem(d.planId, d.x, d.y);
+    Object.assign(item, fields, {status:finalStatus});
+    if(finalStatus!=='open') item.history.push({at:new Date().toISOString(), by, from:'open', to:finalStatus, note:historyNote||''});
+    proj.punchItems.push(item);
+  } else {
+    const it = proj.punchItems.find(i=>i.id===editingPunchItemId);
+    if(!it) return false;
+    const fromStatus = it.status;
+    Object.assign(it, fields);
+    if(finalStatus!==fromStatus){
+      it.status = finalStatus;
+      it.history = it.history||[];
+      it.history.push({at:new Date().toISOString(), by, from:fromStatus, to:finalStatus, note:historyNote||''});
+    }
+  }
+  saveData();
+  return true;
+}
+function punchItemModalHtml(){
+  if(!punchItemDraft) return '';
+  const d = punchItemDraft;
+  const isNew = editingPunchItemId==='new';
+  const proj = P();
+  const assigneeList = Array.from(new Set(
+    (state.contractors||[]).filter(c=>c.active!==false).map(c=>c.name).filter(Boolean)
+    .concat(STANDARD_TEAMS)
+    .concat(proj.boq.map(i=>i.team||'').filter(Boolean))
+  ));
+  const existingBefore = d.existingBeforeIds.filter(id=>!d.removedBeforeIds.includes(id));
+  const beforeThumbs = existingBefore.map(id=>punchPhotoThumbHtml(id,null,'before','existing')).join('') +
+    d.pendingBefore.map((p,idx)=>punchPhotoThumbHtml(null,p.dataUrl,'before','pending',idx)).join('');
+  const existingAfter = d.existingAfterIds.filter(id=>!d.removedAfterIds.includes(id));
+  const afterThumbs = existingAfter.map(id=>punchPhotoThumbHtml(id,null,'after','existing')).join('') +
+    d.pendingAfter.map((p,idx)=>punchPhotoThumbHtml(null,p.dataUrl,'after','pending',idx)).join('');
+  const statusBadge = `<span class="badge ${punchStatusDef(d.status).cls}">${punchStatusLabel(d.status)}</span>`;
+  let actionButtons = '';
+  if(!isNew){
+    if(d.status==='open') actionButtons = `<button class="btn primary" id="pu-mark-fixed">✅ ${tf('ทำเครื่องหมายว่าแก้ไขแล้ว','Mark as fixed')}</button>`;
+    else if(d.status==='fixed') actionButtons = `<div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn reject" id="pu-reinspect-fail">🔁 ${tf('ตรวจซ้ำไม่ผ่าน ส่งกลับแก้ไข','Failed re-check, send back')}</button>
+      <button class="btn approve" id="pu-reinspect-pass">✅ ${tf('ตรวจซ้ำผ่าน ปิดงาน','Passed, close')}</button>
+    </div>`;
+    else if(d.status==='closed') actionButtons = `<button class="btn ghost sm" id="pu-reopen">🔓 ${tf('เปิดงานใหม่','Reopen')}</button>`;
+  }
+  const historyHtml = d.history.length? `<div style="margin-top:10px">
+    <b style="font-size:11.5px;color:var(--ink-500)">${tf('ประวัติการเปลี่ยนสถานะ','Status history')}</b>
+    <div style="margin-top:4px;display:flex;flex-direction:column;gap:3px">
+      ${d.history.slice().reverse().map(h=>`<div class="meta" style="font-size:11px;color:var(--ink-500)">${fmtDateTime(h.at)} — ${escapeHtml(h.by||'')}${h.note?' · '+escapeHtml(h.note):''}</div>`).join('')}
+    </div>
+  </div>` : '';
+  return `
+  <div class="modal-bg" id="pu-item-modal-bg">
+    <div class="modal">
+      <div class="modal-head"><h3>${isNew? tf('เพิ่มรายการ Defect','Add defect') : tf('แก้ไขรายการ Defect','Edit defect')}</h3><button class="iconbtn" id="pu-item-modal-close">✕</button></div>
+      ${!isNew? `<div style="margin-bottom:10px">${statusBadge}</div>` : ''}
+      <div class="grid cols-2">
+        <div class="field" style="grid-column:1/-1"><label>${tf('หัวข้อ/รายละเอียดสั้นๆ','Title / short description')}</label><input type="text" id="pu-title" value="${escapeHtml(d.title)}" placeholder="${tf('เช่น กระเบื้องพื้นแตกใกล้ประตู','e.g. floor tile cracked near door')}"></div>
+        <div class="field"><label>${tf('หมวดงาน','Category')}</label><input type="text" id="pu-category" list="pu-category-list" value="${escapeHtml(d.category)}"><datalist id="pu-category-list">${BOQ_CATEGORIES.map(c=>`<option value="${escapeHtml(c)}">`).join('')}</datalist></div>
+        <div class="field"><label>${tf('ความรุนแรง','Severity')}</label><select id="pu-severity">${PUNCH_SEVERITY.map(s=>`<option value="${s.v}" ${d.severity===s.v?'selected':''}>${s.ic} ${tf(s.th,s.en)}</option>`).join('')}</select></div>
+        <div class="field"><label>${tf('ผู้รับผิดชอบแก้ไข','Assigned to')}</label><input type="text" id="pu-assignee" list="pu-assignee-list" value="${escapeHtml(d.assignedTo)}" placeholder="${tf('ชื่อทีม/ผู้รับเหมา','team / contractor name')}"><datalist id="pu-assignee-list">${assigneeList.map(a=>`<option value="${escapeHtml(a)}">`).join('')}</datalist></div>
+        <div class="field"><label>${tf('กำหนดแก้ไข (ไม่บังคับ)','Due date (optional)')}</label><input type="date" id="pu-due" value="${d.dueDate}"></div>
+        <div class="field" style="grid-column:1/-1"><label>${tf('รายละเอียดเพิ่มเติม (ไม่บังคับ)','Additional notes (optional)')}</label><textarea id="pu-notes" rows="2">${escapeHtml(d.notes)}</textarea></div>
+      </div>
+      <div class="field" style="margin-top:12px">
+        <label>📷 ${tf('รูปถ่ายจุดบกพร่อง (ก่อนแก้ไข)','Defect photos (before)')}</label>
+        <label class="photo-drop" for="pu-photo-before-input">📷 ${tf('แตะเพื่อเลือกรูปภาพ','Tap to choose photos')}</label>
+        <input type="file" id="pu-photo-before-input" accept="image/*" multiple style="display:none">
+        ${(existingBefore.length||d.pendingBefore.length)? `<div class="photo-grid" style="margin-top:10px">${beforeThumbs}</div>` : ''}
+      </div>
+      ${(d.status==='fixed'||d.status==='closed'||existingAfter.length||d.pendingAfter.length)? `<div class="field" style="margin-top:12px">
+        <label>📷 ${tf('รูปถ่ายหลังแก้ไข (หลักฐานจากผู้รับผิดชอบ)','After-fix photos (evidence)')}</label>
+        <label class="photo-drop" for="pu-photo-after-input">📷 ${tf('แตะเพื่อเลือกรูปภาพ','Tap to choose photos')}</label>
+        <input type="file" id="pu-photo-after-input" accept="image/*" multiple style="display:none">
+        ${(existingAfter.length||d.pendingAfter.length)? `<div class="photo-grid" style="margin-top:10px">${afterThumbs}</div>` : ''}
+      </div>` : ''}
+      ${!isNew? `<div style="margin-top:14px">${actionButtons}</div>` : ''}
+      ${historyHtml}
+      <div style="display:flex;gap:10px;margin-top:16px">
+        <button class="btn primary block" id="pu-item-save">${tf('บันทึกรายการ','Save')}</button>
+        ${!isNew? `<button class="iconbtn" id="pu-item-delete" title="${tf('ลบ','Delete')}">🗑️</button>` : ''}
+      </div>
+    </div>
+  </div>`;
+}
+function wirePunchItemModal(){
+  const bg = $('#pu-item-modal-bg');
+  if(!bg) return;
+  $('#pu-item-modal-close').onclick = closePunchItemDraft;
+  bg.addEventListener('click', e=>{ if(e.target===bg) closePunchItemDraft(); });
+  const d = punchItemDraft;
+  const beforeInput = $('#pu-photo-before-input');
+  if(beforeInput) beforeInput.onchange = async (e)=>{
+    const files = Array.from(e.target.files||[]);
+    const added=[];
+    for(const f of files){ try{ const dataUrl = await compressImage(f); added.push({dataUrl}); }catch(err){} await new Promise(r=>setTimeout(r,0)); }
+    syncPunchItemDraftFromDom(); d.pendingBefore.push(...added);
+    beforeInput.value=''; render();
+  };
+  const afterInput = $('#pu-photo-after-input');
+  if(afterInput) afterInput.onchange = async (e)=>{
+    const files = Array.from(e.target.files||[]);
+    const added=[];
+    for(const f of files){ try{ const dataUrl = await compressImage(f); added.push({dataUrl}); }catch(err){} await new Promise(r=>setTimeout(r,0)); }
+    syncPunchItemDraftFromDom(); d.pendingAfter.push(...added);
+    afterInput.value=''; render();
+  };
+  $$('[data-pu-rm-before-existing]').forEach(b=> b.onclick=()=>{ syncPunchItemDraftFromDom(); d.removedBeforeIds.push(b.dataset.puRmBeforeExisting); render(); });
+  $$('[data-pu-rm-before-pending]').forEach(b=> b.onclick=()=>{ syncPunchItemDraftFromDom(); d.pendingBefore.splice(Number(b.dataset.puRmBeforePending),1); render(); });
+  $$('[data-pu-rm-after-existing]').forEach(b=> b.onclick=()=>{ syncPunchItemDraftFromDom(); d.removedAfterIds.push(b.dataset.puRmAfterExisting); render(); });
+  $$('[data-pu-rm-after-pending]').forEach(b=> b.onclick=()=>{ syncPunchItemDraftFromDom(); d.pendingAfter.splice(Number(b.dataset.puRmAfterPending),1); render(); });
+  $$('[data-pu-annotate]').forEach(el=> el.onclick = async ()=>{
+    syncPunchItemDraftFromDom();
+    const kind = el.dataset.puAnnotateKind, mode = el.dataset.puAnnotateMode;
+    let dataUrl, onSave;
+    if(mode==='existing'){
+      const id = el.dataset.puAnnotate;
+      dataUrl = await loadRefPhoto(id);
+      onSave = async (newDataUrl)=>{ await idbPut(id,newDataUrl); refPhotoCache[id]=newDataUrl; };
+    } else {
+      const idx = Number(el.dataset.puAnnotate);
+      const arr = kind==='before'? d.pendingBefore : d.pendingAfter;
+      dataUrl = arr[idx]? arr[idx].dataUrl : null;
+      onSave = async (newDataUrl)=>{ if(arr[idx]) arr[idx].dataUrl = newDataUrl; };
+    }
+    if(!dataUrl){ toast(tf('โหลดรูปไม่สำเร็จ','Failed to load photo')); return; }
+    punchAnnotating = {dataUrl, strokes:[], zoom:1, onSave};
+    render();
+  });
+  const saveBtn=$('#pu-item-save'); if(saveBtn) saveBtn.onclick = async ()=>{ if(await commitPunchItem(null,'')){ closePunchItemDraft(); toast(tf('บันทึกแล้ว','Saved')); } };
+  const markFixedBtn=$('#pu-mark-fixed'); if(markFixedBtn) markFixedBtn.onclick = async ()=>{ if(await commitPunchItem('fixed', tf('ทำเครื่องหมายว่าแก้ไขแล้ว รอตรวจซ้ำ','marked fixed, awaiting re-check'))){ closePunchItemDraft(); toast(tf('บันทึกแล้ว','Saved')); } };
+  const failBtn=$('#pu-reinspect-fail'); if(failBtn) failBtn.onclick = async ()=>{ if(await commitPunchItem('open', tf('ตรวจซ้ำไม่ผ่าน ส่งกลับแก้ไข','failed re-check, sent back'))){ closePunchItemDraft(); toast(tf('ส่งกลับแก้ไขแล้ว','Sent back')); } };
+  const passBtn=$('#pu-reinspect-pass'); if(passBtn) passBtn.onclick = async ()=>{ if(await commitPunchItem('closed', tf('ตรวจซ้ำผ่าน ปิดงาน','passed re-check, closed'))){ closePunchItemDraft(); toast(tf('ปิดงานแล้ว','Closed')); } };
+  const reopenBtn=$('#pu-reopen'); if(reopenBtn) reopenBtn.onclick = async ()=>{ if(!confirm(tf('เปิดงานนี้ใหม่หรือไม่?','Reopen this item?'))) return; if(await commitPunchItem('open', tf('เปิดงานใหม่','reopened'))){ closePunchItemDraft(); toast(tf('เปิดงานใหม่แล้ว','Reopened')); } };
+  const delBtn=$('#pu-item-delete'); if(delBtn) delBtn.onclick = ()=>{
+    if(!confirm(tf('ลบรายการ Defect นี้หรือไม่?','Delete this defect?'))) return;
+    const proj=P(); proj.punchItems = proj.punchItems.filter(i=>i.id!==editingPunchItemId);
+    saveData(); closePunchItemDraft(); toast(tf('ลบรายการแล้ว','Deleted'));
+  };
+  refreshPunchPhotos();
+}
+function punchPlanModalHtml(){
+  if(!punchPlanDraft) return '';
+  const d = punchPlanDraft;
+  const isNew = editingPunchPlanId==='new';
+  const previewSrc = d.pendingPhoto? d.pendingPhoto.dataUrl : null;
+  return `
+  <div class="modal-bg" id="pu-plan-modal-bg">
+    <div class="modal">
+      <div class="modal-head"><h3>${isNew? tf('เพิ่มแปลนดิจิทัล','Add digital blueprint') : tf('แก้ไขแปลน','Edit blueprint')}</h3><button class="iconbtn" id="pu-plan-modal-close">✕</button></div>
+      <div class="field"><label>${tf('ชื่อแปลน (เช่น ชั้น 1, ห้องนอนใหญ่)','Plan name (e.g. Floor 1, Master bedroom)')}</label><input type="text" id="pu-plan-name" value="${escapeHtml(d.name)}"></div>
+      <div class="field" style="margin-top:10px">
+        <label>${tf('รูปแปลน','Plan image')}</label>
+        <label class="photo-drop" for="pu-plan-photo-input">📐 ${tf('แตะเพื่อเลือกรูปแปลน','Tap to choose a plan image')}</label>
+        <input type="file" id="pu-plan-photo-input" accept="image/*" style="display:none">
+        ${previewSrc? `<div class="photo-grid" style="margin-top:10px"><div class="photo-item"><img src="${previewSrc}" alt=""></div></div>` :
+          (d.imageId? `<div class="photo-grid" style="margin-top:10px"><div class="photo-item"><img data-thumb-id="${d.imageId}" alt=""></div></div>` : '')}
+      </div>
+      <div style="display:flex;gap:10px;margin-top:16px">
+        <button class="btn primary block" id="pu-plan-save">${tf('บันทึกแปลน','Save plan')}</button>
+        ${!isNew? `<button class="iconbtn" id="pu-plan-delete" title="${tf('ลบ','Delete')}">🗑️</button>` : ''}
+      </div>
+    </div>
+  </div>`;
+}
+function wirePunchPlanModal(){
+  const bg = $('#pu-plan-modal-bg');
+  if(!bg) return;
+  const close = ()=>{ punchPlanDraft=null; editingPunchPlanId=null; render(); };
+  $('#pu-plan-modal-close').onclick = close;
+  bg.addEventListener('click', e=>{ if(e.target===bg) close(); });
+  const nameInp = $('#pu-plan-name'); if(nameInp) nameInp.oninput = ()=>{ punchPlanDraft.name = nameInp.value; };
+  const photoInput = $('#pu-plan-photo-input');
+  if(photoInput) photoInput.onchange = async (e)=>{
+    const f = (e.target.files||[])[0];
+    if(!f) return;
+    try{ const dataUrl = await compressImage(f, 1600, 0.7); punchPlanDraft.pendingPhoto = {dataUrl}; }catch(err){}
+    photoInput.value=''; render();
+  };
+  $('#pu-plan-save').onclick = async ()=>{
+    const proj = P();
+    const name = ($('#pu-plan-name').value||'').trim();
+    if(!name){ toast(tf('กรุณาระบุชื่อแปลน','Please enter a plan name')); return; }
+    let imageId = punchPlanDraft.imageId;
+    if(punchPlanDraft.pendingPhoto){ imageId = uid(); await idbPut(imageId, punchPlanDraft.pendingPhoto.dataUrl); }
+    if(editingPunchPlanId==='new'){
+      const pl = newPunchPlan(); pl.name=name; pl.imageId=imageId;
+      proj.punchPlans.push(pl); punchSelectedPlanId = pl.id;
+    } else {
+      const pl = proj.punchPlans.find(p=>p.id===editingPunchPlanId);
+      if(pl){ pl.name=name; pl.imageId=imageId; }
+    }
+    saveData(); punchPlanDraft=null; editingPunchPlanId=null; render(); toast(tf('บันทึกแปลนแล้ว','Plan saved'));
+  };
+  const delBtn = $('#pu-plan-delete');
+  if(delBtn) delBtn.onclick = ()=>{
+    const proj = P();
+    const n = proj.punchItems.filter(i=>i.planId===editingPunchPlanId).length;
+    if(!confirm(n? tf(`แปลนนี้มีรายการ Defect อยู่ ${n} รายการ ลบแปลนนี้จะลบรายการ Defect ทั้งหมดในแปลนนี้ด้วย ยืนยันหรือไม่?`,`This plan has ${n} defect(s). Deleting it will also delete all of them. Continue?`) : tf('ลบแปลนนี้หรือไม่?','Delete this plan?'))) return;
+    proj.punchItems = proj.punchItems.filter(i=>i.planId!==editingPunchPlanId);
+    proj.punchPlans = proj.punchPlans.filter(p=>p.id!==editingPunchPlanId);
+    if(punchSelectedPlanId===editingPunchPlanId) punchSelectedPlanId=null;
+    saveData(); punchPlanDraft=null; editingPunchPlanId=null; render(); toast(tf('ลบแปลนแล้ว','Plan deleted'));
+  };
+}
+function wirePunchChecklistView(){
+  const proj = P();
+  $$('[data-pu-run]').forEach(el=> el.onclick = ()=>{ punchSelectedRunId = el.dataset.puRun; render(); });
+  const addRunBtn = $('#pu-add-run');
+  if(addRunBtn) addRunBtn.onclick = ()=>{
+    const run = {id:uid(), zone:'', createdAt:new Date().toISOString(), results:{}};
+    proj.punchChecklistRuns.push(run); punchSelectedRunId = run.id;
+    saveData(); render();
+  };
+  const delRunBtn = $('#pu-run-delete');
+  if(delRunBtn) delRunBtn.onclick = ()=>{
+    if(!confirm(tf('ลบการตรวจจุดนี้ทั้งหมดหรือไม่?','Delete this entire checklist run?'))) return;
+    proj.punchChecklistRuns = proj.punchChecklistRuns.filter(r=>r.id!==delRunBtn.dataset.runId);
+    punchSelectedRunId=null; saveData(); render(); toast(tf('ลบแล้ว','Deleted'));
+  };
+  const manageBtn = $('#pu-cl-manage'); if(manageBtn) manageBtn.onclick = ()=>{ punchChecklistManagerOpen=true; render(); };
+  $$('[data-pu-cl-toggle]').forEach(el=> el.onclick = ()=>{
+    const g = el.dataset.puClToggle;
+    if(punchClExpanded.has(g)) punchClExpanded.delete(g); else punchClExpanded.add(g);
+    render();
+  });
+  const run = (proj.punchChecklistRuns||[]).find(r=>r.id===punchSelectedRunId);
+  if(run){
+    const zoneInp=$('#pu-run-zone'); if(zoneInp) zoneInp.onchange=()=>{ run.zone=zoneInp.value.trim(); saveData(); render(); };
+    $$('[data-pu-cl-set]').forEach(b=> b.onclick=()=>{
+      const [itemId, status] = b.dataset.puClSet.split('|');
+      run.results[itemId] = run.results[itemId] || {status:'', note:'', photoIds:[]};
+      run.results[itemId].status = run.results[itemId].status===status ? '' : status;
+      saveData(); render();
+    });
+    $$('[data-pu-cl-note]').forEach(inp=> inp.onchange=()=>{
+      const itemId = inp.dataset.puClNote;
+      run.results[itemId] = run.results[itemId] || {status:'', note:'', photoIds:[]};
+      run.results[itemId].note = inp.value; saveData();
+    });
+    $$('[data-pu-cl-photo-input]').forEach(inp=> inp.onchange = async (e)=>{
+      const itemId = inp.dataset.puClPhotoInput;
+      const files = Array.from(e.target.files||[]);
+      run.results[itemId] = run.results[itemId] || {status:'', note:'', photoIds:[]};
+      for(const f of files){
+        try{ const dataUrl = await compressImage(f); const id=uid(); await idbPut(id,dataUrl); run.results[itemId].photoIds.push(id); }catch(err){}
+        await new Promise(r=>setTimeout(r,0));
+      }
+      inp.value=''; saveData(); render();
+    });
+    $$('[data-pu-cl-rm-photo]').forEach(b=> b.onclick=()=>{
+      const [itemId,pid] = b.dataset.puClRmPhoto.split('|');
+      if(run.results[itemId]) run.results[itemId].photoIds = (run.results[itemId].photoIds||[]).filter(x=>x!==pid);
+      saveData(); render();
+    });
+    refreshPunchPhotos();
+  }
+}
+function punchChecklistGroupedTemplate(proj){
+  const groups = {};
+  (proj.punchChecklist||[]).forEach(it=>{ (groups[it.group]=groups[it.group]||[]).push(it); });
+  return groups;
+}
+function punchChecklistModalHtml(){
+  if(!punchChecklistManagerOpen) return '';
+  const proj = P();
+  const groups = punchChecklistGroupedTemplate(proj);
+  const groupNames = Object.keys(groups);
+  const body = groupNames.map(g=>{
+    const stagesHtml = PUNCH_CL_STAGES.map(st=>{
+      const items = groups[g].filter(it=>it.stage===st.v);
+      if(!items.length) return '';
+      const rows = items.map(it=>`<div style="display:flex;gap:8px;align-items:flex-start;margin-bottom:6px">
+        <div style="flex:1">
+          <input type="text" data-pu-cl-text="${it.id}" value="${escapeHtml(it.text)}" style="width:100%;margin-bottom:3px">
+          <input type="text" data-pu-cl-detail="${it.id}" value="${escapeHtml(it.detail||'')}" style="width:100%;font-size:11.5px;color:var(--ink-500)" placeholder="${tf('รายละเอียด (ไม่บังคับ)','detail (optional)')}">
+        </div>
+        <button class="iconbtn" data-pu-cl-remove="${it.id}" title="${tf('ลบ','Remove')}">🗑️</button>
+      </div>`).join('');
+      return `<div style="margin-top:8px"><div class="punch-cl-stage-label">${st.ic} ${tf(st.th,st.en)}</div>${rows}</div>`;
+    }).join('');
+    return `<div class="punch-cl-group"><div class="punch-cl-group-head" style="cursor:default">${escapeHtml(g)}</div><div style="padding:10px 14px">${stagesHtml}</div></div>`;
+  }).join('');
+  return `
+  <div class="modal-bg" id="pu-cl-modal-bg">
+    <div class="modal" style="max-width:720px">
+      <div class="modal-head"><h3>⚙️ ${tf('จัดการเช็กลิสต์มาตรฐาน','Manage standard checklist')}</h3><button class="iconbtn" id="pu-cl-modal-close">✕</button></div>
+      <div class="role-note">💡 ${tf('แก้ไข/ลบหัวข้อที่มีอยู่ได้โดยตรง — การเปลี่ยนแปลงจะถูกบันทึกอัตโนมัติ','Edit/remove any item directly -- changes save automatically')}</div>
+      <div style="margin-top:12px;max-height:50vh;overflow:auto">${body}</div>
+      <div style="margin-top:14px;border-top:1px solid var(--line);padding-top:14px">
+        <b style="font-family:var(--font-display);font-size:12.5px">+ ${tf('เพิ่มหัวข้อใหม่','Add new item')}</b>
+        <div class="grid cols-2" style="margin-top:8px">
+          <div class="field"><label>${tf('หมวดงาน','Group')}</label><input type="text" id="pu-cl-new-group" list="pu-cl-group-list" placeholder="${tf('เช่น งานไฟฟ้า','e.g. Electrical')}"><datalist id="pu-cl-group-list">${groupNames.map(g=>`<option value="${escapeHtml(g)}">`).join('')}</datalist></div>
+          <div class="field"><label>${tf('ระยะ','Stage')}</label><select id="pu-cl-new-stage">${PUNCH_CL_STAGES.map(s=>`<option value="${s.v}">${s.ic} ${tf(s.th,s.en)}</option>`).join('')}</select></div>
+          <div class="field" style="grid-column:1/-1"><label>${tf('หัวข้อ','Item title')}</label><input type="text" id="pu-cl-new-text"></div>
+          <div class="field" style="grid-column:1/-1"><label>${tf('รายละเอียด (ไม่บังคับ)','Detail (optional)')}</label><input type="text" id="pu-cl-new-detail"></div>
+        </div>
+        <button class="btn ghost sm" style="margin-top:8px" id="pu-cl-add">+ ${tf('เพิ่ม','Add')}</button>
+      </div>
+    </div>
+  </div>`;
+}
+function wirePunchChecklistModal(){
+  const bg = $('#pu-cl-modal-bg');
+  if(!bg) return;
+  const close = ()=>{ punchChecklistManagerOpen=false; render(); };
+  $('#pu-cl-modal-close').onclick = close;
+  bg.addEventListener('click', e=>{ if(e.target===bg) close(); });
+  const proj = P();
+  $$('[data-pu-cl-text]').forEach(inp=> inp.onchange = ()=>{
+    const it = proj.punchChecklist.find(i=>i.id===inp.dataset.puClText);
+    if(it){ it.text = inp.value; saveData(); }
+  });
+  $$('[data-pu-cl-detail]').forEach(inp=> inp.onchange = ()=>{
+    const it = proj.punchChecklist.find(i=>i.id===inp.dataset.puClDetail);
+    if(it){ it.detail = inp.value; saveData(); }
+  });
+  $$('[data-pu-cl-remove]').forEach(b=> b.onclick = ()=>{
+    if(!confirm(tf('ลบหัวข้อเช็กลิสต์นี้หรือไม่?','Remove this checklist item?'))) return;
+    proj.punchChecklist = proj.punchChecklist.filter(i=>i.id!==b.dataset.puClRemove);
+    saveData(); render();
+  });
+  const addBtn = $('#pu-cl-add');
+  if(addBtn) addBtn.onclick = ()=>{
+    const group = ($('#pu-cl-new-group').value||'').trim();
+    const stage = $('#pu-cl-new-stage').value;
+    const text = ($('#pu-cl-new-text').value||'').trim();
+    const detail = ($('#pu-cl-new-detail').value||'').trim();
+    if(!group || !text){ toast(tf('กรุณาระบุหมวดงานและหัวข้อ','Please enter a group and a title')); return; }
+    proj.punchChecklist.push({id:uid(), group, groupEn:group, stage, text, detail});
+    saveData(); render(); toast(tf('เพิ่มหัวข้อแล้ว','Item added'));
+  };
+}
+
+/* ---- photo annotator: freehand red pen + zoom, shared by before/after
+   defect photos and (later) checklist evidence photos. Canvas pixel size is
+   fixed (image scaled down to a max width once on load); "zoom" only scales
+   the canvas's CSS display size, so getBoundingClientRect()-based pointer
+   mapping stays correct at any zoom level without any separate pan/scroll
+   math. Strokes are drawn straight onto the canvas as the pointer moves (no
+   render() mid-stroke -- that would tear down the canvas element and lose
+   the in-progress drawing); only opening/closing the modal and Undo/Clear/
+   Zoom go through a full redraw from the stored stroke list. ---- */
+function punchAnnotateModalHtml(){
+  if(!punchAnnotating) return '';
+  return `
+  <div class="modal-bg" id="pu-annotate-modal-bg">
+    <div class="modal">
+      <div class="modal-head"><h3>✏️ ${tf('วาดชี้จุด / ซูมดูรายละเอียด','Draw / zoom to point out the defect')}</h3><button class="iconbtn" id="pu-annotate-close">✕</button></div>
+      <div style="display:flex;gap:8px;margin-bottom:8px;flex-wrap:wrap;align-items:center">
+        <button class="btn ghost sm" id="pu-an-zoom-out">🔍−</button>
+        <button class="btn ghost sm" id="pu-an-zoom-in">🔍+</button>
+        <button class="btn ghost sm" id="pu-an-undo">↩️ ${tf('เลิกทำ','Undo')}</button>
+        <button class="btn ghost sm" id="pu-an-clear">🗑️ ${tf('ล้างทั้งหมด','Clear all')}</button>
+      </div>
+      <div class="hint">${tf('ลากนิ้ว/เมาส์บนรูปเพื่อวาดเส้นสีแดงชี้จุดบกพร่อง','Drag your finger/mouse on the photo to draw a red line pointing at the defect')}</div>
+      <div class="punch-annotate-wrap" id="pu-annotate-wrap" style="margin-top:10px"><canvas id="pu-annotate-canvas"></canvas></div>
+      <div style="display:flex;gap:10px;margin-top:14px">
+        <button class="btn primary block" id="pu-annotate-save">${tf('บันทึกรูปที่วาด','Save annotated photo')}</button>
+      </div>
+    </div>
+  </div>`;
+}
+let _puAnImg=null, _puAnDrawing=false, _puAnCurrentStroke=null;
+function punchAnDrawStroke(ctx, pts){
+  if(pts.length<2) return;
+  ctx.strokeStyle='#FF3B30'; ctx.lineWidth=4; ctx.lineJoin='round'; ctx.lineCap='round';
+  ctx.beginPath(); ctx.moveTo(pts[0].x, pts[0].y);
+  for(let i=1;i<pts.length;i++) ctx.lineTo(pts[i].x, pts[i].y);
+  ctx.stroke();
+}
+function punchAnRedraw(canvas, img, st){
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  ctx.drawImage(img,0,0,canvas.width,canvas.height);
+  st.strokes.forEach(s=> punchAnDrawStroke(ctx,s));
+}
+function punchAnApplyZoom(canvas, st){
+  canvas.style.width = Math.round(canvas.width*st.zoom)+'px';
+  canvas.style.height = Math.round(canvas.height*st.zoom)+'px';
+}
+function wirePunchAnnotateModal(){
+  const bg = $('#pu-annotate-modal-bg');
+  if(!bg || !punchAnnotating) return;
+  const st = punchAnnotating;
+  const close = ()=>{ punchAnnotating=null; render(); };
+  $('#pu-annotate-close').onclick = close;
+  bg.addEventListener('click', e=>{ if(e.target===bg) close(); });
+  const canvas = $('#pu-annotate-canvas');
+  const img = new Image();
+  img.onload = ()=>{
+    const maxW = 900;
+    const scale = Math.min(1, maxW/img.width);
+    canvas.width = Math.max(1, Math.round(img.width*scale));
+    canvas.height = Math.max(1, Math.round(img.height*scale));
+    _puAnImg = img;
+    punchAnApplyZoom(canvas, st);
+    punchAnRedraw(canvas, img, st);
+  };
+  img.src = st.dataUrl;
+  const getPos = (e)=>{
+    const rect = canvas.getBoundingClientRect();
+    const clientX = e.touches? e.touches[0].clientX : e.clientX;
+    const clientY = e.touches? e.touches[0].clientY : e.clientY;
+    return {x:(clientX-rect.left)/rect.width*canvas.width, y:(clientY-rect.top)/rect.height*canvas.height};
+  };
+  canvas.onpointerdown = (e)=>{ e.preventDefault(); _puAnDrawing=true; _puAnCurrentStroke=[getPos(e)]; };
+  canvas.onpointermove = (e)=>{
+    if(!_puAnDrawing || !_puAnImg) return;
+    e.preventDefault();
+    _puAnCurrentStroke.push(getPos(e));
+    punchAnRedraw(canvas, _puAnImg, st);
+    punchAnDrawStroke(canvas.getContext('2d'), _puAnCurrentStroke);
+  };
+  const endStroke = ()=>{
+    if(!_puAnDrawing) return;
+    _puAnDrawing=false;
+    if(_puAnCurrentStroke && _puAnCurrentStroke.length>1) st.strokes.push(_puAnCurrentStroke);
+    _puAnCurrentStroke=null;
+  };
+  canvas.onpointerup = endStroke; canvas.onpointerleave = endStroke; canvas.onpointercancel = endStroke;
+  $('#pu-an-zoom-in').onclick = ()=>{ st.zoom = Math.min(3, (st.zoom||1)+0.5); punchAnApplyZoom(canvas, st); };
+  $('#pu-an-zoom-out').onclick = ()=>{ st.zoom = Math.max(1, (st.zoom||1)-0.5); punchAnApplyZoom(canvas, st); };
+  $('#pu-an-undo').onclick = ()=>{ st.strokes.pop(); if(_puAnImg) punchAnRedraw(canvas, _puAnImg, st); };
+  $('#pu-an-clear').onclick = ()=>{ st.strokes=[]; if(_puAnImg) punchAnRedraw(canvas, _puAnImg, st); };
+  $('#pu-annotate-save').onclick = async ()=>{
+    const finalUrl = canvas.toDataURL('image/jpeg',0.85);
+    const onSave = st.onSave;
+    punchAnnotating = null;
+    if(onSave) await onSave(finalUrl);
+    render();
+  };
+}
+
 /* ============================= SCREEN: REPORT ============================= */
 let reportPhotoCache = {}; // id -> dataUrl
 async function loadReportPhotos(log, reqs){
@@ -11205,6 +12265,7 @@ function wireScreen(){
   else if(state.tab==='costlog') wireCostLog();
   else if(state.tab==='budget') wireBudget();
   else if(state.tab==='dashboard') wireDashboard();
+  else if(state.tab==='punch') wirePunch();
   else if(state.tab==='billing') wireBilling();
   else if(state.tab==='report') wireReport();
 }
