@@ -1024,6 +1024,21 @@ select.pp-status-select.pp-noneed{background:var(--surface-2);color:var(--ink-50
 .punch-annotate-wrap canvas{touch-action:none;cursor:crosshair;max-width:none;flex:none}
 .punch-an-toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
 .punch-an-toolbar button.active{background:var(--purple-600);border-color:var(--purple-600);color:#fff}
+/* GoodNotes-style notebook (Notes/Chat's 3rd sub-view) -- see the big doc
+   comment above notebookEditorHtml() for the feature overview. */
+.notebook-page-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:14px}
+.notebook-page-card{cursor:pointer;overflow:hidden;padding:0;transition:transform .12s}
+.notebook-page-card:hover{transform:translateY(-2px)}
+.notebook-thumb-canvas{width:100%;height:auto;display:block;border-bottom:1px solid var(--line)}
+.notebook-page-add{cursor:pointer;min-height:180px;border:2px dashed var(--purple-100);background:transparent;box-shadow:none}
+.notebook-editor-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px}
+.notebook-toolbar{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.notebook-toolbar button.active{background:var(--purple-600);border-color:var(--purple-600);color:#fff}
+.notebook-toolbar input[type=color]{width:34px;height:34px;padding:2px;border-radius:8px;border:1px solid var(--line);background:var(--surface);cursor:pointer}
+.notebook-canvas-wrap{position:relative;margin-top:10px;border-radius:var(--radius-sm);overflow:hidden;border:1px solid var(--line);max-width:760px}
+.notebook-canvas-wrap canvas{width:100%;height:auto;display:block;touch-action:none;cursor:crosshair}
+.notebook-audio-pin{position:absolute;transform:translate(-50%,-50%);width:28px;height:28px;border-radius:50%;background:var(--purple-600);color:#fff;border:2px solid var(--surface);box-shadow:0 2px 6px rgba(0,0,0,.25);cursor:pointer;font-size:13px;display:flex;align-items:center;justify-content:center;padding:0}
+.notebook-recording-banner{display:flex;align-items:center;gap:10px;background:rgba(220,59,59,0.1);color:var(--coral-600);border-radius:var(--radius-sm);padding:8px 12px;margin-top:8px;font-weight:600;font-size:13px}
 /* The annotate modal (plan/photo markup) needs far more room than every
    other modal in the app -- the whole point is to see the full plan/photo
    at once while drawing -- so it gets its own, wider max-width instead of
@@ -5025,6 +5040,8 @@ function resetTransient(){
   punchAnnotating=null; punchRecordLightboxId=null; punchChecklistManagerOpen=false; punchShowQr=false;
   punchSubView='defects'; punchSelectedRunId=null; punchNewRunZone=''; punchClExpanded=new Set();
   noteSubView='feed';
+  if(noteNotebookRecording) notebookStopRecording(); // release the mic rather than leaving a stream open across a hub/project switch
+  noteNotebookPageId=null; noteNotebookTool='pen'; noteNotebookShapeType='rect';
 }
 function goToHub(){
   resetTransient();
@@ -10509,6 +10526,13 @@ function renderNotePadHtml(proj){
 function renderNotes(){
   const proj = P();
   ensureNoteDefaults(proj);
+  ensureNotebookDefaults(proj);
+  // A notebook page open in another tab/device (or deleted by this same user
+  // a moment ago) can vanish out from under noteNotebookPageId via cloud
+  // sync -- fall back to the page list instead of crashing on .find()
+  // returning undefined.
+  const openPage = (noteSubView==='notebook' && noteNotebookPageId)? (proj.notebookPages||[]).find(p=>p.id===noteNotebookPageId) : null;
+  if(noteSubView==='notebook' && noteNotebookPageId && !openPage) noteNotebookPageId=null;
   return `
   <div class="page-head">
     <div><h2>💬 ${tf('บันทึก/แชท','Notes/Chat')}</h2><div class="sub">${tf('พื้นที่พิมพ์อิสระของโปรเจกต์นี้ สำหรับจดระหว่างประชุม ติดตามงาน หรือติดตามของ','A free-typing space for this project -- for meeting notes, task follow-ups, or order tracking')}</div></div>
@@ -10516,13 +10540,17 @@ function renderNotes(){
   <div class="punch-subnav">
     <button data-note-sub="feed" class="${noteSubView==='feed'?'active':''}">💬 ${tf('ไทม์ไลน์ข้อความ','Message timeline')}</button>
     <button data-note-sub="pad" class="${noteSubView==='pad'?'active':''}">📝 ${tf('โน้ต','Note')}</button>
+    <button data-note-sub="notebook" class="${noteSubView==='notebook'?'active':''}">📓 ${tf('สมุดบันทึก','Notebook')}</button>
   </div>
-  ${noteSubView==='pad'? renderNotePadHtml(proj) : renderNoteFeedHtml(proj)}
+  ${noteSubView==='pad'? renderNotePadHtml(proj) : noteSubView==='notebook'? (openPage? notebookEditorHtml(proj, openPage) : notebookPageListHtml(proj)) : renderNoteFeedHtml(proj)}
   `;
 }
 function wireNotes(){
   const proj = P();
-  $$('[data-note-sub]').forEach(b=> b.onclick=()=>{ noteSubView=b.dataset.noteSub; render(); });
+  $$('[data-note-sub]').forEach(b=> b.onclick=()=>{
+    if(noteNotebookRecording) notebookStopRecording(); // don't leave a dangling mic stream when navigating away mid-recording
+    noteSubView=b.dataset.noteSub; render();
+  });
   const sendBtn = $('#note-feed-send');
   if(sendBtn) sendBtn.onclick = ()=>{
     const ta = $('#note-feed-input');
@@ -10565,6 +10593,440 @@ function wireNotes(){
       };
     });
   }
+  if(noteSubView==='notebook'){
+    const openPage = noteNotebookPageId? (proj.notebookPages||[]).find(p=>p.id===noteNotebookPageId) : null;
+    if(openPage) wireNotebookEditor(proj, openPage);
+    else wireNotebookPageList(proj);
+  }
+}
+
+/* ============================= SCREEN: NOTES/CHAT — NOTEBOOK (GoodNotes-style) ============================= *
+   A third sub-view under "บันทึก/แชท" (noteSubView==='notebook'), ADDITIVE to
+   the existing message-feed and word-processor-style pad above -- per the
+   user's own explicit answer ("เพิ่มเติมจากแชทเดิม", i.e. "additional to the
+   existing chat, don't replace it") when asked whether a GoodNotes-style
+   treatment should be a new page or a replacement. A project can have any
+   number of named notebook pages (proj.notebookPages[]); each page is a
+   fixed-size canvas (NB_PAGE_W x NB_PAGE_H "logical" pixels, scaled to fit
+   on screen via CSS -- same getBoundingClientRect()-ratio pointer-mapping
+   trick as the existing photo annotator) holding an ordered list of
+   elements (page.elements[]) redrawn from scratch on every change, same
+   "single source of truth, full redraw" approach as punchAnRedraw() above.
+   Six tools, all implemented together from the start per the user's own
+   explicit answer ("ครบเลย", i.e. "all of them, not a phased subset"):
+     pen      freehand stroke (type:'stroke', tool:'pen')
+     eraser   freehand stroke drawn with destination-out compositing, so it
+              erases whatever strokes/shapes/text/images are already under
+              it rather than needing per-object hit-testing (type:'stroke',
+              tool:'eraser')
+     text     tap the page, prompt() for a line of text (same simple
+              tap-then-prompt() pattern the photo annotator's own text tool
+              already uses), placed at the tap point (type:'text')
+     shape    drag to draw a rectangle / ellipse / line (type:'shape',
+              shapeType)
+     image    tap the page to insert a photo at that point, compressed and
+              stored via the same idbPut()/loadRefPhoto() pipeline every
+              other photo feature in this app already shares (type:'image',
+              photoId)
+     voice    tap the page to start recording immediately (MediaRecorder);
+              tapping "stop" saves the clip as a data URL through that same
+              idbPut() pipeline (fileToDataUrl() already works on any Blob,
+              not just a File, so the recorded audio Blob reuses it as-is)
+              and drops a tappable mic pin at that point (type:'audio',
+              audioId) -- rendered as a DOM overlay button (not canvas
+              pixels), since it's the one element type that needs to stay
+              clickable after being placed. Capped at 120s per clip so a
+              forgotten recording can't grow large enough to risk exceeding
+              Firestore's ~1MiB document size limit (idbPut already
+              degrades gracefully -- local-only with a toast -- if a write
+              ever is too big, same as every other photo upload in this
+              app, but better to just not get there).
+   Deliberately NOT implemented: moving/resizing/deleting an individual
+   placed element after the fact (no "select" tool) -- Undo (pop the last
+   element) and Clear-all are the only corrections, exactly the same
+   trade-off the existing photo annotator already makes, kept for
+   consistency and to keep this shippable as one piece rather than an
+   open-ended canvas editor. */
+const NB_PAGE_W = 760, NB_PAGE_H = 1000;
+let noteNotebookPageId = null; // id of the currently open page, or null = page list/grid view
+let noteNotebookTool = 'pen'; // 'pen'|'eraser'|'text'|'shape'|'image'|'voice'
+let noteNotebookColor = '#1F2937';
+let noteNotebookShapeType = 'rect'; // 'rect'|'ellipse'|'line' -- only shown/used when tool==='shape'
+let noteNotebookRecording = null; // {mediaRecorder, startedAt, capTimer} while a voice note is being recorded, else null
+let _nbPendingImagePos = null; // page coords of the tap that opened the file picker, read back once the user picks a photo
+let _nbImageEls = {}; // photoId -> loaded HTMLImageElement, a draw-time cache (separate from the dataUrl cache in refPhotoCache) so redraws don't reload the same image over and over
+let _nbImageLoading = new Set(); // photoIds with an in-flight loadRefPhoto() so a second redraw before it resolves doesn't kick off a duplicate fetch
+let _nbDrawing=false, _nbCurrentStroke=null, _nbShapeStart=null;
+
+function ensureNotebookDefaults(proj){
+  if(!Array.isArray(proj.notebookPages)) proj.notebookPages=[];
+  proj.notebookPages.forEach(p=>{ if(!Array.isArray(p.elements)) p.elements=[]; });
+}
+function newNotebookPage(proj){
+  return {id:uid(), name:`${tf('หน้า','Page')} ${(proj.notebookPages||[]).length+1}`, elements:[], createdAt:new Date().toISOString(), updatedAt:new Date().toISOString()};
+}
+function notebookToolsList(){
+  return [
+    {v:'pen', ic:'✏️', label:tf('ปากกา','Pen')},
+    {v:'eraser', ic:'🧹', label:tf('ยางลบ','Eraser')},
+    {v:'text', ic:'🔤', label:tf('ข้อความ','Text')},
+    {v:'shape', ic:'▭', label:tf('รูปทรง','Shape')},
+    {v:'image', ic:'🖼️', label:tf('แทรกรูป','Image')},
+    {v:'voice', ic:'🎤', label:tf('เสียง','Voice')},
+  ];
+}
+
+// ---- drawing (shared by the full-size editor canvas and the small page-list
+// thumbnail canvases -- both call notebookRedraw(), which scales every
+// logical NB_PAGE_W x NB_PAGE_H coordinate down to whatever the target
+// canvas's actual pixel size is via a single ctx transform, so every
+// element-drawing function below only ever deals in logical page
+// coordinates and never needs to know which context it's being drawn into) ----
+function notebookDrawPaperBg(ctx,w,h){
+  ctx.fillStyle = '#FFFDF8'; ctx.fillRect(0,0,w,h);
+  ctx.strokeStyle='#DCE6F2'; ctx.lineWidth=1;
+  for(let y=56; y<h-20; y+=30){ ctx.beginPath(); ctx.moveTo(26,y+0.5); ctx.lineTo(w-20,y+0.5); ctx.stroke(); }
+  ctx.strokeStyle='#F4C9C9';
+  ctx.beginPath(); ctx.moveTo(64,16); ctx.lineTo(64,h-16); ctx.stroke();
+}
+function notebookDrawStroke(ctx, el){
+  const pts = el.points;
+  if(!pts || pts.length<2) return;
+  ctx.save();
+  if(el.tool==='eraser'){ ctx.globalCompositeOperation='destination-out'; ctx.lineWidth=28; }
+  else { ctx.globalCompositeOperation='source-over'; ctx.strokeStyle = el.color||'#1F2937'; ctx.lineWidth=3; }
+  ctx.lineJoin='round'; ctx.lineCap='round';
+  ctx.beginPath(); ctx.moveTo(pts[0].x, pts[0].y);
+  for(let i=1;i<pts.length;i++) ctx.lineTo(pts[i].x, pts[i].y);
+  ctx.stroke();
+  ctx.restore();
+}
+function notebookDrawShape(ctx, el){
+  ctx.save();
+  ctx.strokeStyle = el.color||'#1F2937'; ctx.lineWidth=3; ctx.lineJoin='round'; ctx.lineCap='round';
+  const {x1,y1,x2,y2,shapeType}=el;
+  if(shapeType==='ellipse'){
+    const cx=(x1+x2)/2, cy=(y1+y2)/2, rx=Math.abs(x2-x1)/2, ry=Math.abs(y2-y1)/2;
+    if(rx>=1 && ry>=1){ ctx.beginPath(); ctx.ellipse(cx,cy,rx,ry,0,0,Math.PI*2); ctx.stroke(); }
+  } else if(shapeType==='line'){
+    ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.stroke();
+  } else {
+    ctx.strokeRect(Math.min(x1,x2),Math.min(y1,y2),Math.abs(x2-x1),Math.abs(y2-y1));
+  }
+  ctx.restore();
+}
+function notebookDrawText(ctx, el){
+  ctx.save();
+  ctx.font = "600 22px 'Sarabun', sans-serif";
+  ctx.fillStyle = el.color||'#1F2937';
+  ctx.textBaseline='top';
+  String(el.text||'').split('\n').forEach((line,i)=> ctx.fillText(line, el.x, el.y + i*26));
+  ctx.restore();
+}
+function notebookDrawImageEl(ctx, el, canvas, page){
+  const img = _nbImageEls[el.photoId];
+  if(img){ ctx.drawImage(img, el.x, el.y, el.w, el.h); return; }
+  if(_nbImageLoading.has(el.photoId)) return;
+  _nbImageLoading.add(el.photoId);
+  loadRefPhoto(el.photoId).then(dataUrl=>{
+    _nbImageLoading.delete(el.photoId);
+    if(!dataUrl) return;
+    const im = new Image();
+    im.onload = ()=>{ _nbImageEls[el.photoId]=im; notebookRedraw(canvas, page); };
+    im.src = dataUrl;
+  });
+}
+function notebookRedraw(canvas, page){
+  const ctx = canvas.getContext('2d');
+  ctx.setTransform(canvas.width/NB_PAGE_W, 0, 0, canvas.height/NB_PAGE_H, 0, 0);
+  ctx.clearRect(0,0,NB_PAGE_W,NB_PAGE_H);
+  notebookDrawPaperBg(ctx, NB_PAGE_W, NB_PAGE_H);
+  (page.elements||[]).forEach(el=>{
+    if(el.type==='stroke') notebookDrawStroke(ctx, el);
+    else if(el.type==='shape') notebookDrawShape(ctx, el);
+    else if(el.type==='text') notebookDrawText(ctx, el);
+    else if(el.type==='image') notebookDrawImageEl(ctx, el, canvas, page);
+    // 'audio' elements are a DOM overlay (notebookAudioOverlayHtml), not canvas pixels -- see the module doc comment above.
+  });
+}
+function notebookGetPos(e, canvas){
+  const rect = canvas.getBoundingClientRect();
+  const clientX = e.touches? e.touches[0].clientX : e.clientX;
+  const clientY = e.touches? e.touches[0].clientY : e.clientY;
+  return {x:(clientX-rect.left)/rect.width*NB_PAGE_W, y:(clientY-rect.top)/rect.height*NB_PAGE_H};
+}
+
+// ---- page list (grid of thumbnails) ----
+function notebookPageListHtml(proj){
+  const pages = proj.notebookPages||[];
+  const cards = pages.map(p=>`
+    <div class="card notebook-page-card" data-nb-open="${p.id}">
+      <canvas class="notebook-thumb-canvas" data-nb-thumb="${p.id}" width="190" height="250"></canvas>
+      <div style="padding:8px 10px">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:6px">
+          <b style="font-size:12.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(p.name||tf('ไม่มีชื่อ','Untitled'))}</b>
+          <button class="iconbtn" data-nb-delete-page="${p.id}" title="${tf('ลบหน้า','Delete page')}" style="flex:none;width:24px;height:24px;font-size:11px">🗑️</button>
+        </div>
+        <div class="hint" style="font-size:11px">${fmtDateTime(p.updatedAt||p.createdAt)}</div>
+      </div>
+    </div>`).join('');
+  return `
+    <div class="hint" style="margin-bottom:10px">📓 ${tf('สมุดบันทึกสไตล์วาด/จดมือ แยกจากไทม์ไลน์ข้อความด้านบน — แตะหน้าเพื่อเปิด หรือเพิ่มหน้าใหม่','A separate draw/handwritten-style notebook, apart from the message timeline above -- tap a page to open it, or add a new one')}</div>
+    <div class="notebook-page-grid">
+      ${cards}
+      <div class="card notebook-page-card notebook-page-add" data-nb-add-page>
+        <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;min-height:180px;gap:6px;color:var(--purple-600)">
+          <span style="font-size:30px;line-height:1">+</span><span style="font-size:12.5px;font-weight:600">${tf('หน้าใหม่','New page')}</span>
+        </div>
+      </div>
+    </div>`;
+}
+
+// ---- page editor (toolbar + canvas + audio-pin overlay) ----
+function notebookAudioOverlayHtml(page){
+  return (page.elements||[]).filter(el=>el.type==='audio').map(el=>`
+    <button type="button" class="notebook-audio-pin" data-nb-play-audio="${el.audioId}" style="left:${(el.x/NB_PAGE_W*100).toFixed(2)}%;top:${(el.y/NB_PAGE_H*100).toFixed(2)}%" title="${tf('เล่นเสียง','Play voice note')} (${el.duration||0}s)">🎙️</button>
+  `).join('');
+}
+function notebookEditorHtml(proj, page){
+  const tools = notebookToolsList();
+  const tool = noteNotebookTool;
+  const shapeTypes = [{v:'rect', ic:'▭'}, {v:'ellipse', ic:'◯'}, {v:'line', ic:'╱'}];
+  const recording = noteNotebookRecording;
+  return `
+    <div class="notebook-editor">
+      <div class="notebook-editor-head">
+        <button class="btn ghost sm" id="nb-back">← ${tf('หน้าทั้งหมด','All pages')}</button>
+        <input type="text" id="nb-page-name" value="${escapeHtml(page.name||'')}" style="max-width:220px;font-weight:600" placeholder="${tf('ชื่อหน้า','Page name')}">
+        <span style="flex:1"></span>
+        <span class="hint" style="font-size:11px">${tf('บันทึกอัตโนมัติ','Auto-saves')}</span>
+      </div>
+      <div class="notebook-toolbar">
+        ${tools.map(t=>`<button class="btn ghost sm ${tool===t.v?'active':''}" data-nb-tool="${t.v}" title="${t.label}">${t.ic} ${t.label}</button>`).join('')}
+        <input type="color" id="nb-color" value="${noteNotebookColor}" title="${tf('สี','Color')}">
+        <span style="flex:1"></span>
+        <button class="btn ghost sm" id="nb-undo">↩️ ${tf('เลิกทำ','Undo')}</button>
+        <button class="btn ghost sm" id="nb-clear">🗑️ ${tf('ล้างทั้งหมด','Clear all')}</button>
+      </div>
+      ${tool==='shape'? `<div class="notebook-toolbar" style="margin-top:6px">
+        ${shapeTypes.map(s=>`<button class="btn ghost sm ${noteNotebookShapeType===s.v?'active':''}" data-nb-shape-type="${s.v}">${s.ic}</button>`).join('')}
+        <span class="hint">${tf('ลากบนหน้าเพื่อวาดรูปทรง','Drag on the page to draw the shape')}</span>
+      </div>` : ''}
+      <div class="hint" style="margin-top:6px">${
+        tool==='text'? tf('แตะบนหน้าเพื่อพิมพ์ข้อความ','Tap the page to type a text label')
+        : tool==='image'? tf('แตะบนหน้าเพื่อเลือกรูปมาแทรก','Tap the page to pick a photo to insert')
+        : tool==='voice'? tf('แตะบนหน้าเพื่อเริ่มบันทึกเสียง','Tap the page to start recording a voice note')
+        : tool==='eraser'? tf('ลากนิ้ว/เมาส์บนหน้าเพื่อลบ','Drag your finger/mouse over the page to erase')
+        : tf('ลากนิ้ว/เมาส์บนหน้าเพื่อวาด','Drag your finger/mouse on the page to draw')
+      }</div>
+      ${recording? `<div class="notebook-recording-banner">🔴 ${tf('กำลังบันทึกเสียง...','Recording voice note...')} <button class="btn primary sm" id="nb-stop-recording">⏹ ${tf('หยุด','Stop')}</button></div>` : ''}
+      <div class="notebook-canvas-wrap" id="nb-canvas-wrap">
+        <canvas id="nb-canvas" width="${NB_PAGE_W}" height="${NB_PAGE_H}"></canvas>
+        ${notebookAudioOverlayHtml(page)}
+      </div>
+      <input type="file" id="nb-image-input" accept="image/*" style="display:none">
+    </div>`;
+}
+
+// ---- wiring ----
+function wireNotebookPageList(proj){
+  $$('[data-nb-thumb]').forEach(canvas=>{
+    const page = proj.notebookPages.find(p=>p.id===canvas.dataset.nbThumb);
+    if(page) notebookRedraw(canvas, page);
+  });
+  $$('[data-nb-open]').forEach(card=> card.onclick = ()=>{ noteNotebookPageId = card.dataset.nbOpen; render(); });
+  const addTile = $('[data-nb-add-page]');
+  if(addTile) addTile.onclick = ()=>{
+    const page = newNotebookPage(proj);
+    proj.notebookPages.push(page);
+    saveData();
+    noteNotebookPageId = page.id;
+    render();
+  };
+  $$('[data-nb-delete-page]').forEach(btn=> btn.onclick = (e)=>{
+    e.stopPropagation(); // the delete button sits inside the open-page card -- don't also open the page
+    if(!confirm(tf('ลบหน้านี้หรือไม่? ไม่สามารถกู้คืนได้','Delete this page? This cannot be undone.'))) return;
+    const id = btn.dataset.nbDeletePage;
+    proj.notebookPages = proj.notebookPages.filter(p=>p.id!==id);
+    saveData(); render(); toast(tf('ลบหน้าแล้ว','Page deleted'));
+  });
+}
+function notebookStartRecording(proj, page, pos){
+  if(noteNotebookRecording) return; // already recording -- a second tap on the page while 'voice' is active is a no-op, not a second clip
+  if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
+    toast(tf('อุปกรณ์นี้ไม่รองรับการบันทึกเสียง','This device does not support voice recording'));
+    return;
+  }
+  navigator.mediaDevices.getUserMedia({audio:true}).then(stream=>{
+    let mr;
+    try{ mr = new MediaRecorder(stream); }
+    catch(err){ stream.getTracks().forEach(t=>t.stop()); toast(tf('อุปกรณ์นี้ไม่รองรับการบันทึกเสียง','This device does not support voice recording')); return; }
+    const chunks=[];
+    mr.ondataavailable = (e)=>{ if(e.data && e.data.size) chunks.push(e.data); };
+    const startedAt = Date.now();
+    mr.onstop = async ()=>{
+      stream.getTracks().forEach(t=>t.stop());
+      const duration = Math.round((Date.now()-startedAt)/1000);
+      const blob = new Blob(chunks, {type: mr.mimeType||'audio/webm'});
+      noteNotebookRecording = null;
+      if(blob.size>0 && duration>=1){
+        try{
+          const dataUrl = await fileToDataUrl(blob);
+          const aid = uid();
+          await idbPut(aid, dataUrl);
+          refPhotoCache[aid] = dataUrl; // warm the shared cache so the pin plays back instantly without a round-trip
+          page.elements = page.elements||[];
+          page.elements.push({id:uid(), type:'audio', x:pos.x, y:pos.y, audioId:aid, duration});
+          page.updatedAt = new Date().toISOString();
+          saveData();
+          toast(tf('บันทึกเสียงแล้ว','Voice note saved'));
+        }catch(err){ toast(tf('บันทึกเสียงไม่สำเร็จ','Could not save the voice note')); }
+      } // else: too short/empty (e.g. stopped almost immediately) -- silently dropped, nothing worth keeping
+      render();
+    };
+    mr.start();
+    noteNotebookRecording = {mediaRecorder:mr, startedAt};
+    noteNotebookRecording.capTimer = setTimeout(()=>{
+      if(noteNotebookRecording && noteNotebookRecording.mediaRecorder.state==='recording') noteNotebookRecording.mediaRecorder.stop();
+    }, 120000);
+    render();
+  }).catch(()=>{
+    toast(tf('ไม่สามารถเข้าถึงไมโครโฟนได้ — กรุณาอนุญาตการใช้งานไมโครโฟน','Could not access the microphone -- please allow microphone access'));
+  });
+}
+function notebookStopRecording(){
+  if(!noteNotebookRecording) return;
+  clearTimeout(noteNotebookRecording.capTimer);
+  if(noteNotebookRecording.mediaRecorder.state==='recording') noteNotebookRecording.mediaRecorder.stop();
+  // onstop (registered in notebookStartRecording) does the actual save +
+  // render() once that finishes; noteNotebookRecording itself is only
+  // cleared there, so a rapid double-tap on Stop while the save is still in
+  // flight just hits the mediaRecorder.state!=='recording' guard above and
+  // no-ops harmlessly.
+}
+function wireNotebookEditor(proj, page){
+  const canvas = $('#nb-canvas');
+  if(!canvas) return;
+  notebookRedraw(canvas, page);
+
+  $('#nb-back').onclick = ()=>{
+    if(noteNotebookRecording) notebookStopRecording();
+    noteNotebookPageId = null; render();
+  };
+  const nameEl = $('#nb-page-name');
+  if(nameEl){
+    nameEl.oninput = ()=>{ page.name = nameEl.value; };
+    nameEl.onchange = ()=>{ page.name = nameEl.value; page.updatedAt=new Date().toISOString(); saveData(); };
+  }
+  $$('[data-nb-tool]').forEach(b=> b.onclick = ()=>{ noteNotebookTool = b.dataset.nbTool; render(); });
+  $$('[data-nb-shape-type]').forEach(b=> b.onclick = ()=>{ noteNotebookShapeType = b.dataset.nbShapeType; render(); });
+  const colorEl = $('#nb-color');
+  if(colorEl) colorEl.onchange = ()=>{ noteNotebookColor = colorEl.value; };
+
+  const saveNoRender = ()=>{ page.updatedAt=new Date().toISOString(); saveData(); };
+  // Every tool except voice commits synchronously (the user is mid-gesture,
+  // a full render() would tear down the canvas and lose nothing but would
+  // still be a jarring flicker) -- redraw the canvas directly instead and
+  // only fall back to a full render() when the change needs more than the
+  // canvas to update (so far, only the recording banner/audio pins do).
+  const commitElement = (el, renderAfter)=>{
+    page.elements = page.elements||[];
+    page.elements.push(el);
+    saveNoRender();
+    if(renderAfter) render(); else notebookRedraw(canvas, page);
+  };
+
+  canvas.onpointerdown = (e)=>{
+    e.preventDefault();
+    const pos = notebookGetPos(e, canvas);
+    const tool = noteNotebookTool;
+    if(tool==='text'){
+      const text = (prompt(tf('พิมพ์ข้อความ:','Type the text:'))||'').trim();
+      if(text) commitElement({id:uid(), type:'text', x:pos.x, y:pos.y, text, color:noteNotebookColor}, false);
+      return;
+    }
+    if(tool==='image'){
+      _nbPendingImagePos = pos;
+      const input = $('#nb-image-input');
+      if(input) input.click();
+      return;
+    }
+    if(tool==='voice'){
+      notebookStartRecording(proj, page, pos);
+      return;
+    }
+    if(tool==='shape'){ _nbShapeStart = pos; _nbDrawing=true; return; }
+    _nbDrawing=true; _nbCurrentStroke=[pos];
+  };
+  canvas.onpointermove = (e)=>{
+    if(!_nbDrawing) return;
+    e.preventDefault();
+    const pos = notebookGetPos(e, canvas);
+    const tool = noteNotebookTool;
+    if(tool==='shape' && _nbShapeStart){
+      notebookRedraw(canvas, page);
+      notebookDrawShape(canvas.getContext('2d'), {x1:_nbShapeStart.x,y1:_nbShapeStart.y,x2:pos.x,y2:pos.y,shapeType:noteNotebookShapeType,color:noteNotebookColor});
+    } else if(tool==='pen' || tool==='eraser'){
+      _nbCurrentStroke.push(pos);
+      notebookRedraw(canvas, page);
+      notebookDrawStroke(canvas.getContext('2d'), {tool, points:_nbCurrentStroke, color:noteNotebookColor});
+    }
+  };
+  const endStroke = (e)=>{
+    if(!_nbDrawing) return;
+    _nbDrawing=false;
+    const tool = noteNotebookTool;
+    const pos = notebookGetPos(e, canvas);
+    if(tool==='shape' && _nbShapeStart){
+      commitElement({id:uid(), type:'shape', shapeType:noteNotebookShapeType, x1:_nbShapeStart.x,y1:_nbShapeStart.y,x2:pos.x,y2:pos.y, color:noteNotebookColor}, false);
+    } else if((tool==='pen'||tool==='eraser') && _nbCurrentStroke && _nbCurrentStroke.length>1){
+      commitElement({id:uid(), type:'stroke', tool, points:_nbCurrentStroke, color:noteNotebookColor}, false);
+    }
+    _nbCurrentStroke=null; _nbShapeStart=null;
+  };
+  canvas.onpointerup = endStroke; canvas.onpointerleave = endStroke; canvas.onpointercancel = endStroke;
+
+  const imgInput = $('#nb-image-input');
+  if(imgInput) imgInput.onchange = async (e)=>{
+    const file = (e.target.files||[])[0];
+    e.target.value = '';
+    if(!file) return;
+    try{
+      const dataUrl = await compressImage(file, 900, 0.7);
+      const pid = uid();
+      await idbPut(pid, dataUrl);
+      refPhotoCache[pid] = dataUrl;
+      const im = new Image();
+      im.onload = ()=>{
+        _nbImageEls[pid] = im;
+        const maxW=260, maxH=260;
+        const s = Math.min(1, maxW/im.width, maxH/im.height);
+        const w = Math.round(im.width*s), h = Math.round(im.height*s);
+        const pos = _nbPendingImagePos || {x:(NB_PAGE_W-w)/2, y:(NB_PAGE_H-h)/2};
+        commitElement({id:uid(), type:'image', photoId:pid, x:Math.max(0,pos.x-w/2), y:Math.max(0,pos.y-h/2), w, h}, false);
+      };
+      im.src = dataUrl;
+    }catch(err){ toast(tf('แทรกรูปไม่สำเร็จ','Could not insert the image')); }
+  };
+
+  $('#nb-undo').onclick = ()=>{ (page.elements||[]).pop(); saveNoRender(); render(); };
+  $('#nb-clear').onclick = ()=>{
+    if(!confirm(tf('ล้างหน้านี้ทั้งหมดหรือไม่?','Clear this whole page?'))) return;
+    page.elements=[]; saveNoRender(); render();
+  };
+  const stopBtn = $('#nb-stop-recording');
+  if(stopBtn) stopBtn.onclick = ()=> notebookStopRecording();
+
+  $$('[data-nb-play-audio]').forEach(btn=> btn.onclick = async ()=>{
+    const aid = btn.dataset.nbPlayAudio;
+    const origText = btn.textContent; btn.disabled = true; btn.textContent='⏳';
+    try{
+      const dataUrl = await loadRefPhoto(aid);
+      if(!dataUrl){ toast(tf('ไม่พบไฟล์เสียง','Voice note not found')); return; }
+      const audio = new Audio(dataUrl);
+      audio.play().catch(()=> toast(tf('เล่นเสียงไม่สำเร็จ','Could not play the voice note')));
+    } finally { btn.disabled=false; btn.textContent=origText; }
+  });
 }
 
 /* ============================= SCREEN: INSPECT ============================= *
