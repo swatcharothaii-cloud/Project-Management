@@ -221,22 +221,30 @@ a{color:inherit}
 
 main{flex:1;width:100%;max-width:1180px;margin:0 auto;padding:22px 18px 64px;}
 .screen{display:flex;flex-direction:column;gap:18px;animation:rise .28s ease both}
-/* translate (the standalone CSS property), not the transform property, for
-   the slide-up -- visually identical to transform:translateY(), but unlike
-   transform it does NOT establish a new containing block for position:fixed
-   descendants. Using transform here used to make .screen a stray containing
-   block for any position:fixed overlay nested inside it (the photo
-   lightbox, modal-bg, etc.) for the ~0.28s the animation ran on every fresh
-   .screen render() creates -- and because opening the lightbox itself
-   triggers that same render(), the overlay's inset:0 would resolve against
-   .screen's own (scrolled-past, page-length) box instead of the real
-   viewport right as it appeared, so the photo could render positioned
-   above the current scroll position and overflow off screen instead of
-   being centered and contained in the visible viewport ("กดดูรูปแนบ แล้ว
-   เกินหน้า"). @media print further below separately kills this animation
-   entirely for print output (a pre-existing, unrelated fix); this change
-   is what fixes the same underlying containing-block pitfall on screen. */
-@keyframes rise{from{opacity:0;translate:0 6px}to{opacity:1;translate:0 0}}
+/* margin-top, not transform/translateY -- a first attempt here used the
+   standalone `translate` CSS property instead of `transform`, on the theory
+   that only `transform` establishes a new containing block for
+   position:fixed descendants. That turned out to still break it: per the
+   CSS Transforms Level 2 spec, the individual transform properties
+   (translate/scale/rotate) establish a containing block exactly like
+   `transform` does, specifically so they can't be used as a loophole around
+   this -- confirmed empirically here (a fixed-position overlay nested under
+   an element animating `translate` still had that element, not the
+   viewport, as its offsetParent/containing block). margin-top is a plain
+   layout property with no such special case, so it reproduces the same
+   6px "rise" slide with no containing-block side effect at all, fixing it
+   for real: .screen used to make itself a stray containing block for any
+   position:fixed overlay nested inside it (the photo lightbox, modal-bg,
+   etc.) for the ~0.28s the animation ran on every fresh .screen render()
+   creates -- and because opening the lightbox itself triggers that same
+   render(), the overlay's inset:0 would resolve against .screen's own
+   (scrolled-past, page-length) box instead of the real viewport right as
+   it appeared, so the photo could render positioned above the current
+   scroll position and overflow off screen instead of being centered and
+   contained in the visible viewport ("กดดูรูปแนบ แล้วเกินหน้า"). @media print
+   further below separately kills this animation entirely for print output
+   (a pre-existing, unrelated fix). */
+@keyframes rise{from{opacity:0;margin-top:6px}to{opacity:1;margin-top:0}}
 
 .page-head{display:flex;align-items:flex-end;justify-content:space-between;gap:14px;flex-wrap:wrap}
 .page-head h2{font-size:22px;font-weight:700}
