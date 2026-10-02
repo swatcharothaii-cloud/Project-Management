@@ -999,13 +999,26 @@ select.pp-status-select.pp-noneed{background:var(--surface-2);color:var(--ink-50
 .punch-legend{display:flex;gap:14px;flex-wrap:wrap;font-size:11.5px;color:var(--ink-500);margin-top:8px}
 .punch-legend span{display:inline-flex;align-items:center;gap:5px}
 .punch-legend i{width:9px;height:9px;border-radius:50%;display:inline-block}
-.punch-list{display:flex;flex-direction:column;gap:8px;margin-top:12px}
-.punch-item-card{border:1px solid var(--line);border-left:3px solid var(--line);border-radius:var(--radius-sm);padding:10px 12px;cursor:pointer;background:var(--surface);display:flex;flex-direction:column;gap:4px}
-.punch-item-card.open{border-left-color:var(--coral-500)}
-.punch-item-card.fixed{border-left-color:var(--amber-500)}
-.punch-item-card.closed{border-left-color:var(--mint-500)}
-.punch-item-card .title{font-weight:600;font-size:13.5px}
-.punch-item-card .meta{font-size:11.5px;color:var(--ink-500)}
+/* Defect Item List -- directly fill-in-able table (replaces the old
+   popup-based add/edit flow; see punchDefectTableHtml/wirePunchDefectTable).
+   A left border stripe keyed to the row's derived status (from Progress)
+   gives the same at-a-glance open/awaiting/closed read the old item cards
+   had, without needing its own Status column -- matching the reference
+   image, which has none. */
+.punch-defect-table{border-collapse:collapse;width:100%;font-size:12px}
+.punch-defect-table th,.punch-defect-table td{border:1px solid var(--line);padding:6px 7px;vertical-align:middle}
+.punch-defect-table thead th{background:var(--surface-2);font-weight:600;font-size:10.5px;white-space:nowrap;text-align:left}
+.punch-defect-table tbody tr{border-left:3px solid var(--line)}
+.punch-defect-table tbody tr.open{border-left-color:var(--coral-500)}
+.punch-defect-table tbody tr.fixed{border-left-color:var(--amber-500)}
+.punch-defect-table tbody tr.closed{border-left-color:var(--mint-500)}
+.punch-defect-table td input,.punch-defect-table td textarea{border:none;background:transparent;width:100%;font-size:12px;padding:2px;font-family:inherit;resize:vertical;color:inherit}
+.punch-defect-table td input:focus,.punch-defect-table td textarea:focus{background:var(--surface-2);border-radius:4px;outline:1px solid var(--line)}
+.punch-table-photos{display:flex;flex-wrap:wrap;gap:4px;align-items:center;min-width:64px}
+.punch-table-thumb{position:relative;width:32px;height:32px;border-radius:4px;overflow:hidden;cursor:zoom-in;flex:none;display:block}
+.punch-table-thumb img{width:100%;height:100%;object-fit:cover;display:block}
+.punch-table-thumb .rm{position:absolute;top:-3px;right:-3px;width:14px;height:14px;border-radius:50%;background:rgba(20,18,36,.78);color:#fff;border:none;font-size:8px;line-height:1;padding:0;cursor:pointer}
+.punch-table-photo-add{width:26px;height:26px;border:1px dashed var(--line);border-radius:4px;display:flex;align-items:center;justify-content:center;cursor:pointer;flex:none;font-size:12px;color:var(--ink-500)}
 .photo-item .edit-ic{position:absolute;left:5px;bottom:5px;width:22px;height:22px;border-radius:50%;background:rgba(20,18,36,.62);color:#fff;display:flex;align-items:center;justify-content:center;font-size:11px;cursor:pointer}
 .punch-annotate-wrap{background:#111;border-radius:var(--radius-sm);overflow:auto;display:flex;align-items:center;justify-content:center;height:66vh}
 .punch-annotate-wrap canvas{touch-action:none;cursor:crosshair;max-width:none;flex:none}
@@ -4850,11 +4863,13 @@ function renderModalRoot(){
   // its mount animation that would otherwise trap and misplace it (same
   // reason every other modal in this function is rendered here too).
   if(JOB_BID_MODE) return cjobPhotoLightboxHtml();
-  // punchAnnotating is checked first: it opens *on top of* an in-progress
-  // punchItemDraft (drawing on a defect photo mid-edit) or punchChecklistRun
-  // photo, and this app only ever shows one modal-bg at a time -- the
-  // underlying draft object is left untouched in memory so closing the
-  // annotator just falls through to whichever modal was open before it.
+  // punchAnnotating is checked first: it opens *on top of* whatever else is
+  // on screen (a checklist-photo or defect-photo draw/highlight session, or
+  // a main-plan markup), and this app only ever shows one modal-bg at a
+  // time. The Defect Item List itself has no popup of its own any more --
+  // it's a directly fill-in-able table (see renderPunchDefectsView /
+  // punchDefectTableHtml below) -- so punchAnnotating is the only
+  // INSPECT-related modal left to check here.
   if(punchAnnotating) return punchAnnotateModalHtml();
   // The checklist stage link (PUNCH_STAGE_MODE) only ever needs the annotate
   // modal just checked above -- none of the other modal state below is ever
@@ -4869,7 +4884,6 @@ function renderModalRoot(){
   // input, not the shared annotate-draft flow), so this stops any stale
   // modal state left over from a different mode/tab from leaking in.
   if(PUNCH_DEFECT_FILL_MODE) return '';
-  if(punchItemDraft) return punchItemModalHtml();
   if(punchPlanDraft) return punchPlanModalHtml();
   if(punchChecklistManagerOpen) return punchChecklistModalHtml();
   if(itemDraft) return itemModalHtml();
@@ -5007,8 +5021,7 @@ function resetTransient(){
   cjobDraft=null; editingCjobId=null; cjobDetailId=null; cjobHandoverPending=[]; cjobViewTrash=false;
   cjobPoPending=[]; cjobPoDraft=null; cjobShareImageUrl=null; cjobPhotoLightboxId=null;
   punchSelectedPlanId=null; punchPlanDraft=null; editingPunchPlanId=null;
-  punchItemDraft=null; editingPunchItemId=null; punchPendingPin=null; punchDrawMode='pin';
-  punchFilterStatus='all'; punchFilterSeverity='all'; punchFilterCategory=''; punchFilterAssignee=''; punchFilterSearch='';
+  punchDrawMode='pin'; punchDefectSearch=''; punchFocusItemId=null; punchPhotoLightboxId=null;
   punchAnnotating=null; punchRecordLightboxId=null; punchChecklistManagerOpen=false; punchShowQr=false;
   punchSubView='defects'; punchSelectedRunId=null; punchNewRunZone=''; punchClExpanded=new Set();
   noteSubView='feed';
@@ -10583,11 +10596,15 @@ function wireNotes(){
 let punchSelectedPlanId = null;
 let punchPlanDraft = null; // {name, imageId, pendingPhoto:{dataUrl}|null}
 let editingPunchPlanId = null; // null | 'new' | planId
-let punchItemDraft = null;
-let editingPunchItemId = null; // null | 'new' | itemId
-let punchPendingPin = null; // {x,y,radius} captured from a viewer click/drag, consumed by the next openPunchItemDraft(proj,'new',planId) -- radius is 0 for a plain point pin, >0 for a dragged circle
 let punchDrawMode = 'pin'; // 'pin' (tap to place a point) | 'circle' (drag to mark an area) -- which interaction the plan viewer's pointer handlers use right now
-let punchFilterStatus='all', punchFilterSeverity='all', punchFilterCategory='', punchFilterAssignee='', punchFilterSearch='';
+// Defect Item List table state (replaces the old popup-based add/edit flow
+// per the user's explicit "ไม่เอาแบบ popup ... หัวข้อตามในรูป" request: a
+// directly fill-in-able table, not a dialog box). A click on the plan still
+// places a pin and creates a row immediately (no modal in between); clicking
+// an existing pin just scrolls/focuses that row instead of opening anything.
+let punchDefectSearch = ''; // free-text search across zone/description/assignedTo/supervisor/remark
+let punchFocusItemId = null; // id of a just-added/just-clicked row to scroll to + focus after the next render
+let punchPhotoLightboxId = null; // a defect photo id currently shown full-size in the lightbox, or null when closed
 let punchAnnotating = null; // {dataUrl, marks:[], zoom, tool, onSave, isPlan, saveAsRecord} -- drives the annotate modal, opened on top of the item modal (or directly from the main plan viewer). marks is a mixed list of {type:'stroke'|'circle'|'text', ...} in draw order (replaces the old single-purpose `strokes` list so pen/highlight/circle/text all undo and redraw together in the order they were drawn). `tool` is whichever of 'pen'|'highlight'|'circle'|'text' is currently selected in the toolbar. `isPlan` is true when annotating a copy of the blueprint (as opposed to a before/after defect photo) -- purely cosmetic (title/hint text), the save behavior itself is entirely decided by the caller's own `onSave`. `saveAsRecord` is true only for the main-plan-viewer entry point, where saving prompts for a name and stores a standalone, viewable/deletable revision record on the plan (proj.punchPlans[].annotations) instead of attaching a photo to one defect item.
 let punchRecordLightboxId = null; // id of the plan.annotations[] entry currently shown full-size in the lightbox, or null when closed
 let punchChecklistManagerOpen = false;
@@ -10679,10 +10696,29 @@ function defaultPunchChecklist(){
 // ---- data builders ----
 function newPunchPlan(){ return {id:uid(), name:'', imageId:null, createdAt:new Date().toISOString(), annotations:[], comments:[]}; }
 function newPunchItem(planId, x, y, radius){
+  const today = todayStr();
   return {id:uid(), planId:planId||null, x:x==null?0.5:x, y:y==null?0.5:y, radius:radius||0,
     title:'', category:'', location:'', severity:'medium', assignedTo:'', dueDate:'', notes:'',
+    // Defect Item List fields (fill-in table -- see punchDefectTableHtml()):
+    // supervisor/issueDate/startDate/progress/completedDate/remark. `location`
+    // doubles as "Zone" and `notes` as "Description" in that table (same
+    // fields the rest of the app -- report/Excel export, the defect fill-in
+    // link -- already read/write, so nothing downstream needed renaming).
+    supervisor:'', issueDate:today, startDate:'', progress:0, completedDate:'', remark:'',
     status:'open', photosBefore:[], photosAfter:[],
     createdAt:new Date().toISOString(), createdBy:currentActorName(), history:[]};
+}
+// Progress (0-100, the Defect Item List's own column) is the single source
+// of truth for a row's state now that the old popup's manual status buttons
+// (mark fixed / re-check / reopen) are gone -- status is just derived from
+// it, kept in sync on every progress edit (see wirePunchDefectTable's
+// progress onchange) so the KPI cards, pin colors and punchOverdueCount
+// above all keep working unchanged.
+function punchStatusFromProgress(progress){
+  const p = Number(progress)||0;
+  if(p>=100) return 'closed';
+  if(p>0) return 'fixed';
+  return 'open';
 }
 // Renders one marker on a plan viewer -- either the classic single-point pin
 // (radius falsy/0) or a circle/area marker (radius>0, dragged via the
@@ -10692,7 +10728,8 @@ function newPunchItem(planId, x, y, radius){
 // static. Both shapes share the same numbering so the list/report below
 // still lines up with whichever shape a given defect was marked with.
 function punchMarkerHtml(it, idx, interactive){
-  const hook = interactive? ` data-pu-pin="${it.id}" title="${escapeHtml(it.title)}"` : '';
+  const tip = it.location || it.notes || '';
+  const hook = interactive? ` data-pu-pin="${it.id}" title="${escapeHtml(tip)}"` : '';
   if(it.radius){
     const size = (it.radius*2*100).toFixed(2);
     return `<div class="punch-circle ${it.status}" style="left:${(it.x*100).toFixed(2)}%;top:${(it.y*100).toFixed(2)}%;width:${size}%;height:${size}%"${hook}><span class="punch-circle-label">${idx+1}</span></div>`;
@@ -10704,24 +10741,24 @@ function punchOverdueCount(proj){
   const today = todayStr();
   return proj.punchItems.filter(it=> it.status==='open' && it.dueDate && it.dueDate<today).length;
 }
-// Applies every active module-level filter (status/severity/category/
-// assignee/search) plus the given plan scope, newest-first -- shared by both
-// the on-screen list and (indirectly, via the same status/counts) the KPI
-// cards above it.
-function punchFilteredItems(proj, planId){
-  let items = proj.punchItems.filter(it=> it.planId===planId);
-  if(punchFilterStatus!=='all') items = items.filter(it=>it.status===punchFilterStatus);
-  if(punchFilterSeverity!=='all') items = items.filter(it=>it.severity===punchFilterSeverity);
-  if(punchFilterCategory) items = items.filter(it=>it.category===punchFilterCategory);
-  if(punchFilterAssignee.trim()){
-    const q = punchFilterAssignee.trim().toLowerCase();
-    items = items.filter(it=>(it.assignedTo||'').toLowerCase().includes(q));
+// Every defect in the project (the table is project-wide, not scoped to the
+// currently-selected plan -- the Zone column is what tells rows apart now),
+// oldest first by Issue Date so the table reads top-to-bottom the way a
+// punch-list document normally would, with a free-text search across the
+// fields people actually look things up by.
+function punchSearchedItems(proj){
+  let items = proj.punchItems.slice();
+  if(punchDefectSearch.trim()){
+    const q = punchDefectSearch.trim().toLowerCase();
+    items = items.filter(it=>
+      (it.location||'').toLowerCase().includes(q) ||
+      (it.notes||'').toLowerCase().includes(q) ||
+      (it.assignedTo||'').toLowerCase().includes(q) ||
+      (it.supervisor||'').toLowerCase().includes(q) ||
+      (it.remark||'').toLowerCase().includes(q)
+    );
   }
-  if(punchFilterSearch.trim()){
-    const q = punchFilterSearch.trim().toLowerCase();
-    items = items.filter(it=> (it.title||'').toLowerCase().includes(q) || (it.notes||'').toLowerCase().includes(q) || (it.location||'').toLowerCase().includes(q));
-  }
-  return items.slice().sort((a,b)=> (b.createdAt||'').localeCompare(a.createdAt||''));
+  return items.sort((a,b)=> (a.issueDate||a.createdAt||'').localeCompare(b.issueDate||b.createdAt||''));
 }
 // Generic [data-thumb-id]/[data-plan-img] async thumbnail fillers -- same
 // idbGet-via-loadRefPhoto cache every other photo feature in the app already
@@ -10760,10 +10797,28 @@ function ensurePunchDefaults(proj){
     if(!Array.isArray(pl.comments)) pl.comments=[];
   });
   if(!Array.isArray(proj.punchItems)) proj.punchItems=[];
-  // Older saved defect items predate the location/room field added this
-  // update -- default it to '' so the add/edit form and report table never
-  // see `undefined` on an item created before this change.
-  proj.punchItems.forEach(it=>{ if(it.location==null) it.location=''; });
+  // Older saved defect items predate the location/room field, and
+  // everything predates the Defect Item List table fields (supervisor/
+  // issueDate/startDate/progress/completedDate/remark) added when the
+  // popup-based add/edit flow was replaced with a directly fill-in-able
+  // table -- default every field a pre-existing item might be missing so
+  // the table never renders `undefined`. An item saved under the old
+  // status-button flow had no numeric progress at all, so its progress is
+  // backfilled from its old status (closed->100, fixed->50, open->0) the
+  // first time this runs on it, purely so the new Progress column starts
+  // somewhere sensible -- from then on progress is the single source of
+  // truth and status is re-derived from it every time below (see
+  // punchStatusFromProgress), never the other way round.
+  proj.punchItems.forEach(it=>{
+    if(it.location==null) it.location='';
+    if(it.supervisor==null) it.supervisor='';
+    if(it.issueDate==null) it.issueDate = (it.createdAt? it.createdAt.slice(0,10) : todayStr());
+    if(it.startDate==null) it.startDate='';
+    if(it.completedDate==null) it.completedDate='';
+    if(it.remark==null) it.remark='';
+    if(it.progress==null) it.progress = it.status==='closed'?100:(it.status==='fixed'?50:0);
+    it.status = punchStatusFromProgress(it.progress);
+  });
   if(!Array.isArray(proj.punchChecklist)) proj.punchChecklist=defaultPunchChecklist();
   if(!Array.isArray(proj.punchChecklistRuns)) proj.punchChecklistRuns=[];
 }
@@ -10840,11 +10895,18 @@ function renderPunchDefectsView(proj){
   </div>`;
   const topHtml = weeklyBoxHtml + kpiBigHtml;
 
+  // The Defect Item List table (punchDefectTableHtml below) is project-wide
+  // and never needs a plan to exist -- rows can be added straight into it
+  // via "+ Add row" (or the defect fill-in link) with no plan at all. Only
+  // the pin/plan viewer below it needs at least one blueprint, so a project
+  // with no plans yet still gets the full table, just with an "add a
+  // blueprint" placeholder in place of the viewer instead of skipping the
+  // whole screen.
   if(!proj.punchPlans.length){
     return topHtml + statsHtml + `<div class="card" style="text-align:center;padding:40px 20px">
       <div class="empty"><span class="ic">📐</span>${tf('ยังไม่มีแปลนดิจิทัล — อัปโหลดรูปแปลนหรือไฟล์ PDF (ผังห้อง/ผังชั้น) เพื่อเริ่มปักหมุดจุดบกพร่อง','No digital blueprint yet -- upload a plan image or PDF (room/floor layout) to start pinning defects')}</div>
       <button class="btn primary" style="margin-top:10px" id="pu-add-plan">+ ${tf('เพิ่มแปลน','Add blueprint')}</button>
-    </div>`;
+    </div>` + punchDefectTableHtml(proj) + punchReportSectionHtml(proj);
   }
   if(!punchSelectedPlanId || !proj.punchPlans.find(p=>p.id===punchSelectedPlanId)) punchSelectedPlanId = proj.punchPlans[0].id;
   const plan = proj.punchPlans.find(p=>p.id===punchSelectedPlanId);
@@ -10880,40 +10942,12 @@ function renderPunchDefectsView(proj){
     <div class="sub" style="margin-top:8px">🖊️ ${tf('ต้องการคอมเมนต์/วาดแก้ไขบนแปลนนี้?','Need to comment or mark up this plan?')} <a href="javascript:void(0)" id="pu-goto-revise">${tf('ไปที่แท็บ "งานปรับปรุง"','Go to the "Plan Revisions" tab')} →</a></div>
   </div>`;
 
-  const usedCategories = Array.from(new Set(planItems.map(it=>it.category).filter(Boolean)));
-  const filtersHtml = `<div class="card" style="margin-top:14px">
-    <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">
-      <div class="field" style="min-width:140px"><label>${tf('สถานะ','Status')}</label><select id="pu-f-status">
-        <option value="all" ${punchFilterStatus==='all'?'selected':''}>${tf('ทั้งหมด','All')}</option>
-        ${PUNCH_STATUS.map(s=>`<option value="${s.v}" ${punchFilterStatus===s.v?'selected':''}>${tf(s.th,s.en)}</option>`).join('')}
-      </select></div>
-      <div class="field" style="min-width:120px"><label>${tf('ความรุนแรง','Severity')}</label><select id="pu-f-severity">
-        <option value="all" ${punchFilterSeverity==='all'?'selected':''}>${tf('ทั้งหมด','All')}</option>
-        ${PUNCH_SEVERITY.map(s=>`<option value="${s.v}" ${punchFilterSeverity===s.v?'selected':''}>${s.ic} ${tf(s.th,s.en)}</option>`).join('')}
-      </select></div>
-      <div class="field" style="min-width:160px"><label>${tf('หมวดงาน','Category')}</label><select id="pu-f-category">
-        <option value="">${tf('ทั้งหมด','All')}</option>
-        ${usedCategories.map(c=>`<option value="${escapeHtml(c)}" ${punchFilterCategory===c?'selected':''}>${escapeHtml(c)}</option>`).join('')}
-      </select></div>
-      <div class="field" style="min-width:150px"><label>👷 ${tf('ทีมงาน/ผู้รับเหมา','Contractor/team')}</label><input type="text" id="pu-f-assignee" value="${escapeHtml(punchFilterAssignee)}" placeholder="${tf('ค้นหาชื่อ','search name')}"></div>
-      <div class="field" style="flex:1;min-width:150px"><label>${tf('ค้นหา','Search')}</label><input type="text" id="pu-f-search" value="${escapeHtml(punchFilterSearch)}" placeholder="${tf('ค้นหาหัวข้อ/ตำแหน่ง/รายละเอียด','search title/location/notes')}"></div>
-      <button class="btn primary" id="pu-add-item">+ ${tf('เพิ่มรายการ Defect','Add defect')}</button>
-    </div>
-  </div>`;
-
-  const filtered = punchFilteredItems(proj, plan.id);
-  const listHtml = `<div class="punch-list">
-    ${filtered.length? filtered.map(it=>{
-      const idx = planItems.indexOf(it);
-      return `<div class="punch-item-card ${it.status}" data-pu-item="${it.id}">
-        <div class="title">#${idx+1} ${escapeHtml(it.title||tf('(ไม่มีหัวข้อ)','(untitled)'))} <span class="badge ${punchStatusDef(it.status).cls}" style="margin-left:6px">${punchStatusLabel(it.status)}</span></div>
-        <div class="meta">${punchSeverityLabel(it.severity)}${it.category? ' · '+escapeHtml(it.category):''}${it.location? ' · 📍 '+escapeHtml(it.location):''}${it.assignedTo? ' · 👷 '+escapeHtml(it.assignedTo):''}</div>
-        ${it.dueDate? `<div class="meta" style="${it.status==='open'&&it.dueDate<todayStr()?'color:var(--coral-600);font-weight:600':''}">📅 ${tf('กำหนดแล้วเสร็จ','Due')} ${fmtDate(it.dueDate)}</div>` : ''}
-      </div>`;
-    }).join('') : `<div class="empty"><span class="ic">✅</span>${tf('ไม่มีรายการที่ตรงกับตัวกรอง','No defects match these filters')}</div>`}
-  </div>`;
-
-  return topHtml + statsHtml + planTabsHtml + viewerHtml + filtersHtml + listHtml + punchReportSectionHtml(proj);
+  // The Defect Item List itself is the fill-in table below (project-wide,
+  // not scoped to `plan` -- see punchDefectTableHtml), matching the
+  // reference image the user sent: a directly-editable spreadsheet-style
+  // table, no popup. The plan+pin viewer above stays as a secondary visual
+  // tool for *where* a defect is, same as before.
+  return topHtml + statsHtml + planTabsHtml + viewerHtml + punchDefectTableHtml(proj) + punchReportSectionHtml(proj);
 }
 
 // ---- Function 1: "งานปรับปรุง" (Plan Revisions) ----
@@ -11075,13 +11109,6 @@ function wirePunchReviseView(){
   refreshPunchPlanImages();
 }
 
-function punchPhotoThumbHtml(existingId, pendingDataUrl, kind, mode, idx){
-  const imgTag = mode==='existing' ? `<img data-thumb-id="${existingId}" alt="">` : `<img src="${pendingDataUrl}" alt="">`;
-  const rmAttr = mode==='existing' ? `data-pu-rm-${kind}-existing="${existingId}"` : `data-pu-rm-${kind}-pending="${idx}"`;
-  const anId = mode==='existing' ? existingId : idx;
-  return `<div class="photo-item">${imgTag}<button class="rm" ${rmAttr}>✕</button><div class="edit-ic" data-pu-annotate="${anId}" data-pu-annotate-kind="${kind}" data-pu-annotate-mode="${mode}" title="${tf('วาด/ซูม','Draw/zoom')}">✏️</div></div>`;
-}
-
 // "One-click" report: print/PDF (reuses id="reportPrintable" + the existing
 // @media print rules -- see reportBodyHtml() above; only one tab's content
 // is ever in the DOM at a time so reusing the id is safe), a copy-able deep
@@ -11107,34 +11134,57 @@ function punchReportSectionHtml(proj){
     ${!total? `<div class="empty" style="margin-top:14px"><span class="ic">📄</span>${tf('ยังไม่มีรายการ Defect สำหรับสรุปรายงาน','No defects yet to summarize')}</div>` : punchReportBodyHtml(proj)}
   </div>`;
 }
+// Builds one plan's/unplanned-section's row set for both the printable
+// report and (below) the Excel export, so the two never drift apart on
+// column set. Column order matches the reference image the user sent:
+// Zone / Description / Before / After photo counts / Assigned Team /
+// Supervisor / Issue Date / Start Date / Progress / Completed Date / Remark.
+function punchReportRowsHtml(items){
+  return items.map((it,idx)=>{
+    const beforeN = (it.photosBefore||[]).length, afterN = (it.photosAfter||[]).length;
+    return `<tr>
+      <td class="tabular">${idx+1}</td>
+      <td>${escapeHtml(it.location||'-')}</td>
+      <td>${escapeHtml(it.notes||'-')}</td>
+      <td class="tabular">${beforeN}</td>
+      <td class="tabular">${afterN}</td>
+      <td>${escapeHtml(it.assignedTo||'-')}</td>
+      <td>${escapeHtml(it.supervisor||'-')}</td>
+      <td class="tabular">${it.issueDate? fmtDate(it.issueDate) : '-'}</td>
+      <td class="tabular">${it.startDate? fmtDate(it.startDate) : '-'}</td>
+      <td class="tabular">${clamp(Number(it.progress)||0,0,100)}%</td>
+      <td class="tabular">${it.completedDate? fmtDate(it.completedDate) : '-'}</td>
+      <td>${escapeHtml(it.remark||'-')}</td>
+    </tr>`;
+  }).join('');
+}
+// A function, not a cached const -- it calls tf(), so it must be
+// re-evaluated on every render to pick up a language switch, exactly like
+// every other tf()-using piece of markup in this file.
+function punchReportHeadHtml(){
+  return `<tr><th>${tf('ลำดับ','No')}</th><th>${tf('โซน','Zone')}</th><th>${tf('รายละเอียด','Description')}</th><th>${tf('รูปก่อน','Before')}</th><th>${tf('รูปหลัง','After')}</th><th>${tf('ทีมงาน','Assigned Team')}</th><th>${tf('ผู้ควบคุมงาน','Supervisor')}</th><th>${tf('วันที่แจ้ง','Issue Date')}</th><th>${tf('วันที่เริ่ม','Start Date')}</th><th>${tf('ความคืบหน้า','Progress')}</th><th>${tf('วันที่เสร็จ','Completed Date')}</th><th>${tf('หมายเหตุ','Remark')}</th></tr>`;
+}
 function punchReportBodyHtml(proj){
   const c = state.contractor||{};
   const plansHtml = proj.punchPlans.map(plan=>{
     const items = proj.punchItems.filter(it=>it.planId===plan.id);
     if(!items.length && !plan.imageId) return '';
     const pins = items.map((it,idx)=> punchMarkerHtml(it, idx, false)).join('');
-    const rows = items.map((it,idx)=>{
-      const allPhotos = (it.photosBefore||[]).concat(it.photosAfter||[]);
-      const photoCell = allPhotos.length
-        ? `<span style="position:relative;display:inline-block"><img data-thumb-id="${allPhotos[0]}" alt="" style="width:36px;height:36px;object-fit:cover;border-radius:4px;vertical-align:middle">${allPhotos.length>1? `<span class="badge" style="position:absolute;bottom:-4px;right:-6px;font-size:9px;padding:0 4px">+${allPhotos.length-1}</span>` : ''}</span>`
-        : '-';
-      return `<tr>
-      <td class="tabular">${idx+1}</td>
-      <td>${escapeHtml(it.location||'-')}</td>
-      <td>${escapeHtml(it.category||'-')}</td>
-      <td>${escapeHtml(it.title||it.notes||'-')}</td>
-      <td>${photoCell}</td>
-      <td><span class="badge ${punchStatusDef(it.status).cls}">${punchStatusLabel(it.status)}</span></td>
-      <td class="tabular">${it.dueDate? fmtDate(it.dueDate) : '-'}</td>
-      <td>${escapeHtml(it.assignedTo||'-')}</td>
-    </tr>`;
-    }).join('');
+    const rows = punchReportRowsHtml(items);
     return `<div class="rp-section" style="page-break-inside:avoid">
       <h3>📐 ${escapeHtml(plan.name||tf('แปลนไม่มีชื่อ','Untitled plan'))}</h3>
       ${plan.imageId? `<div class="punch-viewer" style="max-width:520px"><img data-plan-img="${plan.imageId}" alt="">${pins}</div>` : ''}
-      ${items.length? `<div class="table-wrap" style="margin-top:10px"><table><thead><tr><th>${tf('ลำดับ','No.')}</th><th>${tf('ตำแหน่ง/ห้อง','Location/Room')}</th><th>${tf('หมวดหมู่งาน','Category')}</th><th>${tf('รายละเอียดความเสียหาย','Description')}</th><th>${tf('รูปภาพ','Photo')}</th><th>${tf('สถานะ','Status')}</th><th>${tf('กำหนดแล้วเสร็จ','Due')}</th><th>${tf('ทีมงานที่รับผิดชอบ','Responsible team')}</th></tr></thead><tbody>${rows}</tbody></table></div>` : `<div class="empty">${tf('ไม่มีรายการในแปลนนี้','No defects on this plan')}</div>`}
+      ${items.length? `<div class="table-wrap" style="margin-top:10px"><table><thead>${punchReportHeadHtml()}</thead><tbody>${rows}</tbody></table></div>` : `<div class="empty">${tf('ไม่มีรายการในแปลนนี้','No defects on this plan')}</div>`}
     </div>`;
   }).join('');
+  // Defects with no plan (added via "+ Add row" directly, or submitted
+  // through the defect fill-in link) still need to show up somewhere in
+  // the report instead of silently vanishing -- they get their own section.
+  const unplanned = proj.punchItems.filter(it=> !it.planId || !proj.punchPlans.find(p=>p.id===it.planId));
+  const unplannedHtml = unplanned.length ? `<div class="rp-section" style="page-break-inside:avoid">
+    <h3>📋 ${tf('ไม่ระบุแปลน','No plan')}</h3>
+    <div class="table-wrap" style="margin-top:10px"><table><thead>${punchReportHeadHtml()}</thead><tbody>${punchReportRowsHtml(unplanned)}</tbody></table></div>
+  </div>` : '';
   return `
     <div class="rp-head">
       <div style="display:flex;align-items:center;gap:14px">
@@ -11144,9 +11194,9 @@ function punchReportBodyHtml(proj){
     </div>
     <div class="rp-meta">
       <div><b>${tf('โครงการ','Project')}</b>${escapeHtml(proj.name||'-')}</div>
-      <div><b>${tf('สร้างรายงานเมื่อ','Generated')}</b>${fmtDate(todayStr())}</div>
+      <div><b>${tf('วันที่ออกรายงาน','Issue Date')}</b>${fmtDate(todayStr())}</div>
     </div>
-    ${plansHtml || `<div class="rp-section"><div class="empty">${tf('ยังไม่มีแปลน','No plans yet')}</div></div>`}
+    ${(plansHtml||unplannedHtml) ? (plansHtml+unplannedHtml) : `<div class="rp-section"><div class="empty">${tf('ยังไม่มีรายการ','No defects yet')}</div></div>`}
     <div class="rp-foot"><span>${escapeHtml(c.company||'Project Management')}</span><span>${tf('สร้างรายงานเมื่อ','Report generated')} ${fmtDate(todayStr())}</span></div>
   `;
 }
@@ -11158,32 +11208,37 @@ function punchReportBodyHtml(proj){
 // column headers), no plugin/CDN dependency needed. PDF export is already
 // covered by the "Print / PDF" button above (window.print() against this
 // same report's @media print rules), so this only needs to add the Excel
-// path.
+// path. Columns match the new Defect Item List table one-for-one.
 function punchExportExcelHtml(proj){
-  const rows = [];
-  proj.punchPlans.forEach(plan=>{
-    proj.punchItems.filter(it=>it.planId===plan.id).forEach((it,idx)=>{
-      const allPhotos = (it.photosBefore||[]).concat(it.photosAfter||[]);
-      rows.push(`<tr>
-        <td>${escapeHtml(plan.name||'-')}</td>
-        <td>${idx+1}</td>
-        <td>${escapeHtml(it.location||'-')}</td>
-        <td>${escapeHtml(it.category||'-')}</td>
-        <td>${escapeHtml(it.title||'-')}</td>
-        <td>${escapeHtml(it.notes||'-')}</td>
-        <td>${allPhotos.length}</td>
-        <td>${escapeHtml(punchStatusLabel(it.status))}</td>
-        <td>${it.dueDate? fmtDate(it.dueDate) : '-'}</td>
-        <td>${escapeHtml(it.assignedTo||'-')}</td>
-      </tr>`);
-    });
-  });
+  const rowsFor = (planName, items)=> items.map((it,idx)=>{
+    const beforeN = (it.photosBefore||[]).length, afterN = (it.photosAfter||[]).length;
+    return `<tr>
+      <td>${escapeHtml(planName)}</td>
+      <td>${idx+1}</td>
+      <td>${escapeHtml(it.location||'-')}</td>
+      <td>${escapeHtml(it.notes||'-')}</td>
+      <td>${beforeN}</td>
+      <td>${afterN}</td>
+      <td>${escapeHtml(it.assignedTo||'-')}</td>
+      <td>${escapeHtml(it.supervisor||'-')}</td>
+      <td>${it.issueDate? fmtDate(it.issueDate) : '-'}</td>
+      <td>${it.startDate? fmtDate(it.startDate) : '-'}</td>
+      <td>${clamp(Number(it.progress)||0,0,100)}%</td>
+      <td>${it.completedDate? fmtDate(it.completedDate) : '-'}</td>
+      <td>${escapeHtml(it.remark||'-')}</td>
+    </tr>`;
+  }).join('');
+  let rows = '';
+  proj.punchPlans.forEach(plan=>{ rows += rowsFor(plan.name||'-', proj.punchItems.filter(it=>it.planId===plan.id)); });
+  rows += rowsFor(tf('ไม่ระบุแปลน','No plan'), proj.punchItems.filter(it=> !it.planId || !proj.punchPlans.find(p=>p.id===it.planId)));
   const head = `<tr>
-    <th>${tf('แปลน','Plan')}</th><th>${tf('ลำดับ','No.')}</th><th>${tf('ตำแหน่ง/ห้อง','Location/Room')}</th>
-    <th>${tf('หมวดหมู่งาน','Category')}</th><th>${tf('หัวข้อ','Title')}</th><th>${tf('รายละเอียดความเสียหาย','Description')}</th>
-    <th>${tf('จำนวนรูปภาพ','Photo count')}</th><th>${tf('สถานะ','Status')}</th><th>${tf('กำหนดแล้วเสร็จ','Due date')}</th><th>${tf('ทีมงานที่รับผิดชอบ','Responsible team')}</th>
+    <th>${tf('แปลน','Plan')}</th><th>${tf('ลำดับ','No')}</th><th>${tf('โซน','Zone')}</th><th>${tf('รายละเอียด','Description')}</th>
+    <th>${tf('จำนวนรูปก่อน','Before photos')}</th><th>${tf('จำนวนรูปหลัง','After photos')}</th>
+    <th>${tf('ทีมงาน','Assigned Team')}</th><th>${tf('ผู้ควบคุมงาน','Supervisor')}</th>
+    <th>${tf('วันที่แจ้ง','Issue Date')}</th><th>${tf('วันที่เริ่ม','Start Date')}</th><th>${tf('ความคืบหน้า','Progress')}</th>
+    <th>${tf('วันที่เสร็จ','Completed Date')}</th><th>${tf('หมายเหตุ','Remark')}</th>
   </tr>`;
-  return `<html><head><meta charset="UTF-8"></head><body><table border="1">${head}${rows.join('')}</table></body></html>`;
+  return `<html><head><meta charset="UTF-8"></head><body><table border="1">${head}${rows}</table></body></html>`;
 }
 function punchExportExcel(proj){
   const html = punchExportExcelHtml(proj);
@@ -11356,7 +11411,6 @@ function wirePunch(){
   if(punchSubView==='checklist') wirePunchChecklistView();
   else if(punchSubView==='revise') wirePunchReviseView();
   else wirePunchDefectsView();
-  wirePunchItemModal();
   wirePunchPlanModal();
   wirePunchChecklistModal();
   wirePunchAnnotateModal();
@@ -11418,10 +11472,17 @@ function wirePunchDefectsView(){
         const rect = viewer.getBoundingClientRect();
         const curX = clamp((e.clientX-rect.left)/rect.width, 0, 1), curY = clamp((e.clientY-rect.top)/rect.height, 0, 1);
         const r = Math.hypot(curX-startX, curY-startY);
-        punchPendingPin = r<0.015
+        // No popup any more -- a drag on the plan creates the row directly
+        // and drops straight into the Defect Item List table below, already
+        // scrolled/focused to it (punchFocusItemId), matching the "fill-in
+        // table, not popup" request.
+        const pin = r<0.015
           ? {x:clamp(startX,0.02,0.98), y:clamp(startY,0.02,0.98), radius:0}
           : {x:clamp(startX,0.02,0.98), y:clamp(startY,0.02,0.98), radius:clamp(r,0.015,0.45)};
-        openPunchItemDraft(proj, 'new', punchSelectedPlanId);
+        const item = newPunchItem(punchSelectedPlanId, pin.x, pin.y, pin.radius);
+        proj.punchItems.push(item);
+        saveData();
+        punchFocusItemId = item.id;
         render();
       });
     } else {
@@ -11430,26 +11491,17 @@ function wirePunchDefectsView(){
         const rect = viewer.getBoundingClientRect();
         const x = clamp((e.clientX-rect.left)/rect.width, 0.02, 0.98);
         const y = clamp((e.clientY-rect.top)/rect.height, 0.02, 0.98);
-        punchPendingPin = {x,y,radius:0};
-        openPunchItemDraft(proj, 'new', punchSelectedPlanId);
+        const item = newPunchItem(punchSelectedPlanId, x, y, 0);
+        proj.punchItems.push(item);
+        saveData();
+        punchFocusItemId = item.id;
         render();
       });
     }
   }
-  $$('[data-pu-pin]').forEach(el=> el.onclick = (e)=>{ e.stopPropagation(); openPunchItemDraft(proj, el.dataset.puPin); render(); });
-  $$('[data-pu-item]').forEach(el=> el.onclick = ()=>{ openPunchItemDraft(proj, el.dataset.puItem); render(); });
-  const addItemBtn = $('#pu-add-item');
-  if(addItemBtn) addItemBtn.onclick = ()=>{ punchPendingPin=null; openPunchItemDraft(proj,'new',punchSelectedPlanId); render(); };
-  // Filters use onchange (not oninput) so typing in the search/assignee
-  // fields never triggers a mid-keystroke render() -- same reasoning as the
-  // Daily Log item-search field (see the comment above #de-item-search).
-  const fStatus=$('#pu-f-status'); if(fStatus) fStatus.onchange=()=>{ punchFilterStatus=fStatus.value; render(); };
-  const fSev=$('#pu-f-severity'); if(fSev) fSev.onchange=()=>{ punchFilterSeverity=fSev.value; render(); };
-  const fCat=$('#pu-f-category'); if(fCat) fCat.onchange=()=>{ punchFilterCategory=fCat.value; render(); };
-  const fAssignee=$('#pu-f-assignee');
-  if(fAssignee){ fAssignee.oninput=()=>{ punchFilterAssignee=fAssignee.value; }; fAssignee.onchange=()=>{ punchFilterAssignee=fAssignee.value; render(); }; }
-  const fSearch=$('#pu-f-search');
-  if(fSearch){ fSearch.oninput=()=>{ punchFilterSearch=fSearch.value; }; fSearch.onchange=()=>{ punchFilterSearch=fSearch.value; render(); }; }
+  // Clicking an existing pin just jumps to its row in the table below --
+  // nothing opens on top of the plan any more.
+  $$('[data-pu-pin]').forEach(el=> el.onclick = (e)=>{ e.stopPropagation(); punchFocusItemId = el.dataset.puPin; render(); });
   const printBtn=$('#pu-print'); if(printBtn) printBtn.onclick=()=> window.print();
   const copyBtn=$('#pu-copy-link');
   if(copyBtn) copyBtn.onclick = async ()=>{
@@ -11465,228 +11517,187 @@ function wirePunchDefectsView(){
     catch(e){ prompt(tf('คัดลอกลิงก์นี้เพื่อส่งให้ทีมงาน:','Copy this link to share:'), link); }
   };
   const xlsBtn=$('#pu-export-excel'); if(xlsBtn) xlsBtn.onclick = ()=> punchExportExcel(proj);
+  wirePunchDefectTable(proj);
   refreshPunchPlanImages();
   refreshPunchPhotos();
 }
-function syncPunchItemDraftFromDom(){
-  if(!punchItemDraft) return;
-  const g=(sel)=>{ const el=$(sel); return el?el.value:undefined; };
-  const d = punchItemDraft;
-  const title=g('#pu-title'); if(title!==undefined) d.title=title;
-  const location=g('#pu-location'); if(location!==undefined) d.location=location;
-  const category=g('#pu-category'); if(category!==undefined) d.category=category;
-  const severity=g('#pu-severity'); if(severity!==undefined) d.severity=severity;
-  const assignee=g('#pu-assignee'); if(assignee!==undefined) d.assignedTo=assignee;
-  const due=g('#pu-due'); if(due!==undefined) d.dueDate=due;
-  const notes=g('#pu-notes'); if(notes!==undefined) d.notes=notes;
-  const radiusEl=$('#pu-radius'); if(radiusEl) d.radius=clamp((Number(radiusEl.value)||0)/100, 0, 0.45);
-}
-function openPunchItemDraft(proj, id, planId){
-  if(id==='new'){
-    const pin = punchPendingPin || {x:0.5,y:0.5,radius:0};
-    punchItemDraft = {planId: planId||punchSelectedPlanId||null, x:pin.x, y:pin.y, radius:pin.radius||0,
-      title:'', location:'', category:'', severity:'medium', assignedTo:'', dueDate:'', notes:'', status:'open',
-      existingBeforeIds:[], pendingBefore:[], removedBeforeIds:[],
-      existingAfterIds:[], pendingAfter:[], removedAfterIds:[], history:[]};
-  } else {
-    const it = proj.punchItems.find(i=>i.id===id);
-    if(!it) return;
-    punchItemDraft = {id:it.id, planId:it.planId, x:it.x, y:it.y, radius:it.radius||0,
-      title:it.title, location:it.location||'', category:it.category||'', severity:it.severity||'medium', assignedTo:it.assignedTo||'',
-      dueDate:it.dueDate||'', notes:it.notes||'', status:it.status,
-      existingBeforeIds:(it.photosBefore||[]).slice(), pendingBefore:[], removedBeforeIds:[],
-      existingAfterIds:(it.photosAfter||[]).slice(), pendingAfter:[], removedAfterIds:[],
-      history:(it.history||[]).slice()};
-  }
-  editingPunchItemId = id;
-  punchPendingPin = null;
-}
-function closePunchItemDraft(){ editingPunchItemId=null; punchItemDraft=null; render(); }
-// Shared by the plain "Save" button and every status-transition button
-// (mark fixed / re-check fail / re-check pass / reopen) -- a transition is
-// just a save that also changes .status and appends a history entry, so
-// text/photo edits made just before tapping e.g. "mark fixed" are never
-// silently dropped.
-async function commitPunchItem(statusOverride, historyNote){
-  syncPunchItemDraftFromDom();
-  const d = punchItemDraft;
-  const title = (d.title||'').trim();
-  if(!title){ toast(tf('กรุณากรอกหัวข้อ','Please enter a title')); return false; }
-  const proj = P();
-  const keptBefore = d.existingBeforeIds.filter(id=>!d.removedBeforeIds.includes(id));
-  const newBeforeIds = [];
-  for(const p of d.pendingBefore){ const id=uid(); await idbPut(id,p.dataUrl); newBeforeIds.push(id); }
-  const photosBefore = keptBefore.concat(newBeforeIds);
-  const keptAfter = d.existingAfterIds.filter(id=>!d.removedAfterIds.includes(id));
-  const newAfterIds = [];
-  for(const p of d.pendingAfter){ const id=uid(); await idbPut(id,p.dataUrl); newAfterIds.push(id); }
-  const photosAfter = keptAfter.concat(newAfterIds);
-  const finalStatus = statusOverride || d.status;
-  const by = currentActorName();
-  const fields = {title, location:(d.location||'').trim(), category:(d.category||'').trim(), severity:d.severity, assignedTo:(d.assignedTo||'').trim(), dueDate:d.dueDate||'', notes:(d.notes||'').trim(), x:d.x, y:d.y, radius:d.radius||0, planId:d.planId, photosBefore, photosAfter};
-  if(editingPunchItemId==='new'){
-    const item = newPunchItem(d.planId, d.x, d.y, d.radius);
-    Object.assign(item, fields, {status:finalStatus});
-    if(finalStatus!=='open') item.history.push({at:new Date().toISOString(), by, from:'open', to:finalStatus, note:historyNote||''});
-    proj.punchItems.push(item);
-  } else {
-    const it = proj.punchItems.find(i=>i.id===editingPunchItemId);
-    if(!it) return false;
-    const fromStatus = it.status;
-    Object.assign(it, fields);
-    if(finalStatus!==fromStatus){
-      it.status = finalStatus;
-      it.history = it.history||[];
-      it.history.push({at:new Date().toISOString(), by, from:fromStatus, to:finalStatus, note:historyNote||''});
-    }
-  }
-  saveData();
-  return true;
-}
-function punchItemModalHtml(){
-  if(!punchItemDraft) return '';
-  const d = punchItemDraft;
-  const isNew = editingPunchItemId==='new';
-  const proj = P();
-  const planForAnnotate = proj.punchPlans.find(p=>p.id===d.planId);
-  const assigneeList = Array.from(new Set(
-    (state.contractors||[]).filter(c=>c.active!==false).map(c=>c.name).filter(Boolean)
-    .concat(STANDARD_TEAMS)
-    .concat(proj.boq.map(i=>i.team||'').filter(Boolean))
-  ));
-  const existingBefore = d.existingBeforeIds.filter(id=>!d.removedBeforeIds.includes(id));
-  const beforeThumbs = existingBefore.map(id=>punchPhotoThumbHtml(id,null,'before','existing')).join('') +
-    d.pendingBefore.map((p,idx)=>punchPhotoThumbHtml(null,p.dataUrl,'before','pending',idx)).join('');
-  const existingAfter = d.existingAfterIds.filter(id=>!d.removedAfterIds.includes(id));
-  const afterThumbs = existingAfter.map(id=>punchPhotoThumbHtml(id,null,'after','existing')).join('') +
-    d.pendingAfter.map((p,idx)=>punchPhotoThumbHtml(null,p.dataUrl,'after','pending',idx)).join('');
-  const statusBadge = `<span class="badge ${punchStatusDef(d.status).cls}">${punchStatusLabel(d.status)}</span>`;
-  let actionButtons = '';
-  if(!isNew){
-    if(d.status==='open') actionButtons = `<button class="btn primary" id="pu-mark-fixed">✅ ${tf('ทำเครื่องหมายว่าแก้ไขแล้ว','Mark as fixed')}</button>`;
-    else if(d.status==='fixed') actionButtons = `<div style="display:flex;gap:8px;flex-wrap:wrap">
-      <button class="btn reject" id="pu-reinspect-fail">🔁 ${tf('ตรวจซ้ำไม่ผ่าน ส่งกลับแก้ไข','Failed re-check, send back')}</button>
-      <button class="btn approve" id="pu-reinspect-pass">✅ ${tf('ตรวจซ้ำผ่าน ปิดงาน','Passed, close')}</button>
-    </div>`;
-    else if(d.status==='closed') actionButtons = `<button class="btn ghost sm" id="pu-reopen">🔓 ${tf('เปิดงานใหม่','Reopen')}</button>`;
-  }
-  const historyHtml = d.history.length? `<div style="margin-top:10px">
-    <b style="font-size:11.5px;color:var(--ink-500)">${tf('ประวัติการเปลี่ยนสถานะ','Status history')}</b>
-    <div style="margin-top:4px;display:flex;flex-direction:column;gap:3px">
-      ${d.history.slice().reverse().map(h=>`<div class="meta" style="font-size:11px;color:var(--ink-500)">${fmtDateTime(h.at)} — ${escapeHtml(h.by||'')}${h.note?' · '+escapeHtml(h.note):''}</div>`).join('')}
-    </div>
-  </div>` : '';
-  return `
-  <div class="modal-bg" id="pu-item-modal-bg">
-    <div class="modal">
-      <div class="modal-head"><h3>${isNew? tf('เพิ่มรายการ Defect','Add defect') : tf('แก้ไขรายการ Defect','Edit defect')}</h3><button class="iconbtn" id="pu-item-modal-close">✕</button></div>
-      ${!isNew? `<div style="margin-bottom:10px">${statusBadge}</div>` : ''}
-      <div class="grid cols-2">
-        <div class="field" style="grid-column:1/-1"><label>${tf('หัวข้อ/รายละเอียดสั้นๆ','Title / short description')}</label><input type="text" id="pu-title" value="${escapeHtml(d.title)}" placeholder="${tf('เช่น กระเบื้องพื้นแตกใกล้ประตู','e.g. floor tile cracked near door')}"></div>
-        <div class="field" style="grid-column:1/-1"><label>📍 ${tf('ตำแหน่ง/ห้อง (Location/Room)','Location / room')}</label><input type="text" id="pu-location" value="${escapeHtml(d.location||'')}" placeholder="${tf('เช่น ห้องนอนชั้น 2, ผนังห้องรับแขก','e.g. 2nd floor bedroom, living room wall')}"></div>
-        <div class="field" style="grid-column:1/-1"><label>${tf('ขนาดวงพื้นที่บนแปลน (% , 0 = หมุดจุดเดียว)','Circle size on plan (%, 0 = single-point pin)')} <span class="hint">${tf('ลากบนแปลนเพื่อวาดวงใหม่ หรือปรับตัวเลขนี้เพื่อขยับขนาด','Drag on the plan to redraw, or adjust this number to resize')}</span></label><input type="number" id="pu-radius" min="0" max="45" step="0.5" value="${((d.radius||0)*100).toFixed(1)}"></div>
-        <div class="field"><label>${tf('หมวดหมู่งาน (ประเภทงาน)','Category (work type)')}</label><input type="text" id="pu-category" list="pu-category-list" value="${escapeHtml(d.category)}"><datalist id="pu-category-list">${BOQ_CATEGORIES.map(c=>`<option value="${escapeHtml(c)}">`).join('')}</datalist></div>
-        <div class="field"><label>${tf('ความรุนแรง','Severity')}</label><select id="pu-severity">${PUNCH_SEVERITY.map(s=>`<option value="${s.v}" ${d.severity===s.v?'selected':''}>${s.ic} ${tf(s.th,s.en)}</option>`).join('')}</select></div>
-        <div class="field"><label>👷 ${tf('ทีมงาน/ผู้รับเหมาที่รับผิดชอบ','Responsible contractor / team')}</label><input type="text" id="pu-assignee" list="pu-assignee-list" value="${escapeHtml(d.assignedTo)}" placeholder="${tf('ใส่ชื่อทีม/ผู้รับเหมา','enter team / contractor name')}"><datalist id="pu-assignee-list">${assigneeList.map(a=>`<option value="${escapeHtml(a)}">`).join('')}</datalist></div>
-        <div class="field"><label>${tf('กำหนดแล้วเสร็จ (ไม่บังคับ)','Due date (optional)')}</label><input type="date" id="pu-due" value="${d.dueDate}"></div>
-        <div class="field" style="grid-column:1/-1"><label>${tf('รายละเอียดความเสียหาย (ไม่บังคับ)','Damage description (optional)')}</label><textarea id="pu-notes" rows="2">${escapeHtml(d.notes)}</textarea></div>
-      </div>
-      <div class="field" style="margin-top:12px">
-        <label>📷 ${tf('รูปถ่ายจุดบกพร่อง (ก่อนแก้ไข)','Defect photos (before)')}</label>
-        <label class="photo-drop" for="pu-photo-before-input">📷 ${tf('แตะเพื่อเลือกรูปภาพ','Tap to choose photos')}</label>
-        <input type="file" id="pu-photo-before-input" accept="image/*" multiple style="display:none">
-        ${planForAnnotate&&planForAnnotate.imageId? `<button type="button" class="btn ghost sm" id="pu-annotate-plan" style="margin-top:8px">📐 ${tf('วาด/ไฮไลท์/พิมพ์ข้อความบนแปลน','Draw / highlight / add text on the plan')}</button>` : ''}
-        ${(existingBefore.length||d.pendingBefore.length)? `<div class="photo-grid" style="margin-top:10px">${beforeThumbs}</div>` : ''}
-      </div>
-      ${(d.status==='fixed'||d.status==='closed'||existingAfter.length||d.pendingAfter.length)? `<div class="field" style="margin-top:12px">
-        <label>📷 ${tf('รูปถ่ายหลังแก้ไข (หลักฐานจากผู้รับผิดชอบ)','After-fix photos (evidence)')}</label>
-        <label class="photo-drop" for="pu-photo-after-input">📷 ${tf('แตะเพื่อเลือกรูปภาพ','Tap to choose photos')}</label>
-        <input type="file" id="pu-photo-after-input" accept="image/*" multiple style="display:none">
-        ${(existingAfter.length||d.pendingAfter.length)? `<div class="photo-grid" style="margin-top:10px">${afterThumbs}</div>` : ''}
-      </div>` : ''}
-      ${!isNew? `<div style="margin-top:14px">${actionButtons}</div>` : ''}
-      ${historyHtml}
-      <div style="display:flex;gap:10px;margin-top:16px">
-        <button class="btn primary block" id="pu-item-save">${tf('บันทึกรายการ','Save')}</button>
-        ${!isNew? `<button class="iconbtn" id="pu-item-delete" title="${tf('ลบ','Delete')}">🗑️</button>` : ''}
-      </div>
-    </div>
+// ---- Defect Item List: directly fill-in-able table (replaces the old
+// popup-based add/edit flow) ----
+// Each photo thumbnail in the Picture/Before/After cells doubles as the
+// lightbox-open target (punchPhotoLightboxId); the small "✕" removes it,
+// and the camera label adds more via a hidden file input scoped to this
+// row+kind (data-pu-photo-input="<itemId>|<before|after>").
+function punchDefectPhotoCellHtml(it, kind){
+  const ids = kind==='before' ? (it.photosBefore||[]) : (it.photosAfter||[]);
+  const thumbs = ids.map(id=>`<span class="punch-table-thumb" data-pu-photo-open="${id}"><img data-thumb-id="${id}" alt=""><button class="rm" data-pu-photo-rm="${it.id}|${kind}|${id}" title="${tf('ลบ','Remove')}">✕</button></span>`).join('');
+  return `<div class="punch-table-photos">
+    ${thumbs}
+    <label class="punch-table-photo-add" for="pu-photo-${kind}-${it.id}" title="${tf('เพิ่มรูป','Add photo')}">📷</label>
+    <input type="file" id="pu-photo-${kind}-${it.id}" data-pu-photo-input="${it.id}|${kind}" accept="image/*" multiple style="display:none">
   </div>`;
 }
-function wirePunchItemModal(){
-  const bg = $('#pu-item-modal-bg');
-  if(!bg) return;
-  $('#pu-item-modal-close').onclick = closePunchItemDraft;
-  bg.addEventListener('click', e=>{ if(e.target===bg) closePunchItemDraft(); });
-  const d = punchItemDraft;
-  const beforeInput = $('#pu-photo-before-input');
-  if(beforeInput) beforeInput.onchange = async (e)=>{
-    const files = Array.from(e.target.files||[]);
-    const added=[];
-    for(const f of files){ try{ const dataUrl = await compressImage(f); added.push({dataUrl}); }catch(err){} await new Promise(r=>setTimeout(r,0)); }
-    syncPunchItemDraftFromDom(); d.pendingBefore.push(...added);
-    beforeInput.value=''; render();
+// Project-wide Defect Item List, matching the user's reference image: a
+// "Project / Issue Date" header line above a fill-in table with columns
+// No / Zone / Description / Picture (Before/After) / Assigned Team /
+// Supervisor / Issue Date / Start Date / Progress / Completed Date /
+// Remark. Every text/date/number cell is a plain <input>/<textarea> edited
+// directly in place (see wirePunchDefectTable) -- no modal in between
+// typing and saving, per the user's explicit "ไม่เอาแบบ popup" request.
+// Deliberately project-wide rather than scoped to the currently-selected
+// plan, matching the flat single-table layout in the reference image --
+// rows created from any plan (or with no plan at all, e.g. via the defect
+// fill-in link, or the "+ Add row" button) all show up here together; the
+// plan+pin viewer above stays as a secondary *where-is-it* visual aid.
+function punchDefectTableHtml(proj){
+  const items = punchSearchedItems(proj);
+  const teamList = Array.from(new Set(
+    (state.contractors||[]).filter(c=>c.active!==false).map(c=>c.name).filter(Boolean)
+    .concat(STANDARD_TEAMS)
+  ));
+  const rows = items.map((it,idx)=>{
+    const progress = clamp(Number(it.progress)||0, 0, 100);
+    const progColor = progress>=100? 'var(--mint-600)' : (progress>0? 'var(--amber-600)' : 'var(--coral-600)');
+    return `<tr data-pu-row="${it.id}" class="${it.status}">
+      <td class="tabular" style="text-align:center">${idx+1}</td>
+      <td><input type="text" data-pu-field="location" data-pu-row-id="${it.id}" value="${escapeHtml(it.location||'')}" placeholder="${tf('โซน/ตำแหน่ง','Zone')}" style="min-width:110px"></td>
+      <td><textarea rows="2" data-pu-field="notes" data-pu-row-id="${it.id}" placeholder="${tf('รายละเอียดความเสียหาย','Description')}" style="min-width:160px">${escapeHtml(it.notes||'')}</textarea></td>
+      <td>${punchDefectPhotoCellHtml(it,'before')}</td>
+      <td>${punchDefectPhotoCellHtml(it,'after')}</td>
+      <td><input type="text" data-pu-field="assignedTo" data-pu-row-id="${it.id}" list="pu-team-list" value="${escapeHtml(it.assignedTo||'')}" placeholder="${tf('ทีมงาน','Team')}" style="min-width:110px"></td>
+      <td><input type="text" data-pu-field="supervisor" data-pu-row-id="${it.id}" value="${escapeHtml(it.supervisor||'')}" placeholder="${tf('ผู้ควบคุมงาน','Supervisor')}" style="min-width:110px"></td>
+      <td><input type="date" data-pu-field="issueDate" data-pu-row-id="${it.id}" value="${it.issueDate||''}"></td>
+      <td><input type="date" data-pu-field="startDate" data-pu-row-id="${it.id}" value="${it.startDate||''}"></td>
+      <td><div style="display:flex;align-items:center;gap:4px">
+        <input type="number" min="0" max="100" step="5" data-pu-field="progress" data-pu-row-id="${it.id}" value="${progress}" style="width:52px;color:${progColor};font-weight:700" class="tabular">
+        <span style="font-size:11px;color:${progColor}">%</span>
+      </div></td>
+      <td><input type="date" data-pu-field="completedDate" data-pu-row-id="${it.id}" value="${it.completedDate||''}"></td>
+      <td><input type="text" data-pu-field="remark" data-pu-row-id="${it.id}" value="${escapeHtml(it.remark||'')}" placeholder="${tf('หมายเหตุ','Remark')}" style="min-width:110px"></td>
+      <td style="text-align:center"><button class="iconbtn" data-pu-row-delete="${it.id}" title="${tf('ลบแถว','Delete row')}">🗑️</button></td>
+    </tr>`;
+  }).join('');
+  const allPhotoIds = [];
+  items.forEach(it=>{ (it.photosBefore||[]).forEach(id=>allPhotoIds.push(id)); (it.photosAfter||[]).forEach(id=>allPhotoIds.push(id)); });
+  const lightboxHtml = (punchPhotoLightboxId && allPhotoIds.includes(punchPhotoLightboxId)) ? `<div class="lightbox-overlay" id="pu-photo-lightbox">
+    <button class="lightbox-close" id="pu-photo-lightbox-close" title="${tf('ปิด','Close')}">✕</button>
+    <img data-thumb-id="${punchPhotoLightboxId}" alt="">
+  </div>` : '';
+  return `<div class="card" style="margin-top:14px">
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
+      <b style="font-family:var(--font-display);font-size:14px">📋 ${tf('รายการ Defect (Defect Item List)','Defect Item List')}</b>
+      <input type="text" id="pu-defect-search" value="${escapeHtml(punchDefectSearch)}" placeholder="${tf('ค้นหา...','Search...')}" style="max-width:220px">
+    </div>
+    <div class="sub" style="margin-top:8px;font-size:12.5px">${tf('โครงการ','Project')} : <b>${escapeHtml(proj.name||'-')}</b> &nbsp;&nbsp;&nbsp; ${tf('วันที่','Issue Date')} : <b>${fmtDate(todayStr())}</b></div>
+    <datalist id="pu-team-list">${teamList.map(t=>`<option value="${escapeHtml(t)}">`).join('')}</datalist>
+    <div class="table-wrap" style="margin-top:10px">
+      <table class="punch-defect-table">
+        <thead>
+          <tr>
+            <th rowspan="2">${tf('ลำดับ','No')}</th>
+            <th rowspan="2">${tf('โซน','Zone')}</th>
+            <th rowspan="2">${tf('รายละเอียด','Description')}</th>
+            <th colspan="2">${tf('รูปภาพ','Picture')}</th>
+            <th rowspan="2">${tf('ทีมงาน','Assigned Team')}</th>
+            <th rowspan="2">${tf('ผู้ควบคุมงาน','Supervisor')}</th>
+            <th rowspan="2">${tf('วันที่แจ้ง','Issue Date')}</th>
+            <th rowspan="2">${tf('วันที่เริ่ม','Start Date')}</th>
+            <th rowspan="2">${tf('ความคืบหน้า','Progress')}</th>
+            <th rowspan="2">${tf('วันที่เสร็จ','Completed Date')}</th>
+            <th rowspan="2">${tf('หมายเหตุ','Remark')}</th>
+            <th rowspan="2"></th>
+          </tr>
+          <tr><th>${tf('ก่อน','Before')}</th><th>${tf('หลัง','After')}</th></tr>
+        </thead>
+        <tbody>
+          ${rows || `<tr><td colspan="13" style="text-align:center;padding:20px"><span class="empty"><span class="ic">✅</span>${tf('ยังไม่มีรายการ Defect','No defects yet')}</span></td></tr>`}
+        </tbody>
+      </table>
+    </div>
+    <button class="btn ghost sm" id="pu-add-row" style="margin-top:10px">+ ${tf('เพิ่มแถว','Add row')}</button>
+    ${lightboxHtml}
+  </div>`;
+}
+function wirePunchDefectTable(proj){
+  const searchEl = $('#pu-defect-search');
+  if(searchEl){ searchEl.oninput=()=>{ punchDefectSearch=searchEl.value; }; searchEl.onchange=()=>{ punchDefectSearch=searchEl.value; render(); }; }
+  const addRowBtn = $('#pu-add-row');
+  if(addRowBtn) addRowBtn.onclick = ()=>{
+    const item = newPunchItem(null, 0.5, 0.5, 0);
+    proj.punchItems.push(item);
+    saveData();
+    punchFocusItemId = item.id;
+    render();
   };
-  const afterInput = $('#pu-photo-after-input');
-  if(afterInput) afterInput.onchange = async (e)=>{
-    const files = Array.from(e.target.files||[]);
-    const added=[];
-    for(const f of files){ try{ const dataUrl = await compressImage(f); added.push({dataUrl}); }catch(err){} await new Promise(r=>setTimeout(r,0)); }
-    syncPunchItemDraftFromDom(); d.pendingAfter.push(...added);
-    afterInput.value=''; render();
-  };
-  $$('[data-pu-rm-before-existing]').forEach(b=> b.onclick=()=>{ syncPunchItemDraftFromDom(); d.removedBeforeIds.push(b.dataset.puRmBeforeExisting); render(); });
-  $$('[data-pu-rm-before-pending]').forEach(b=> b.onclick=()=>{ syncPunchItemDraftFromDom(); d.pendingBefore.splice(Number(b.dataset.puRmBeforePending),1); render(); });
-  $$('[data-pu-rm-after-existing]').forEach(b=> b.onclick=()=>{ syncPunchItemDraftFromDom(); d.removedAfterIds.push(b.dataset.puRmAfterExisting); render(); });
-  $$('[data-pu-rm-after-pending]').forEach(b=> b.onclick=()=>{ syncPunchItemDraftFromDom(); d.pendingAfter.splice(Number(b.dataset.puRmAfterPending),1); render(); });
-  $$('[data-pu-annotate]').forEach(el=> el.onclick = async ()=>{
-    syncPunchItemDraftFromDom();
-    const kind = el.dataset.puAnnotateKind, mode = el.dataset.puAnnotateMode;
-    let dataUrl, onSave;
-    if(mode==='existing'){
-      const id = el.dataset.puAnnotate;
-      dataUrl = await loadRefPhoto(id);
-      onSave = async (newDataUrl)=>{ await idbPut(id,newDataUrl); refPhotoCache[id]=newDataUrl; };
+  // Text/date cells: oninput mutates the in-memory item only (no render --
+  // a full render() mid-keystroke would rebuild the whole table's DOM and
+  // drop focus/caret position), onchange (blur or Enter) persists via
+  // saveData() without re-rendering either, since nothing else on screen
+  // depends on these fields. Progress is the one exception: it drives the
+  // derived status (punchStatusFromProgress), which the KPI cards, the pin
+  // colors on the plan viewer, and this row's own status class all read --
+  // so its onchange both saves AND re-renders.
+  $$('[data-pu-field]').forEach(el=>{
+    const id = el.dataset.puRowId, field = el.dataset.puField;
+    const it = proj.punchItems.find(i=>i.id===id);
+    if(!it) return;
+    if(field==='progress'){
+      el.oninput = ()=>{ it.progress = clamp(Number(el.value)||0, 0, 100); };
+      el.onchange = ()=>{ it.progress = clamp(Number(el.value)||0, 0, 100); it.status = punchStatusFromProgress(it.progress); saveData(); render(); };
     } else {
-      const idx = Number(el.dataset.puAnnotate);
-      const arr = kind==='before'? d.pendingBefore : d.pendingAfter;
-      dataUrl = arr[idx]? arr[idx].dataUrl : null;
-      onSave = async (newDataUrl)=>{ if(arr[idx]) arr[idx].dataUrl = newDataUrl; };
+      el.oninput = ()=>{ it[field] = el.value; };
+      el.onchange = ()=>{ it[field] = el.value; saveData(); };
     }
-    if(!dataUrl){ toast(tf('โหลดรูปไม่สำเร็จ','Failed to load photo')); return; }
-    punchAnnotating = {dataUrl, marks:[], zoom:1, tool:'pen', onSave};
+  });
+  $$('[data-pu-row-delete]').forEach(btn=> btn.onclick = ()=>{
+    if(!confirm(tf('ลบรายการ Defect นี้หรือไม่?','Delete this defect?'))) return;
+    const id = btn.dataset.puRowDelete;
+    proj.punchItems = proj.punchItems.filter(i=>i.id!==id);
+    saveData(); render();
+  });
+  $$('[data-pu-photo-input]').forEach(input=> input.onchange = async (e)=>{
+    const [id, kind] = input.dataset.puPhotoInput.split('|');
+    const it = proj.punchItems.find(i=>i.id===id);
+    if(!it) return;
+    const files = Array.from(e.target.files||[]);
+    const newIds = [];
+    for(const f of files){ try{ const dataUrl = await compressImage(f); const pid=uid(); await idbPut(pid, dataUrl); newIds.push(pid); }catch(err){} }
+    if(kind==='before'){ it.photosBefore = (it.photosBefore||[]).concat(newIds); }
+    else { it.photosAfter = (it.photosAfter||[]).concat(newIds); }
+    saveData();
+    punchFocusItemId = id;
     render();
   });
-  // "Draw on plan" -- loads a read-only copy of this item's own blueprint
-  // (proj.punchPlans, looked up by d.planId) into the same annotate canvas
-  // used for before/after photos above, but onSave never touches the
-  // plan's own imageId: it idbPut()s a brand-new id and pushes it onto
-  // d.pendingBefore, exactly like a freshly-taken photo would be, so the
-  // annotated result becomes one more "before" photo on THIS defect only.
-  // Multiple defects can each annotate the same blueprint independently
-  // without ever disturbing the master plan image other screens rely on.
-  const annotatePlanBtn = $('#pu-annotate-plan');
-  if(annotatePlanBtn) annotatePlanBtn.onclick = async ()=>{
-    syncPunchItemDraftFromDom();
-    const plan = P().punchPlans.find(p=>p.id===d.planId);
-    if(!plan || !plan.imageId){ toast(tf('แปลนนี้ยังไม่มีรูปภาพ','This plan has no image yet')); return; }
-    const dataUrl = await loadRefPhoto(plan.imageId);
-    if(!dataUrl){ toast(tf('โหลดแปลนไม่สำเร็จ','Failed to load the plan')); return; }
-    const onSave = async (newDataUrl)=>{ d.pendingBefore.push({dataUrl:newDataUrl}); };
-    punchAnnotating = {dataUrl, marks:[], zoom:1, tool:'pen', onSave, isPlan:true};
+  $$('[data-pu-photo-rm]').forEach(btn=> btn.onclick = async ()=>{
+    const [id, kind, photoId] = btn.dataset.puPhotoRm.split('|');
+    const it = proj.punchItems.find(i=>i.id===id);
+    if(!it) return;
+    if(kind==='before'){ it.photosBefore = (it.photosBefore||[]).filter(p=>p!==photoId); }
+    else { it.photosAfter = (it.photosAfter||[]).filter(p=>p!==photoId); }
+    saveData();
+    await idbDelete(photoId);
+    punchFocusItemId = id;
     render();
-  };
-  const saveBtn=$('#pu-item-save'); if(saveBtn) saveBtn.onclick = async ()=>{ if(await commitPunchItem(null,'')){ closePunchItemDraft(); toast(tf('บันทึกแล้ว','Saved')); } };
-  const markFixedBtn=$('#pu-mark-fixed'); if(markFixedBtn) markFixedBtn.onclick = async ()=>{ if(await commitPunchItem('fixed', tf('ทำเครื่องหมายว่าแก้ไขแล้ว รอตรวจซ้ำ','marked fixed, awaiting re-check'))){ closePunchItemDraft(); toast(tf('บันทึกแล้ว','Saved')); } };
-  const failBtn=$('#pu-reinspect-fail'); if(failBtn) failBtn.onclick = async ()=>{ if(await commitPunchItem('open', tf('ตรวจซ้ำไม่ผ่าน ส่งกลับแก้ไข','failed re-check, sent back'))){ closePunchItemDraft(); toast(tf('ส่งกลับแก้ไขแล้ว','Sent back')); } };
-  const passBtn=$('#pu-reinspect-pass'); if(passBtn) passBtn.onclick = async ()=>{ if(await commitPunchItem('closed', tf('ตรวจซ้ำผ่าน ปิดงาน','passed re-check, closed'))){ closePunchItemDraft(); toast(tf('ปิดงานแล้ว','Closed')); } };
-  const reopenBtn=$('#pu-reopen'); if(reopenBtn) reopenBtn.onclick = async ()=>{ if(!confirm(tf('เปิดงานนี้ใหม่หรือไม่?','Reopen this item?'))) return; if(await commitPunchItem('open', tf('เปิดงานใหม่','reopened'))){ closePunchItemDraft(); toast(tf('เปิดงานใหม่แล้ว','Reopened')); } };
-  const delBtn=$('#pu-item-delete'); if(delBtn) delBtn.onclick = ()=>{
-    if(!confirm(tf('ลบรายการ Defect นี้หรือไม่?','Delete this defect?'))) return;
-    const proj=P(); proj.punchItems = proj.punchItems.filter(i=>i.id!==editingPunchItemId);
-    saveData(); closePunchItemDraft(); toast(tf('ลบรายการแล้ว','Deleted'));
-  };
-  refreshPunchPhotos();
+  });
+  $$('[data-pu-photo-open]').forEach(el=> el.onclick = (e)=>{
+    if(e.target.closest('.rm')) return;
+    punchPhotoLightboxId = el.dataset.puPhotoOpen; render();
+  });
+  const lbClose = $('#pu-photo-lightbox-close');
+  if(lbClose) lbClose.onclick = ()=>{ punchPhotoLightboxId=null; render(); };
+  const lbOverlay = $('#pu-photo-lightbox');
+  if(lbOverlay) lbOverlay.addEventListener('click', e=>{ if(e.target===lbOverlay){ punchPhotoLightboxId=null; render(); } });
+  // Scroll/focus a just-added or just-clicked row into view, then clear the
+  // flag immediately so it doesn't keep re-triggering on every subsequent
+  // render (e.g. after editing some other row's field).
+  if(punchFocusItemId){
+    const rowEl = document.querySelector(`[data-pu-row="${punchFocusItemId}"]`);
+    if(rowEl){
+      if(rowEl.scrollIntoView) rowEl.scrollIntoView({behavior:'smooth', block:'center'});
+      const zoneInput = rowEl.querySelector('[data-pu-field="location"]');
+      if(zoneInput) zoneInput.focus();
+    }
+    punchFocusItemId = null;
+  }
 }
 function punchPlanModalHtml(){
   if(!punchPlanDraft) return '';
