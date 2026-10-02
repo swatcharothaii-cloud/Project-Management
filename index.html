@@ -1014,6 +1014,10 @@ select.pp-status-select.pp-noneed{background:var(--surface-2);color:var(--ink-50
 .punch-defect-table tbody tr.closed{border-left-color:var(--mint-500)}
 .punch-defect-table td input,.punch-defect-table td textarea{border:none;background:transparent;width:100%;font-size:12px;padding:2px;font-family:inherit;resize:vertical;color:inherit}
 .punch-defect-table td input:focus,.punch-defect-table td textarea:focus{background:var(--surface-2);border-radius:4px;outline:1px solid var(--line)}
+.punch-defect-table thead th{position:relative}
+.punch-th-filter-label{display:flex;flex-direction:column;gap:4px;align-items:stretch}
+.punch-th-filter{width:100%;font-size:10.5px;font-weight:500;font-family:inherit;padding:2px 3px;border:1px solid var(--line);border-radius:5px;background:var(--surface);color:var(--ink-700)}
+.punch-th-filter.active{border-color:var(--purple-600);background:var(--purple-50);color:var(--purple-700);font-weight:700}
 .punch-table-photos{display:flex;flex-wrap:wrap;gap:4px;align-items:center;min-width:64px}
 .punch-table-thumb{position:relative;width:32px;height:32px;border-radius:4px;overflow:hidden;cursor:zoom-in;flex:none;display:block}
 .punch-table-thumb img{width:100%;height:100%;object-fit:cover;display:block}
@@ -11883,10 +11887,20 @@ function punchDefectPhotoCellHtml(it, kind){
 // just land in this one flat table.
 function punchDefectTableHtml(proj){
   const items = punchSearchedItems(proj);
-  const teamList = Array.from(new Set(
+  // "ทีมงาน" (Assigned Team) is a dropdown sourced strictly from the shared
+  // Contractor Roster (state.contractors, ตั้งค่าบริษัท > ข้อมูลผู้รับเหมา) per
+  // the user's explicit "ให้ดึงมาจากข้อมูลผู้รับเหมา" request -- active
+  // contractors only, so a retired/deactivated one drops out of the list for
+  // *new* picks but an item already assigned to it keeps showing its name
+  // (contractorTeamOptionsFor below adds it back in for that row only) so no
+  // existing data silently disappears or gets blanked out by this change.
+  const contractorTeamList = Array.from(new Set(
     (state.contractors||[]).filter(c=>c.active!==false).map(c=>c.name).filter(Boolean)
-    .concat(STANDARD_TEAMS)
-  ));
+  )).sort((a,b)=> a.localeCompare(b,'th'));
+  function contractorTeamOptionsFor(current){
+    if(current && !contractorTeamList.includes(current)) return [current, ...contractorTeamList];
+    return contractorTeamList;
+  }
   const rows = items.map((it,idx)=>{
     const progress = clamp(Number(it.progress)||0, 0, 100);
     const progColor = progress>=100? 'var(--mint-600)' : (progress>0? 'var(--amber-600)' : 'var(--coral-600)');
@@ -11896,7 +11910,10 @@ function punchDefectTableHtml(proj){
       <td><textarea rows="2" data-pu-field="notes" data-pu-row-id="${it.id}" placeholder="${tf('รายละเอียดความเสียหาย','Description')}" style="min-width:160px">${escapeHtml(it.notes||'')}</textarea></td>
       <td>${punchDefectPhotoCellHtml(it,'before')}</td>
       <td>${punchDefectPhotoCellHtml(it,'after')}</td>
-      <td><input type="text" data-pu-field="assignedTo" data-pu-row-id="${it.id}" list="pu-team-list" value="${escapeHtml(it.assignedTo||'')}" placeholder="${tf('ทีมงาน','Team')}" style="min-width:110px"></td>
+      <td><select data-pu-field="assignedTo" data-pu-row-id="${it.id}" style="min-width:110px">
+        <option value="">${tf('- เลือกทีมงาน -','- Select team -')}</option>
+        ${contractorTeamOptionsFor(it.assignedTo||'').map(t=>`<option value="${escapeHtml(t)}" ${t===(it.assignedTo||'')?'selected':''}>${escapeHtml(t)}</option>`).join('')}
+      </select></td>
       <td><input type="text" data-pu-field="supervisor" data-pu-row-id="${it.id}" value="${escapeHtml(it.supervisor||'')}" placeholder="${tf('ผู้ควบคุมงาน','Supervisor')}" style="min-width:110px"></td>
       <td><input type="date" data-pu-field="issueDate" data-pu-row-id="${it.id}" value="${it.issueDate||''}"></td>
       <td><input type="date" data-pu-field="startDate" data-pu-row-id="${it.id}" value="${it.startDate||''}"></td>
@@ -11919,46 +11936,44 @@ function punchDefectTableHtml(proj){
   const teamOptions = punchDistinctValues(proj,'assignedTo');
   const supervisorOptions = punchDistinctValues(proj,'supervisor');
   const filtersActive = !!(punchDefectFilters.zone||punchDefectFilters.team||punchDefectFilters.supervisor||punchDefectFilters.status);
-  const filterBarHtml = `<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:8px">
-    <select id="pu-filter-zone" style="max-width:150px">
-      <option value="">${tf('ทุกโซน','All zones')}</option>
-      ${zoneOptions.map(v=>`<option value="${escapeHtml(v)}" ${punchDefectFilters.zone===v?'selected':''}>${escapeHtml(v)}</option>`).join('')}
-    </select>
-    <select id="pu-filter-team" style="max-width:150px">
-      <option value="">${tf('ทุกทีมงาน','All teams')}</option>
-      ${teamOptions.map(v=>`<option value="${escapeHtml(v)}" ${punchDefectFilters.team===v?'selected':''}>${escapeHtml(v)}</option>`).join('')}
-    </select>
-    <select id="pu-filter-supervisor" style="max-width:160px">
-      <option value="">${tf('ทุกผู้ควบคุมงาน','All supervisors')}</option>
-      ${supervisorOptions.map(v=>`<option value="${escapeHtml(v)}" ${punchDefectFilters.supervisor===v?'selected':''}>${escapeHtml(v)}</option>`).join('')}
-    </select>
-    <select id="pu-filter-status" style="max-width:190px">
-      <option value="">${tf('ทุกความคืบหน้า','All progress')}</option>
-      ${PUNCH_STATUS.map(s=>`<option value="${s.v}" ${punchDefectFilters.status===s.v?'selected':''}>${escapeHtml(tf(s.th,s.en))}</option>`).join('')}
-    </select>
-    ${filtersActive? `<button class="btn ghost sm" id="pu-filter-clear">✕ ${tf('ล้างตัวกรอง','Clear filters')}</button>` : ''}
-  </div>`;
+  // Per-column filters live directly in the column header itself (a <select>
+  // under the header label) rather than a separate filter-bar row above the
+  // table -- per the user's explicit "filter ที่หัวข้อเลย ไม่ต้องทำช่องตัวเลือก"
+  // follow-up to the original dropdown-filter request. Each th below is a
+  // small helper so the <thead> markup stays readable.
+  function thFilter(id, allLabel, options, current){
+    return `<div class="punch-th-filter-label"><span>${allLabel.headerLabel}</span>
+      <select id="${id}" class="punch-th-filter ${current?'active':''}">
+        <option value="">${allLabel.allLabel}</option>
+        ${options.map(v=>`<option value="${escapeHtml(v)}" ${current===v?'selected':''}>${escapeHtml(v)}</option>`).join('')}
+      </select></div>`;
+  }
   return `<div class="card" style="margin-top:14px">
     <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
       <b style="font-family:var(--font-display);font-size:14px">📋 ${tf('รายการ Defect (Defect Item List)','Defect Item List')}</b>
-      <input type="text" id="pu-defect-search" value="${escapeHtml(punchDefectSearch)}" placeholder="${tf('ค้นหา...','Search...')}" style="max-width:220px">
+      <div style="display:flex;gap:8px;align-items:center">
+        ${filtersActive? `<button class="btn ghost sm" id="pu-filter-clear">✕ ${tf('ล้างตัวกรอง','Clear filters')}</button>` : ''}
+        <input type="text" id="pu-defect-search" value="${escapeHtml(punchDefectSearch)}" placeholder="${tf('ค้นหา...','Search...')}" style="max-width:220px">
+      </div>
     </div>
-    ${filterBarHtml}
     <div class="sub" style="margin-top:8px;font-size:12.5px">${tf('โครงการ','Project')} : <b>${escapeHtml(proj.name||'-')}</b> &nbsp;&nbsp;&nbsp; ${tf('วันที่','Issue Date')} : <b>${fmtDate(todayStr())}</b></div>
-    <datalist id="pu-team-list">${teamList.map(t=>`<option value="${escapeHtml(t)}">`).join('')}</datalist>
     <div class="table-wrap" style="margin-top:10px">
       <table class="punch-defect-table">
         <thead>
           <tr>
             <th rowspan="2">${tf('ลำดับ','No')}</th>
-            <th rowspan="2">${tf('โซน','Zone')}</th>
+            <th rowspan="2">${thFilter('pu-filter-zone', {headerLabel:tf('โซน','Zone'), allLabel:tf('ทั้งหมด','All')}, zoneOptions, punchDefectFilters.zone)}</th>
             <th rowspan="2">${tf('รายละเอียด','Description')}</th>
             <th colspan="2">${tf('รูปภาพ','Picture')}</th>
-            <th rowspan="2">${tf('ทีมงาน','Assigned Team')}</th>
-            <th rowspan="2">${tf('ผู้ควบคุมงาน','Supervisor')}</th>
+            <th rowspan="2">${thFilter('pu-filter-team', {headerLabel:tf('ทีมงาน','Assigned Team'), allLabel:tf('ทั้งหมด','All')}, teamOptions, punchDefectFilters.team)}</th>
+            <th rowspan="2">${thFilter('pu-filter-supervisor', {headerLabel:tf('ผู้ควบคุมงาน','Supervisor'), allLabel:tf('ทั้งหมด','All')}, supervisorOptions, punchDefectFilters.supervisor)}</th>
             <th rowspan="2">${tf('วันที่แจ้ง','Issue Date')}</th>
             <th rowspan="2">${tf('วันที่เริ่ม','Start Date')}</th>
-            <th rowspan="2">${tf('ความคืบหน้า','Progress')}</th>
+            <th rowspan="2"><div class="punch-th-filter-label"><span>${tf('ความคืบหน้า','Progress')}</span>
+              <select id="pu-filter-status" class="punch-th-filter ${punchDefectFilters.status?'active':''}">
+                <option value="">${tf('ทั้งหมด','All')}</option>
+                ${PUNCH_STATUS.map(s=>`<option value="${s.v}" ${punchDefectFilters.status===s.v?'selected':''}>${escapeHtml(tf(s.th,s.en))}</option>`).join('')}
+              </select></div></th>
             <th rowspan="2">${tf('วันที่เสร็จ','Completed Date')}</th>
             <th rowspan="2">${tf('หมายเหตุ','Remark')}</th>
             <th rowspan="2"></th>
