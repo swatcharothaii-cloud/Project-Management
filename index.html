@@ -221,7 +221,22 @@ a{color:inherit}
 
 main{flex:1;width:100%;max-width:1180px;margin:0 auto;padding:22px 18px 64px;}
 .screen{display:flex;flex-direction:column;gap:18px;animation:rise .28s ease both}
-@keyframes rise{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+/* translate (the standalone CSS property), not the transform property, for
+   the slide-up -- visually identical to transform:translateY(), but unlike
+   transform it does NOT establish a new containing block for position:fixed
+   descendants. Using transform here used to make .screen a stray containing
+   block for any position:fixed overlay nested inside it (the photo
+   lightbox, modal-bg, etc.) for the ~0.28s the animation ran on every fresh
+   .screen render() creates -- and because opening the lightbox itself
+   triggers that same render(), the overlay's inset:0 would resolve against
+   .screen's own (scrolled-past, page-length) box instead of the real
+   viewport right as it appeared, so the photo could render positioned
+   above the current scroll position and overflow off screen instead of
+   being centered and contained in the visible viewport ("กดดูรูปแนบ แล้ว
+   เกินหน้า"). @media print further below separately kills this animation
+   entirely for print output (a pre-existing, unrelated fix); this change
+   is what fixes the same underlying containing-block pitfall on screen. */
+@keyframes rise{from{opacity:0;translate:0 6px}to{opacity:1;translate:0 0}}
 
 .page-head{display:flex;align-items:flex-end;justify-content:space-between;gap:14px;flex-wrap:wrap}
 .page-head h2{font-size:22px;font-weight:700}
@@ -1018,6 +1033,18 @@ select.pp-status-select.pp-noneed{background:var(--surface-2);color:var(--ink-50
 .punch-th-filter-label{display:flex;flex-direction:column;gap:4px;align-items:stretch}
 .punch-th-filter{width:100%;font-size:10.5px;font-weight:500;font-family:inherit;padding:2px 3px;border:1px solid var(--line);border-radius:5px;background:var(--surface);color:var(--ink-700)}
 .punch-th-filter.active{border-color:var(--purple-600);background:var(--purple-50);color:var(--purple-700);font-weight:700}
+/* Defect report (printable/on-screen, #reportPrintable): actual Before/After
+   photo thumbnails per the user's "ไม่มีรูปก่อนและหลัง" follow-up -- the report
+   used to only print a photo *count* in these columns (by design, to keep
+   the report compact), but that read as "no photos" since no image ever
+   actually appeared. Reuses the same [data-thumb-id]/loadRefPhoto async-fill
+   pipeline as every other photo thumbnail in the app (see refreshPunchPhotos,
+   already called after every punch-screen render, so these need no extra
+   wiring). Wraps so a row with several photos grows downward instead of
+   forcing the table wider.*/
+.rp-thumb-cell{display:flex;flex-wrap:wrap;gap:4px;min-width:40px}
+.rp-thumb{width:36px;height:36px;border-radius:5px;overflow:hidden;flex:none;display:block;border:1px solid var(--line);cursor:zoom-in}
+.rp-thumb img{width:100%;height:100%;object-fit:cover;display:block}
 .punch-table-photos{display:flex;flex-wrap:wrap;gap:4px;align-items:center;min-width:64px}
 .punch-table-thumb{position:relative;width:32px;height:32px;border-radius:4px;overflow:hidden;cursor:zoom-in;flex:none;display:block}
 .punch-table-thumb img{width:100%;height:100%;object-fit:cover;display:block}
@@ -1156,6 +1183,8 @@ select.pp-status-select.pp-noneed{background:var(--surface-2);color:var(--ink-50
   #reportPrintable .rp-photogrid img{height:130px!important}
   #reportPrintable .rp-photogrid figcaption{font-size:8.5px!important;padding:3px 5px!important}
   #reportPrintable .rp-photogrid figure{page-break-inside:avoid;break-inside:avoid}
+  #reportPrintable .rp-thumb{width:26px!important;height:26px!important}
+  #reportPrintable .rp-thumb-cell{page-break-inside:avoid;break-inside:avoid}
   #reportPrintable .rp-foot{padding:6px 16px!important;font-size:9px!important}
 }
 .exported-wrap{margin-top:10px;text-align:center}
@@ -11573,13 +11602,12 @@ function punchReportSectionHtml(proj){
 // Supervisor / Issue Date / Start Date / Progress / Completed Date / Remark.
 function punchReportRowsHtml(items){
   return items.map((it,idx)=>{
-    const beforeN = (it.photosBefore||[]).length, afterN = (it.photosAfter||[]).length;
     return `<tr>
       <td class="tabular">${idx+1}</td>
       <td>${escapeHtml(it.location||'-')}</td>
       <td>${escapeHtml(it.notes||'-')}</td>
-      <td class="tabular">${beforeN}</td>
-      <td class="tabular">${afterN}</td>
+      <td>${punchReportPhotoCellHtml(it.photosBefore)}</td>
+      <td>${punchReportPhotoCellHtml(it.photosAfter)}</td>
       <td>${escapeHtml(it.assignedTo||'-')}</td>
       <td>${escapeHtml(it.supervisor||'-')}</td>
       <td class="tabular">${it.issueDate? fmtDate(it.issueDate) : '-'}</td>
@@ -11589,6 +11617,18 @@ function punchReportRowsHtml(items){
       <td>${escapeHtml(it.remark||'-')}</td>
     </tr>`;
   }).join('');
+}
+// Actual photo thumbnails for the report's Before/After cells (not just a
+// count -- see the .rp-thumb-cell/.rp-thumb CSS comment). data-pu-photo-open
+// reuses the exact same click-to-lightbox wiring the live Defect Item List
+// table's own photo cells already use (wirePunchDefectTable's generic
+// [data-pu-photo-open] handler, bound across the whole punch screen), and
+// data-thumb-id reuses refreshPunchPhotos()'s generic async-fill pass -- so
+// this needs no new wiring of its own, same as every other photo thumbnail
+// in the app.
+function punchReportPhotoCellHtml(ids){
+  if(!ids || !ids.length) return '-';
+  return `<div class="rp-thumb-cell">${ids.map(id=>`<span class="rp-thumb" data-pu-photo-open="${id}"><img data-thumb-id="${id}" alt=""></span>`).join('')}</div>`;
 }
 // A function, not a cached const -- it calls tf(), so it must be
 // re-evaluated on every render to pick up a language switch, exactly like
@@ -11926,8 +11966,13 @@ function punchDefectTableHtml(proj){
       <td style="text-align:center"><button class="iconbtn" data-pu-row-delete="${it.id}" title="${tf('ลบแถว','Delete row')}">🗑️</button></td>
     </tr>`;
   }).join('');
+  // All of the project's photo ids, not just this (possibly filtered) view's
+  // -- the report below always lists every item regardless of the table's
+  // own zone/team/supervisor/progress filters, and its thumbnails share this
+  // same lightbox, so a report photo on a row the table filters are
+  // currently hiding still needs to be a valid, clickable id here too.
   const allPhotoIds = [];
-  items.forEach(it=>{ (it.photosBefore||[]).forEach(id=>allPhotoIds.push(id)); (it.photosAfter||[]).forEach(id=>allPhotoIds.push(id)); });
+  (proj.punchItems||[]).forEach(it=>{ (it.photosBefore||[]).forEach(id=>allPhotoIds.push(id)); (it.photosAfter||[]).forEach(id=>allPhotoIds.push(id)); });
   const lightboxHtml = (punchPhotoLightboxId && allPhotoIds.includes(punchPhotoLightboxId)) ? `<div class="lightbox-overlay" id="pu-photo-lightbox">
     <button class="lightbox-close" id="pu-photo-lightbox-close" title="${tf('ปิด','Close')}">✕</button>
     <img data-thumb-id="${punchPhotoLightboxId}" alt="">
