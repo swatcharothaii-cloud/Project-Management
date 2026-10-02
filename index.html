@@ -4353,6 +4353,26 @@ function punchStageParamsFromHash(){
 function punchStageLink(projectId, runId, stage){
   return location.origin + location.pathname + location.search + '#punch-stage&project=' + encodeURIComponent(projectId) + '&run=' + encodeURIComponent(runId) + '&stage=' + encodeURIComponent(stage);
 }
+// Defect "fill-in" link: opening the app with #defect-fill&project=<id>
+// locks the whole UI to a single bare-bones "report a new defect" form --
+// no dashboard, no other tab, no existing defect list -- so a site
+// contractor or anyone walking the site can be handed a link that lets them
+// log a defect (location/category/description/photos) straight into the
+// project's shared punchItems, without ever seeing (or being able to edit)
+// anyone else's defects. Restricted the same way PUNCH_STAGE_MODE is.
+// Submitted items land with planId:null (no pin position) -- staff can
+// later open the normal Defect Punch List and drag/re-pin it onto a plan if
+// they want it placed geometrically; the point of this link is capturing
+// the report quickly, not requiring the reporter to pick a plan/pin first.
+const PUNCH_DEFECT_FILL_MODE = !FIELD_MODE && !JOB_BID_MODE && !PUNCH_STAGE_MODE && location.hash.replace('#','').split('&').includes('defect-fill');
+function punchDefectFillParamsFromHash(){
+  const parts = location.hash.replace('#','').split('&');
+  const m = parts.find(s=> s.indexOf('project=')===0);
+  return { project: m ? decodeURIComponent(m.slice('project='.length)) : null };
+}
+function punchDefectFillLink(projectId){
+  return location.origin + location.pathname + location.search + '#defect-fill&project=' + encodeURIComponent(projectId);
+}
 const ROLE_LABEL = {
   site: tf('ผู้รับเหมาหน้างาน / ทีมงาน','Site contractor / crew'),
   pm: tf('ผู้จัดการโครงการ / ผู้บริหาร','Project manager / owner'),
@@ -4654,6 +4674,14 @@ function bootstrap(){
     const {project:pid} = punchStageParamsFromHash();
     const proj = state.projects.find(p=>p.id===pid);
     if(proj){ state.currentProjectId = proj.id; state.view='project'; state.tab='punch'; }
+  } else if(PUNCH_DEFECT_FILL_MODE){
+    // Defect fill-in link: jump straight into the single-form restricted
+    // view. renderPunchDefectFillLink() (see INSPECT section below) reads
+    // PUNCH_DEFECT_FILL_MODE/punchDefectFillParamsFromHash() itself, so
+    // nothing else needs to be set here beyond opening the right project.
+    const {project:pid} = punchDefectFillParamsFromHash();
+    const proj = state.projects.find(p=>p.id===pid);
+    if(proj){ state.currentProjectId = proj.id; state.view='project'; state.tab='punch'; }
   }
 }
 
@@ -4835,6 +4863,12 @@ function renderModalRoot(){
   // (e.g. a staff member who was mid-edit elsewhere before opening this
   // link) from leaking a modal into a screen meant to show none but that.
   if(PUNCH_STAGE_MODE) return '';
+  // Same reasoning as the PUNCH_STAGE_MODE guard just above -- the defect
+  // fill-in link's own restricted screen never opens any of the modal
+  // state below from inside itself (its photo-attach is a plain inline
+  // input, not the shared annotate-draft flow), so this stops any stale
+  // modal state left over from a different mode/tab from leaking in.
+  if(PUNCH_DEFECT_FILL_MODE) return '';
   if(punchItemDraft) return punchItemModalHtml();
   if(punchPlanDraft) return punchPlanModalHtml();
   if(punchChecklistManagerOpen) return punchChecklistModalHtml();
@@ -4857,7 +4891,7 @@ function renderModalRoot(){
 }
 
 function renderTopbar(){
-  const inProject = state.view==='project' && !FIELD_MODE && !JOB_BID_MODE && !PUNCH_STAGE_MODE;
+  const inProject = state.view==='project' && !FIELD_MODE && !JOB_BID_MODE && !PUNCH_STAGE_MODE && !PUNCH_DEFECT_FILL_MODE;
   let pillHtml='';
   if(inProject){
     const proj = P();
@@ -4881,11 +4915,11 @@ function renderTopbar(){
       </div>
     </div>
     <div class="spacer"></div>
-    ${(FIELD_MODE||JOB_BID_MODE||PUNCH_STAGE_MODE)? '' : `<div class="lang-switch">
+    ${(FIELD_MODE||JOB_BID_MODE||PUNCH_STAGE_MODE||PUNCH_DEFECT_FILL_MODE)? '' : `<div class="lang-switch">
       <button data-lang="th" class="${state.lang==='th'?'active':''}">ไทย</button>
       <button data-lang="en" class="${state.lang==='en'?'active':''}">EN</button>
     </div>`}
-    ${(FIELD_MODE||JOB_BID_MODE||PUNCH_STAGE_MODE)? '' : `<div class="role-switch">
+    ${(FIELD_MODE||JOB_BID_MODE||PUNCH_STAGE_MODE||PUNCH_DEFECT_FILL_MODE)? '' : `<div class="role-switch">
       <button data-role="site" class="${state.role==='site'?'active':''}">${tf('หน้างาน','Site')}</button>
       <button data-role="pm" class="${state.role==='pm'?'active':''}">PM</button>
       <button data-role="procurement" class="${state.role==='procurement'?'active':''}">${tf('จัดซื้อ','Buy')}</button>
@@ -4910,6 +4944,9 @@ function renderTabbar(){
     const label = stDef? `${stDef.ic} ${tf(stDef.th,stDef.en)}` : tf('เช็กลิสต์ตรวจงาน','Checklist');
     return `<nav class="tabbar"><button class="tabbtn active" data-nav="punch"><span class="ic">📋</span>${label}</button></nav>`;
   }
+  if(PUNCH_DEFECT_FILL_MODE){
+    return `<nav class="tabbar"><button class="tabbtn active" data-nav="punch"><span class="ic">📝</span>${tf('รายงาน Defect ใหม่','Report a new defect')}</button></nav>`;
+  }
   if(state.view==='project'){
     return `<nav class="tabbar">
       <button class="tabbtn back" data-back-hub><span class="ic">←</span>${tf('โปรเจ็คทั้งหมด','All projects')}</button>
@@ -4924,6 +4961,7 @@ function renderTabbar(){
 function renderScreen(){
   if(JOB_BID_MODE) return renderJobBid();
   if(PUNCH_STAGE_MODE) return renderPunchStageLink();
+  if(PUNCH_DEFECT_FILL_MODE) return renderPunchDefectFillLink();
   if(FIELD_MODE){
     if(!state.currentProjectId) return `<div class="empty"><span class="ic">🔗</span>${tf('ไม่พบโปรเจ็คสำหรับลิงก์นี้ กรุณาขอลิงก์ใหม่จากผู้ดูแลโปรเจ็ค','This link is not linked to any project. Please ask the project owner for a new link.')}</div>`;
     if(state.tab==='procure') return renderProcure();
@@ -10554,10 +10592,18 @@ let punchAnnotating = null; // {dataUrl, marks:[], zoom, tool, onSave, isPlan, s
 let punchRecordLightboxId = null; // id of the plan.annotations[] entry currently shown full-size in the lightbox, or null when closed
 let punchChecklistManagerOpen = false;
 let punchShowQr = false;
-let punchSubView = 'defects'; // 'defects' | 'checklist'
+let punchSubView = 'defects'; // 'revise' | 'defects' | 'checklist'
+let punchNewCommentText = ''; // draft text for the plan-comment box in the Revise ("งานปรับปรุง") view
 let punchSelectedRunId = null;
 let punchNewRunZone = '';
 let punchClExpanded = new Set(); // checklist run: which of the 3 inspection-stage sections (PUNCH_CL_STAGES values) are currently expanded (collapsed by default, same convention as Master Plan's mpExpandedCats)
+// Draft state for the restricted defect "fill-in" link (PUNCH_DEFECT_FILL_MODE,
+// see renderPunchDefectFillLink()/wirePunchDefectFillLink() near
+// renderPunchStageLink() below) -- reset to a fresh blank form after every
+// successful submit so the same link can be used to report several defects
+// in a row without reloading the page.
+let punchFillDraft = {location:'', category:'', severity:'medium', notes:'', pendingPhotos:[]};
+let punchFillSubmitted = false; // shows a short "submitted" confirmation before punchFillDraft resets for the next item
 
 const PUNCH_STATUS = [
   {v:'open', th:'รอแก้ไข', en:'Open', cls:'bad'},
@@ -10631,10 +10677,10 @@ function defaultPunchChecklist(){
 }
 
 // ---- data builders ----
-function newPunchPlan(){ return {id:uid(), name:'', imageId:null, createdAt:new Date().toISOString(), annotations:[]}; }
+function newPunchPlan(){ return {id:uid(), name:'', imageId:null, createdAt:new Date().toISOString(), annotations:[], comments:[]}; }
 function newPunchItem(planId, x, y, radius){
   return {id:uid(), planId:planId||null, x:x==null?0.5:x, y:y==null?0.5:y, radius:radius||0,
-    title:'', category:'', severity:'medium', assignedTo:'', dueDate:'', notes:'',
+    title:'', category:'', location:'', severity:'medium', assignedTo:'', dueDate:'', notes:'',
     status:'open', photosBefore:[], photosAfter:[],
     createdAt:new Date().toISOString(), createdBy:currentActorName(), history:[]};
 }
@@ -10673,7 +10719,7 @@ function punchFilteredItems(proj, planId){
   }
   if(punchFilterSearch.trim()){
     const q = punchFilterSearch.trim().toLowerCase();
-    items = items.filter(it=> (it.title||'').toLowerCase().includes(q) || (it.notes||'').toLowerCase().includes(q));
+    items = items.filter(it=> (it.title||'').toLowerCase().includes(q) || (it.notes||'').toLowerCase().includes(q) || (it.location||'').toLowerCase().includes(q));
   }
   return items.slice().sort((a,b)=> (b.createdAt||'').localeCompare(a.createdAt||''));
 }
@@ -10709,39 +10755,93 @@ async function refreshPunchPlanImages(){
 // regardless of what most recently touched state.projects.
 function ensurePunchDefaults(proj){
   if(!Array.isArray(proj.punchPlans)) proj.punchPlans=[];
-  proj.punchPlans.forEach(pl=>{ if(!Array.isArray(pl.annotations)) pl.annotations=[]; });
+  proj.punchPlans.forEach(pl=>{
+    if(!Array.isArray(pl.annotations)) pl.annotations=[];
+    if(!Array.isArray(pl.comments)) pl.comments=[];
+  });
   if(!Array.isArray(proj.punchItems)) proj.punchItems=[];
+  // Older saved defect items predate the location/room field added this
+  // update -- default it to '' so the add/edit form and report table never
+  // see `undefined` on an item created before this change.
+  proj.punchItems.forEach(it=>{ if(it.location==null) it.location=''; });
   if(!Array.isArray(proj.punchChecklist)) proj.punchChecklist=defaultPunchChecklist();
   if(!Array.isArray(proj.punchChecklistRuns)) proj.punchChecklistRuns=[];
 }
 function renderPunch(){
   ensurePunchDefaults(P());
   return `
-  <div class="page-head"><div><h2>📍 ${tf('ตรวจสอบ (INSPECT)','INSPECT')}</h2><div class="sub">${tf('ปักหมุดจุดบกพร่องบนแปลนดิจิทัล ติดตามการแก้ไข และเช็กลิสต์ตรวจงาน 3 ระยะพร้อมแนบรูปภาพ','Pin defects on the digital blueprint, track repairs, and run the 3-stage inspection checklist with photo evidence')}</div></div></div>
+  <div class="page-head"><div><h2>📍 ${tf('ตรวจสอบ (INSPECT)','INSPECT')}</h2><div class="sub">${tf('1) คอมเมนต์/แก้ไขแบบแปลน 2) เช็กลิสต์ตรวจงาน 3 ระยะ 3) ปักหมุด Defect พร้อมรายงานสรุป','1) Comment/revise plans 2) 3-stage inspection checklist 3) Pin defects with a summary report')}</div></div></div>
   <div class="punch-subnav">
-    <button data-punch-sub="defects" class="${punchSubView==='defects'?'active':''}">📍 ${tf('รายการ Defect บนแปลน','Defect Punch List')}</button>
-    <button data-punch-sub="checklist" class="${punchSubView==='checklist'?'active':''}">📋 ${tf('เช็กลิสต์ตรวจงาน 3 ระยะ','3-Stage Checklist')}</button>
+    <button data-punch-sub="revise" class="${punchSubView==='revise'?'active':''}">🖊️ ${tf('1. งานปรับปรุง (แก้ไขแบบแปลน)','1. Plan Revisions')}</button>
+    <button data-punch-sub="checklist" class="${punchSubView==='checklist'?'active':''}">📋 ${tf('2. งานตรวจสอบ Checklist','2. Inspection Checklist')}</button>
+    <button data-punch-sub="defects" class="${punchSubView==='defects'?'active':''}">📍 ${tf('3. Defect Punch List','3. Defect Punch List')}</button>
   </div>
-  ${punchSubView==='checklist'? renderPunchChecklistView(P()) : renderPunchDefectsView(P())}
+  ${punchSubView==='checklist'? renderPunchChecklistView(P()) : (punchSubView==='revise'? renderPunchReviseView(P()) : renderPunchDefectsView(P()))}
   `;
 }
 
+// Weekly comparison box (This week's new defects vs last week's, per the
+// user's spec: "Defects Registered This Week" / "...Last Week", e.g. "+12"
+// vs "+8") -- a Monday-start week so the two boxes always compare the same
+// 7-day shape, computed off each item's createdAt timestamp.
+function punchWeekBounds(offsetWeeks){
+  const now = new Date();
+  const day = now.getDay(); // 0=Sun..6=Sat
+  const mondayOffset = (day===0? -6 : 1-day);
+  const start = new Date(now.getFullYear(), now.getMonth(), now.getDate()+mondayOffset+offsetWeeks*7, 0,0,0,0);
+  const end = new Date(start.getFullYear(), start.getMonth(), start.getDate()+6, 23,59,59,999);
+  return {start, end};
+}
+function punchWeeklyCounts(proj){
+  const thisWk = punchWeekBounds(0), lastWk = punchWeekBounds(-1);
+  const inRange = (iso, range)=>{ if(!iso) return false; const t=new Date(iso).getTime(); return t>=range.start.getTime() && t<=range.end.getTime(); };
+  const thisCount = proj.punchItems.filter(it=>inRange(it.createdAt, thisWk)).length;
+  const lastCount = proj.punchItems.filter(it=>inRange(it.createdAt, lastWk)).length;
+  return {thisCount, lastCount};
+}
 function renderPunchDefectsView(proj){
   const total = proj.punchItems.length;
   const openN = proj.punchItems.filter(it=>it.status==='open').length;
   const fixedN = proj.punchItems.filter(it=>it.status==='fixed').length;
   const closedN = proj.punchItems.filter(it=>it.status==='closed').length;
   const overdueN = punchOverdueCount(proj);
+  const pendingN = openN + fixedN; // not yet closed -- "Pending Fix" per the user's spec
+  const completionPct = total? (closedN/total*100) : 0;
+  const {thisCount, lastCount} = punchWeeklyCounts(proj);
+  const wkDelta = thisCount - lastCount;
+  // Weekly KPI Summary box -- the user's "ส่วนสรุปตัวเลขเปรียบเทียบ", a
+  // prominent box at the very top of the dashboard comparing new-defect
+  // volume week over week, so a PM sees at a glance whether things are
+  // trending up or down before looking at anything else.
+  const weeklyBoxHtml = `<div class="card" style="margin-bottom:14px;background:linear-gradient(135deg,var(--surface),var(--ink-50, #f7f7f8))">
+    <b style="font-family:var(--font-display);font-size:13px">📊 ${tf('สรุปรายสัปดาห์','Weekly Summary')}</b>
+    <div style="display:flex;gap:18px;flex-wrap:wrap;margin-top:10px">
+      <div><div class="sub">${tf('พบใหม่สัปดาห์นี้','Registered this week')}</div><div class="num tabular" style="font-size:28px;font-weight:700">+${thisCount}</div></div>
+      <div><div class="sub">${tf('พบใหม่สัปดาห์ก่อน','Registered last week')}</div><div class="num tabular" style="font-size:28px;font-weight:700;color:var(--ink-500)">+${lastCount}</div></div>
+      <div style="align-self:center"><span class="badge ${wkDelta>0?'bad':(wkDelta<0?'ok':'')}">${wkDelta>0?'▲':(wkDelta<0?'▼':'—')} ${wkDelta>0?'+':''}${wkDelta} ${tf('เทียบสัปดาห์ก่อน','vs last week')}</span></div>
+    </div>
+  </div>`;
+  // Key Performance Indicators block -- the user's "ส่วนสรุปตัวเลขสำคัญ":
+  // large, unmissable numbers for Total / Pending Fix / Resolved-Closed /
+  // Completion Rate, meant to be read by a PM or owner in one glance
+  // without having to parse the more detailed open/fixed/closed/overdue
+  // breakdown further down.
+  const kpiBigHtml = `<div class="grid cols-auto" style="margin-bottom:14px">
+    <div class="card kpi"><div class="stat"><span class="lbl">${tf('Defect ทั้งหมด','Total Defects')}</span><span class="num tabular" style="font-size:30px">${total}</span></div></div>
+    <div class="card kpi"><div class="stat"><span class="lbl">🟠 ${tf('รอแก้ไข (Pending Fix)','Pending Fix')}</span><span class="num tabular" style="font-size:30px;color:var(--amber-600)">${pendingN}</span></div></div>
+    <div class="card kpi"><div class="stat"><span class="lbl">🟢 ${tf('แก้ไข/ปิดงานแล้ว','Resolved / Closed')}</span><span class="num tabular" style="font-size:30px;color:var(--mint-600)">${closedN}</span></div></div>
+    <div class="card kpi"><div class="stat"><span class="lbl">✅ ${tf('อัตราความคืบหน้า (%)','Completion Rate')}</span><span class="num tabular" style="font-size:30px">${fmtNum(completionPct,1)}%</span></div></div>
+  </div>`;
   const statsHtml = `<div class="grid cols-auto" style="margin-bottom:16px">
-    <div class="card kpi"><div class="stat"><span class="lbl">${tf('รายการทั้งหมด','Total defects')}</span><span class="num tabular">${total}</span></div></div>
     <div class="card kpi"><div class="stat"><span class="lbl">🔴 ${tf('รอแก้ไข','Open')}</span><span class="num tabular" style="color:var(--coral-600)">${openN}</span></div></div>
     <div class="card kpi"><div class="stat"><span class="lbl">🟡 ${tf('รอตรวจซ้ำ','Awaiting re-check')}</span><span class="num tabular" style="color:var(--amber-600)">${fixedN}</span></div></div>
     <div class="card kpi"><div class="stat"><span class="lbl">🟢 ${tf('ปิดงานแล้ว','Closed')}</span><span class="num tabular" style="color:var(--mint-600)">${closedN}</span></div></div>
     <div class="card kpi"><div class="stat"><span class="lbl">⏰ ${tf('เลยกำหนดแก้ไข','Overdue')}</span><span class="num tabular" style="color:${overdueN?'var(--coral-600)':'inherit'}">${overdueN}</span></div></div>
   </div>`;
+  const topHtml = weeklyBoxHtml + kpiBigHtml;
 
   if(!proj.punchPlans.length){
-    return statsHtml + `<div class="card" style="text-align:center;padding:40px 20px">
+    return topHtml + statsHtml + `<div class="card" style="text-align:center;padding:40px 20px">
       <div class="empty"><span class="ic">📐</span>${tf('ยังไม่มีแปลนดิจิทัล — อัปโหลดรูปแปลนหรือไฟล์ PDF (ผังห้อง/ผังชั้น) เพื่อเริ่มปักหมุดจุดบกพร่อง','No digital blueprint yet -- upload a plan image or PDF (room/floor layout) to start pinning defects')}</div>
       <button class="btn primary" style="margin-top:10px" id="pu-add-plan">+ ${tf('เพิ่มแปลน','Add blueprint')}</button>
     </div>`;
@@ -10767,7 +10867,6 @@ function renderPunchDefectsView(proj){
       <button class="btn ghost sm ${punchDrawMode==='pin'?'active':''}" id="pu-mode-pin">📍 ${tf('ปักหมุด','Pin')}</button>
       <button class="btn ghost sm ${punchDrawMode==='circle'?'active':''}" id="pu-mode-circle">⭕ ${tf('วงพื้นที่','Circle area')}</button>
     </div>
-    ${plan.imageId? `<button class="btn ghost sm" id="pu-annotate-main-plan" style="width:100%;margin-top:8px">🖊️ ${tf('วาด/ไฮไลท์/พิมพ์ข้อความบนแปลน','Draw / highlight / add text on the plan')}</button>` : ''}
     <div class="punch-viewer" id="pu-viewer" style="margin-top:10px">
       ${plan.imageId? `<img data-plan-img="${plan.imageId}" alt="">` : `<div class="empty" style="padding:60px 10px"><span class="ic">📐</span>${tf('แปลนนี้ยังไม่มีรูปภาพ','This plan has no image yet')}</div>`}
       ${pinsHtml}
@@ -10778,35 +10877,8 @@ function renderPunchDefectsView(proj){
       <span><i style="background:var(--mint-500)"></i>${tf('ปิดงานแล้ว','Closed')}</span>
       <span style="margin-left:auto">💡 ${modeHint}</span>
     </div>
+    <div class="sub" style="margin-top:8px">🖊️ ${tf('ต้องการคอมเมนต์/วาดแก้ไขบนแปลนนี้?','Need to comment or mark up this plan?')} <a href="javascript:void(0)" id="pu-goto-revise">${tf('ไปที่แท็บ "งานปรับปรุง"','Go to the "Plan Revisions" tab')} →</a></div>
   </div>`;
-
-  // Named, savable copies of this plan with pen/highlight/circle/text marked
-  // on them (via the button above) -- separate from punchItems' before/after
-  // defect photos: these live on the plan itself (plan.annotations), are
-  // never tied to one defect, and never touch plan.imageId (see
-  // #pu-annotate-main-plan's onSave below). Shown as a small gallery with a
-  // lightbox (punchRecordLightboxId) reusing the same generic .lightbox-*
-  // CSS as the BOQ reference-photo gallery, just driven by our own state.
-  const planAnnotations = (plan.annotations||[]).slice().sort((a,b)=> (b.createdAt||'').localeCompare(a.createdAt||''));
-  const annotationsHtml = `<div class="card" style="margin-top:14px">
-    <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
-      <b style="font-family:var(--font-display);font-size:13px">🖊️ ${tf('บันทึกการแก้ไขบนแปลน','Plan markup records')}</b>
-      <span class="hint">${tf('วาดแล้วบันทึกเป็นสำเนาแยก ตั้งชื่อได้ ไม่กระทบไฟล์แปลนต้นฉบับ','Each save is a separate, named copy -- the original blueprint file is never changed')}</span>
-    </div>
-    ${planAnnotations.length? `<div class="photo-grid" style="margin-top:10px">
-      ${planAnnotations.map(a=>`<div class="photo-item" data-pu-plan-record-open="${a.id}" style="cursor:zoom-in" title="${escapeHtml(a.title||'')}">
-        <img data-plan-img="${a.imageId}" alt="">
-        <button class="rm" data-pu-plan-record-del="${a.id}" title="${tf('ลบ','Delete')}">✕</button>
-        <div class="cap">${escapeHtml(a.title||tf('ไม่มีชื่อ','Untitled'))}</div>
-      </div>`).join('')}
-    </div>` : `<div class="empty" style="margin-top:10px;padding:16px"><span class="ic">🖊️</span>${tf('ยังไม่มีบันทึกการแก้ไขบนแปลนนี้','No markup records on this plan yet')}</div>`}
-  </div>`;
-  const recordLb = punchRecordLightboxId? planAnnotations.find(a=>a.id===punchRecordLightboxId) : null;
-  const recordLightboxHtml = recordLb? `<div class="lightbox-overlay" id="pu-record-lightbox">
-    <button class="lightbox-close" id="pu-record-lightbox-close" title="${tf('ปิด','Close')}">✕</button>
-    <img data-plan-img="${recordLb.imageId}" alt="">
-    <div class="lightbox-count">${escapeHtml(recordLb.title||tf('ไม่มีชื่อ','Untitled'))} · ${fmtDateTime(recordLb.createdAt)}</div>
-  </div>` : '';
 
   const usedCategories = Array.from(new Set(planItems.map(it=>it.category).filter(Boolean)));
   const filtersHtml = `<div class="card" style="margin-top:14px">
@@ -10823,8 +10895,8 @@ function renderPunchDefectsView(proj){
         <option value="">${tf('ทั้งหมด','All')}</option>
         ${usedCategories.map(c=>`<option value="${escapeHtml(c)}" ${punchFilterCategory===c?'selected':''}>${escapeHtml(c)}</option>`).join('')}
       </select></div>
-      <div class="field" style="min-width:150px"><label>${tf('ผู้รับผิดชอบ','Assignee')}</label><input type="text" id="pu-f-assignee" value="${escapeHtml(punchFilterAssignee)}" placeholder="${tf('ค้นหาชื่อ','search name')}"></div>
-      <div class="field" style="flex:1;min-width:150px"><label>${tf('ค้นหา','Search')}</label><input type="text" id="pu-f-search" value="${escapeHtml(punchFilterSearch)}" placeholder="${tf('ค้นหาหัวข้อ/รายละเอียด','search title/notes')}"></div>
+      <div class="field" style="min-width:150px"><label>👷 ${tf('ทีมงาน/ผู้รับเหมา','Contractor/team')}</label><input type="text" id="pu-f-assignee" value="${escapeHtml(punchFilterAssignee)}" placeholder="${tf('ค้นหาชื่อ','search name')}"></div>
+      <div class="field" style="flex:1;min-width:150px"><label>${tf('ค้นหา','Search')}</label><input type="text" id="pu-f-search" value="${escapeHtml(punchFilterSearch)}" placeholder="${tf('ค้นหาหัวข้อ/ตำแหน่ง/รายละเอียด','search title/location/notes')}"></div>
       <button class="btn primary" id="pu-add-item">+ ${tf('เพิ่มรายการ Defect','Add defect')}</button>
     </div>
   </div>`;
@@ -10835,13 +10907,172 @@ function renderPunchDefectsView(proj){
       const idx = planItems.indexOf(it);
       return `<div class="punch-item-card ${it.status}" data-pu-item="${it.id}">
         <div class="title">#${idx+1} ${escapeHtml(it.title||tf('(ไม่มีหัวข้อ)','(untitled)'))} <span class="badge ${punchStatusDef(it.status).cls}" style="margin-left:6px">${punchStatusLabel(it.status)}</span></div>
-        <div class="meta">${punchSeverityLabel(it.severity)}${it.category? ' · '+escapeHtml(it.category):''}${it.assignedTo? ' · 👷 '+escapeHtml(it.assignedTo):''}</div>
-        ${it.dueDate? `<div class="meta" style="${it.status==='open'&&it.dueDate<todayStr()?'color:var(--coral-600);font-weight:600':''}">📅 ${tf('กำหนดแก้ไข','Due')} ${fmtDate(it.dueDate)}</div>` : ''}
+        <div class="meta">${punchSeverityLabel(it.severity)}${it.category? ' · '+escapeHtml(it.category):''}${it.location? ' · 📍 '+escapeHtml(it.location):''}${it.assignedTo? ' · 👷 '+escapeHtml(it.assignedTo):''}</div>
+        ${it.dueDate? `<div class="meta" style="${it.status==='open'&&it.dueDate<todayStr()?'color:var(--coral-600);font-weight:600':''}">📅 ${tf('กำหนดแล้วเสร็จ','Due')} ${fmtDate(it.dueDate)}</div>` : ''}
       </div>`;
     }).join('') : `<div class="empty"><span class="ic">✅</span>${tf('ไม่มีรายการที่ตรงกับตัวกรอง','No defects match these filters')}</div>`}
   </div>`;
 
-  return statsHtml + planTabsHtml + viewerHtml + annotationsHtml + filtersHtml + listHtml + punchReportSectionHtml(proj) + recordLightboxHtml;
+  return topHtml + statsHtml + planTabsHtml + viewerHtml + filtersHtml + listHtml + punchReportSectionHtml(proj);
+}
+
+// ---- Function 1: "งานปรับปรุง" (Plan Revisions) ----
+// Comment on a plan, attach/add plans, and mark up/annotate a plan then
+// save the result as a new NAMED copy -- the original blueprint image
+// (plan.imageId) is never overwritten. This is deliberately just plan
+// management + markup + comments; pinning/categorizing actual defects onto
+// a plan is Function 3 ("Defect Punch List") below, and the 3-stage
+// checklist is Function 2 -- each a separate top-level tab per the user's
+// explicit request to split these out instead of bundling them into one
+// screen the way the original single INSPECT view did.
+function renderPunchReviseView(proj){
+  if(!proj.punchPlans.length){
+    return `<div class="card" style="text-align:center;padding:40px 20px">
+      <div class="empty"><span class="ic">📐</span>${tf('ยังไม่มีแบบแปลน — อัปโหลดรูปแปลนหรือไฟล์ PDF เพื่อเริ่มคอมเมนต์/แก้ไข','No blueprint yet -- upload a plan image or PDF to start commenting/marking it up')}</div>
+      <button class="btn primary" style="margin-top:10px" id="pu-rv-add-plan">+ ${tf('เพิ่มแบบแปลน','Add blueprint')}</button>
+    </div>`;
+  }
+  if(!punchSelectedPlanId || !proj.punchPlans.find(p=>p.id===punchSelectedPlanId)) punchSelectedPlanId = proj.punchPlans[0].id;
+  const plan = proj.punchPlans.find(p=>p.id===punchSelectedPlanId);
+  const planTabsHtml = `<div class="punch-plan-tabs">
+    ${proj.punchPlans.map(p=>`<div class="punch-plan-chip ${p.id===punchSelectedPlanId?'active':''}" data-pu-rv-plan="${p.id}"><img data-plan-img="${p.imageId||''}" alt="">${escapeHtml(p.name||tf('แปลนไม่มีชื่อ','Untitled plan'))}</div>`).join('')}
+    <div class="punch-plan-chip" id="pu-rv-add-plan"><span class="add">➕</span>${tf('เพิ่มแบบแปลน','Add plan')}</div>
+  </div>`;
+  const viewerHtml = `<div class="card">
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
+      <b style="font-family:var(--font-display);font-size:13.5px">📐 ${escapeHtml(plan.name||tf('แปลนไม่มีชื่อ','Untitled plan'))}</b>
+      <button class="btn ghost sm" id="pu-rv-edit-plan" data-plan-id="${plan.id}">✏️ ${tf('แก้ไขชื่อ/รูปแปลน','Edit name/image')}</button>
+    </div>
+    ${plan.imageId? `<button class="btn ghost sm" id="pu-annotate-main-plan" style="width:100%;margin-top:8px">🖊️ ${tf('วาด/ไฮไลท์/พิมพ์ข้อความบนแปลน แล้วเซฟเป็นสำเนาใหม่','Draw / highlight / add text on the plan, then save as a new copy')}</button>` : ''}
+    <div class="punch-viewer" style="margin-top:10px">
+      ${plan.imageId? `<img data-plan-img="${plan.imageId}" alt="">` : `<div class="empty" style="padding:60px 10px"><span class="ic">📐</span>${tf('แปลนนี้ยังไม่มีรูปภาพ','This plan has no image yet')}</div>`}
+    </div>
+  </div>`;
+
+  // Named, savable copies of this plan with pen/highlight/circle/text marked
+  // on them (via the button above) -- these live on the plan itself
+  // (plan.annotations), are never tied to one defect, and never touch
+  // plan.imageId (see #pu-annotate-main-plan's onSave in wirePunchReviseView
+  // below). Shown as a small gallery with a lightbox (punchRecordLightboxId)
+  // reusing the same generic .lightbox-* CSS as the BOQ reference-photo
+  // gallery, just driven by our own state.
+  const planAnnotations = (plan.annotations||[]).slice().sort((a,b)=> (b.createdAt||'').localeCompare(a.createdAt||''));
+  const annotationsHtml = `<div class="card" style="margin-top:14px">
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
+      <b style="font-family:var(--font-display);font-size:13px">🖊️ ${tf('สำเนาแปลนที่แก้ไข (เวอร์ชันต่างๆ)','Revised plan copies (versions)')}</b>
+      <span class="hint">${tf('วาดแล้วบันทึกเป็นสำเนาแยก ตั้งชื่อได้ ไม่ทับแปลนตั้งต้น','Each save is a separate, named copy -- the original blueprint is never overwritten')}</span>
+    </div>
+    ${planAnnotations.length? `<div class="photo-grid" style="margin-top:10px">
+      ${planAnnotations.map(a=>`<div class="photo-item" data-pu-plan-record-open="${a.id}" style="cursor:zoom-in" title="${escapeHtml(a.title||'')}">
+        <img data-plan-img="${a.imageId}" alt="">
+        <button class="rm" data-pu-plan-record-del="${a.id}" title="${tf('ลบ','Delete')}">✕</button>
+        <div class="cap">${escapeHtml(a.title||tf('ไม่มีชื่อ','Untitled'))}</div>
+      </div>`).join('')}
+    </div>` : `<div class="empty" style="margin-top:10px;padding:16px"><span class="ic">🖊️</span>${tf('ยังไม่มีสำเนาแปลนที่แก้ไขสำหรับแปลนนี้','No revised copies of this plan yet')}</div>`}
+  </div>`;
+  const recordLb = punchRecordLightboxId? planAnnotations.find(a=>a.id===punchRecordLightboxId) : null;
+  const recordLightboxHtml = recordLb? `<div class="lightbox-overlay" id="pu-record-lightbox">
+    <button class="lightbox-close" id="pu-record-lightbox-close" title="${tf('ปิด','Close')}">✕</button>
+    <img data-plan-img="${recordLb.imageId}" alt="">
+    <div class="lightbox-count">${escapeHtml(recordLb.title||tf('ไม่มีชื่อ','Untitled'))} · ${fmtDateTime(recordLb.createdAt)}</div>
+  </div>` : '';
+
+  // Simple comment thread on this plan -- the user's "คอมเมนต์ในแบบแปลน"
+  // request. Deliberately plain text (not tied to a pin/x,y position) since
+  // this is meant for general back-and-forth about the plan as a whole
+  // (e.g. "รอ Shop Drawing ยืนยันก่อน" / "waiting on shop-drawing sign-off"),
+  // not a defect report -- that's what Function 3 (Defect Punch List) is
+  // for, and it already has its own per-item notes/history.
+  const comments = (plan.comments||[]).slice().sort((a,b)=> (a.createdAt||'').localeCompare(b.createdAt||''));
+  const commentsHtml = `<div class="card" style="margin-top:14px">
+    <b style="font-family:var(--font-display);font-size:13px">💬 ${tf('คอมเมนต์บนแปลนนี้','Comments on this plan')}</b>
+    <div style="margin-top:10px;display:flex;flex-direction:column;gap:8px;max-height:260px;overflow:auto">
+      ${comments.length? comments.map(c=>`<div style="border:1px solid var(--line);border-radius:var(--radius-sm);padding:7px 10px">
+        <div style="font-size:11.5px;color:var(--ink-500);display:flex;justify-content:space-between;gap:8px"><b>${escapeHtml(c.author||'')}</b><span>${fmtDateTime(c.createdAt)}</span></div>
+        <div style="margin-top:2px;white-space:pre-wrap">${escapeHtml(c.text)}</div>
+      </div>`).join('') : `<div class="empty" style="padding:10px"><span class="ic">💬</span>${tf('ยังไม่มีคอมเมนต์','No comments yet')}</div>`}
+    </div>
+    <div style="display:flex;gap:8px;margin-top:10px">
+      <input type="text" id="pu-rv-comment-input" value="${escapeHtml(punchNewCommentText)}" placeholder="${tf('เขียนคอมเมนต์เกี่ยวกับแปลนนี้...','Write a comment about this plan...')}" style="flex:1">
+      <button class="btn primary sm" id="pu-rv-comment-add">${tf('ส่ง','Post')}</button>
+    </div>
+  </div>`;
+
+  return planTabsHtml + viewerHtml + commentsHtml + annotationsHtml + recordLightboxHtml;
+}
+function wirePunchReviseView(){
+  const proj = P();
+  const addPlanBtn = $('#pu-rv-add-plan');
+  if(addPlanBtn) addPlanBtn.onclick = ()=>{ punchPlanDraft = {name:'', imageId:null, pendingPhoto:null}; editingPunchPlanId='new'; render(); };
+  $$('[data-pu-rv-plan]').forEach(el=> el.onclick = ()=>{ punchSelectedPlanId = el.dataset.puRvPlan; render(); });
+  const editPlanBtn = $('#pu-rv-edit-plan');
+  if(editPlanBtn) editPlanBtn.onclick = ()=>{
+    const pl = proj.punchPlans.find(p=>p.id===editPlanBtn.dataset.planId);
+    if(!pl) return;
+    punchPlanDraft = {name:pl.name, imageId:pl.imageId, pendingPhoto:null};
+    editingPunchPlanId = pl.id; render();
+  };
+  const plan = proj.punchPlans.find(p=>p.id===punchSelectedPlanId);
+  // Main-plan "draw on plan" entry point -- onSave prompts for a name
+  // (prompt(), same convention as every other text-input shortcut in this
+  // app) and stores the result as a new, independently viewable/deletable
+  // record on plan.annotations. plan.imageId itself is never touched, so
+  // the original blueprint file always stays intact.
+  const annotateMainBtn = $('#pu-annotate-main-plan');
+  if(annotateMainBtn && plan) annotateMainBtn.onclick = async ()=>{
+    const dataUrl = await loadRefPhoto(plan.imageId);
+    if(!dataUrl){ toast(tf('โหลดแปลนไม่สำเร็จ','Failed to load the plan')); return; }
+    const onSave = async (newDataUrl)=>{
+      const raw = prompt(tf('ตั้งชื่อสำเนาแปลนนี้ (เช่น แก้ไขครั้งที่ 1)','Name this revised copy (e.g. Revision #1)'), '');
+      if(raw===null) return; // cancelled -- discard, nothing saved
+      const proj2 = P();
+      const pl = proj2.punchPlans.find(p=>p.id===plan.id);
+      if(!pl) return;
+      if(!Array.isArray(pl.annotations)) pl.annotations=[];
+      const imgId = uid();
+      await idbPut(imgId, newDataUrl);
+      pl.annotations.push({id:uid(), title:(raw||'').trim()||tf('สำเนาไม่มีชื่อ','Untitled copy'), imageId:imgId, createdAt:new Date().toISOString(), createdBy:currentActorName()});
+      saveData();
+      toast(tf('บันทึกแล้ว','Saved'));
+    };
+    punchAnnotating = {dataUrl, marks:[], zoom:1, tool:'pen', onSave, isPlan:true, saveAsRecord:true};
+    render();
+  };
+  $$('[data-pu-plan-record-open]').forEach(el=> el.onclick = (e)=>{
+    if(e.target.closest('.rm')) return;
+    punchRecordLightboxId = el.dataset.puPlanRecordOpen; render();
+  });
+  $$('[data-pu-plan-record-del]').forEach(btn=> btn.onclick = async (e)=>{
+    e.stopPropagation();
+    if(!confirm(tf('ลบสำเนานี้หรือไม่?','Delete this copy?'))) return;
+    const id = btn.dataset.puPlanRecordDel;
+    const pl = proj.punchPlans.find(p=>p.id===punchSelectedPlanId);
+    if(!pl) return;
+    const rec = (pl.annotations||[]).find(a=>a.id===id);
+    pl.annotations = (pl.annotations||[]).filter(a=>a.id!==id);
+    if(punchRecordLightboxId===id) punchRecordLightboxId=null;
+    saveData();
+    if(rec) await idbDelete(rec.imageId);
+    render();
+  });
+  const recordLbClose = $('#pu-record-lightbox-close');
+  if(recordLbClose) recordLbClose.onclick = ()=>{ punchRecordLightboxId=null; render(); };
+  const recordLbOverlay = $('#pu-record-lightbox');
+  if(recordLbOverlay) recordLbOverlay.addEventListener('click', e=>{ if(e.target===recordLbOverlay){ punchRecordLightboxId=null; render(); } });
+  const commentInput = $('#pu-rv-comment-input');
+  if(commentInput) commentInput.oninput = ()=>{ punchNewCommentText = commentInput.value; };
+  const commentAddBtn = $('#pu-rv-comment-add');
+  if(commentAddBtn) commentAddBtn.onclick = ()=>{
+    const text = (punchNewCommentText||'').trim();
+    if(!text) return;
+    const pl = proj.punchPlans.find(p=>p.id===punchSelectedPlanId);
+    if(!pl) return;
+    if(!Array.isArray(pl.comments)) pl.comments=[];
+    pl.comments.push({id:uid(), text, author:currentActorName(), createdAt:new Date().toISOString()});
+    punchNewCommentText='';
+    saveData(); render();
+  };
+  refreshPunchPlanImages();
 }
 
 function punchPhotoThumbHtml(existingId, pendingDataUrl, kind, mode, idx){
@@ -10865,10 +11096,13 @@ function punchReportSectionHtml(proj){
       <div><b style="font-family:var(--font-display);font-size:14px">🖨️ ${tf('รายงานสรุปผลตรวจ Defect','Defect Inspection Summary Report')}</b><div class="sub">${tf('รวมทุกแปลนในโปรเจ็คนี้','Covers every plan in this project')}</div></div>
       <div style="display:flex;gap:8px;flex-wrap:wrap">
         <button class="btn ghost sm" id="pu-print">🖨️ ${tf('พิมพ์ / PDF','Print / PDF')}</button>
-        <button class="btn ghost sm" id="pu-copy-link">🔗 ${tf('คัดลอกลิงก์','Copy link')}</button>
+        <button class="btn ghost sm" id="pu-export-excel">📊 ${tf('ดึงออกเป็น Excel','Export Excel')}</button>
+        <button class="btn ghost sm" id="pu-copy-link">🔗 ${tf('คัดลอกลิงก์รายงาน','Copy report link')}</button>
+        <button class="btn ghost sm" id="pu-copy-fill-link">➕🔗 ${tf('ลิงก์กรอก Defect','Defect fill-in link')}</button>
         <button class="btn ghost sm" id="pu-toggle-qr">${punchShowQr? '🙈':'📱'} QR</button>
       </div>
     </div>
+    <div class="sub" style="margin-top:6px">${tf('ลิงก์กรอก Defect: ส่งให้ทีมงาน/ผู้รับเหมาหน้างานกรอกรายการ Defect เองได้โดยไม่ต้องเข้าถึงแดชบอร์ดทั้งหมด','Defect fill-in link: let a site contractor/crew log a defect themselves, without access to the full dashboard')}</div>
     ${punchShowQr? `<div style="margin-top:10px"><img src="https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=${encodeURIComponent(link)}" alt="QR" width="160" height="160"><div class="sub" style="margin-top:4px;word-break:break-all">${escapeHtml(link)}</div></div>` : ''}
     ${!total? `<div class="empty" style="margin-top:14px"><span class="ic">📄</span>${tf('ยังไม่มีรายการ Defect สำหรับสรุปรายงาน','No defects yet to summarize')}</div>` : punchReportBodyHtml(proj)}
   </div>`;
@@ -10879,19 +11113,26 @@ function punchReportBodyHtml(proj){
     const items = proj.punchItems.filter(it=>it.planId===plan.id);
     if(!items.length && !plan.imageId) return '';
     const pins = items.map((it,idx)=> punchMarkerHtml(it, idx, false)).join('');
-    const rows = items.map((it,idx)=>`<tr>
+    const rows = items.map((it,idx)=>{
+      const allPhotos = (it.photosBefore||[]).concat(it.photosAfter||[]);
+      const photoCell = allPhotos.length
+        ? `<span style="position:relative;display:inline-block"><img data-thumb-id="${allPhotos[0]}" alt="" style="width:36px;height:36px;object-fit:cover;border-radius:4px;vertical-align:middle">${allPhotos.length>1? `<span class="badge" style="position:absolute;bottom:-4px;right:-6px;font-size:9px;padding:0 4px">+${allPhotos.length-1}</span>` : ''}</span>`
+        : '-';
+      return `<tr>
       <td class="tabular">${idx+1}</td>
-      <td>${escapeHtml(it.title||'-')}</td>
+      <td>${escapeHtml(it.location||'-')}</td>
       <td>${escapeHtml(it.category||'-')}</td>
-      <td>${punchSeverityLabel(it.severity)}</td>
-      <td>${escapeHtml(it.assignedTo||'-')}</td>
+      <td>${escapeHtml(it.title||it.notes||'-')}</td>
+      <td>${photoCell}</td>
       <td><span class="badge ${punchStatusDef(it.status).cls}">${punchStatusLabel(it.status)}</span></td>
       <td class="tabular">${it.dueDate? fmtDate(it.dueDate) : '-'}</td>
-    </tr>`).join('');
+      <td>${escapeHtml(it.assignedTo||'-')}</td>
+    </tr>`;
+    }).join('');
     return `<div class="rp-section" style="page-break-inside:avoid">
       <h3>📐 ${escapeHtml(plan.name||tf('แปลนไม่มีชื่อ','Untitled plan'))}</h3>
       ${plan.imageId? `<div class="punch-viewer" style="max-width:520px"><img data-plan-img="${plan.imageId}" alt="">${pins}</div>` : ''}
-      ${items.length? `<div class="table-wrap" style="margin-top:10px"><table><thead><tr><th>#</th><th>${tf('รายการ','Item')}</th><th>${tf('หมวดงาน','Category')}</th><th>${tf('ความรุนแรง','Severity')}</th><th>${tf('ผู้รับผิดชอบ','Assignee')}</th><th>${tf('สถานะ','Status')}</th><th>${tf('กำหนดแก้ไข','Due')}</th></tr></thead><tbody>${rows}</tbody></table></div>` : `<div class="empty">${tf('ไม่มีรายการในแปลนนี้','No defects on this plan')}</div>`}
+      ${items.length? `<div class="table-wrap" style="margin-top:10px"><table><thead><tr><th>${tf('ลำดับ','No.')}</th><th>${tf('ตำแหน่ง/ห้อง','Location/Room')}</th><th>${tf('หมวดหมู่งาน','Category')}</th><th>${tf('รายละเอียดความเสียหาย','Description')}</th><th>${tf('รูปภาพ','Photo')}</th><th>${tf('สถานะ','Status')}</th><th>${tf('กำหนดแล้วเสร็จ','Due')}</th><th>${tf('ทีมงานที่รับผิดชอบ','Responsible team')}</th></tr></thead><tbody>${rows}</tbody></table></div>` : `<div class="empty">${tf('ไม่มีรายการในแปลนนี้','No defects on this plan')}</div>`}
     </div>`;
   }).join('');
   return `
@@ -10908,6 +11149,51 @@ function punchReportBodyHtml(proj){
     ${plansHtml || `<div class="rp-section"><div class="empty">${tf('ยังไม่มีแปลน','No plans yet')}</div></div>`}
     <div class="rp-foot"><span>${escapeHtml(c.company||'Project Management')}</span><span>${tf('สร้างรายงานเมื่อ','Report generated')} ${fmtDate(todayStr())}</span></div>
   `;
+}
+// Excel export of the Defect Item List -- the user's "ดึงออกมาเป็น excel"
+// request. No spreadsheet library is bundled in this single-file app, so
+// this uses the long-standing, widely-supported trick of handing Excel an
+// HTML <table> with an "application/vnd.ms-excel" MIME type and a .xls
+// extension: Excel opens it as a normal workbook (one sheet, real cells,
+// column headers), no plugin/CDN dependency needed. PDF export is already
+// covered by the "Print / PDF" button above (window.print() against this
+// same report's @media print rules), so this only needs to add the Excel
+// path.
+function punchExportExcelHtml(proj){
+  const rows = [];
+  proj.punchPlans.forEach(plan=>{
+    proj.punchItems.filter(it=>it.planId===plan.id).forEach((it,idx)=>{
+      const allPhotos = (it.photosBefore||[]).concat(it.photosAfter||[]);
+      rows.push(`<tr>
+        <td>${escapeHtml(plan.name||'-')}</td>
+        <td>${idx+1}</td>
+        <td>${escapeHtml(it.location||'-')}</td>
+        <td>${escapeHtml(it.category||'-')}</td>
+        <td>${escapeHtml(it.title||'-')}</td>
+        <td>${escapeHtml(it.notes||'-')}</td>
+        <td>${allPhotos.length}</td>
+        <td>${escapeHtml(punchStatusLabel(it.status))}</td>
+        <td>${it.dueDate? fmtDate(it.dueDate) : '-'}</td>
+        <td>${escapeHtml(it.assignedTo||'-')}</td>
+      </tr>`);
+    });
+  });
+  const head = `<tr>
+    <th>${tf('แปลน','Plan')}</th><th>${tf('ลำดับ','No.')}</th><th>${tf('ตำแหน่ง/ห้อง','Location/Room')}</th>
+    <th>${tf('หมวดหมู่งาน','Category')}</th><th>${tf('หัวข้อ','Title')}</th><th>${tf('รายละเอียดความเสียหาย','Description')}</th>
+    <th>${tf('จำนวนรูปภาพ','Photo count')}</th><th>${tf('สถานะ','Status')}</th><th>${tf('กำหนดแล้วเสร็จ','Due date')}</th><th>${tf('ทีมงานที่รับผิดชอบ','Responsible team')}</th>
+  </tr>`;
+  return `<html><head><meta charset="UTF-8"></head><body><table border="1">${head}${rows.join('')}</table></body></html>`;
+}
+function punchExportExcel(proj){
+  const html = punchExportExcelHtml(proj);
+  const blob = new Blob(['﻿'+html], {type:'application/vnd.ms-excel'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = `defect-list-${(proj.name||'project').replace(/[^a-z0-9ก-๙]+/gi,'-')}-${todayStr()}.xls`;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(()=> URL.revokeObjectURL(url), 2000);
+  toast(tf('ดึงออกเป็น Excel แล้ว','Exported to Excel'));
 }
 
 /* ---- 3-stage checklist run view ---- */
@@ -11067,7 +11353,9 @@ function renderPunchStageLink(){
 /* ---- wiring ---- */
 function wirePunch(){
   $$('[data-punch-sub]').forEach(b=> b.onclick=()=>{ punchSubView=b.dataset.punchSub; render(); });
-  if(punchSubView==='checklist') wirePunchChecklistView(); else wirePunchDefectsView();
+  if(punchSubView==='checklist') wirePunchChecklistView();
+  else if(punchSubView==='revise') wirePunchReviseView();
+  else wirePunchDefectsView();
   wirePunchItemModal();
   wirePunchPlanModal();
   wirePunchChecklistModal();
@@ -11087,54 +11375,8 @@ function wirePunchDefectsView(){
   };
   const modePinBtn = $('#pu-mode-pin'); if(modePinBtn) modePinBtn.onclick = ()=>{ punchDrawMode='pin'; render(); };
   const modeCircleBtn = $('#pu-mode-circle'); if(modeCircleBtn) modeCircleBtn.onclick = ()=>{ punchDrawMode='circle'; render(); };
-  const plan = proj.punchPlans.find(p=>p.id===punchSelectedPlanId);
-  // Main-plan "draw on plan" entry point -- unlike the per-defect-item one in
-  // wirePunchItemModal(), saving here has no defect to attach to, so onSave
-  // prompts for a name (prompt(), same convention as every other text input
-  // shortcut in this app) and stores the result as a new, independently
-  // viewable/deletable record on plan.annotations. plan.imageId itself is
-  // never touched -- same non-destructive guarantee as the per-item version.
-  const annotateMainBtn = $('#pu-annotate-main-plan');
-  if(annotateMainBtn && plan) annotateMainBtn.onclick = async ()=>{
-    const dataUrl = await loadRefPhoto(plan.imageId);
-    if(!dataUrl){ toast(tf('โหลดแปลนไม่สำเร็จ','Failed to load the plan')); return; }
-    const onSave = async (newDataUrl)=>{
-      const raw = prompt(tf('ตั้งชื่อบันทึกการแก้ไขนี้ (เช่น ตรวจแก้ครั้งที่ 1)','Name this markup record (e.g. Revision #1)'), '');
-      if(raw===null) return; // cancelled -- discard, nothing saved
-      const proj2 = P();
-      const pl = proj2.punchPlans.find(p=>p.id===plan.id);
-      if(!pl) return;
-      if(!Array.isArray(pl.annotations)) pl.annotations=[];
-      const imgId = uid();
-      await idbPut(imgId, newDataUrl);
-      pl.annotations.push({id:uid(), title:(raw||'').trim()||tf('บันทึกไม่มีชื่อ','Untitled record'), imageId:imgId, createdAt:new Date().toISOString(), createdBy:currentActorName()});
-      saveData();
-      toast(tf('บันทึกแล้ว','Saved'));
-    };
-    punchAnnotating = {dataUrl, marks:[], zoom:1, tool:'pen', onSave, isPlan:true, saveAsRecord:true};
-    render();
-  };
-  $$('[data-pu-plan-record-open]').forEach(el=> el.onclick = (e)=>{
-    if(e.target.closest('.rm')) return;
-    punchRecordLightboxId = el.dataset.puPlanRecordOpen; render();
-  });
-  $$('[data-pu-plan-record-del]').forEach(btn=> btn.onclick = async (e)=>{
-    e.stopPropagation();
-    if(!confirm(tf('ลบบันทึกนี้หรือไม่?','Delete this record?'))) return;
-    const id = btn.dataset.puPlanRecordDel;
-    const pl = proj.punchPlans.find(p=>p.id===punchSelectedPlanId);
-    if(!pl) return;
-    const rec = (pl.annotations||[]).find(a=>a.id===id);
-    pl.annotations = (pl.annotations||[]).filter(a=>a.id!==id);
-    if(punchRecordLightboxId===id) punchRecordLightboxId=null;
-    saveData();
-    if(rec) await idbDelete(rec.imageId);
-    render();
-  });
-  const recordLbClose = $('#pu-record-lightbox-close');
-  if(recordLbClose) recordLbClose.onclick = ()=>{ punchRecordLightboxId=null; render(); };
-  const recordLbOverlay = $('#pu-record-lightbox');
-  if(recordLbOverlay) recordLbOverlay.addEventListener('click', e=>{ if(e.target===recordLbOverlay){ punchRecordLightboxId=null; render(); } });
+  const gotoReviseLink = $('#pu-goto-revise');
+  if(gotoReviseLink) gotoReviseLink.onclick = ()=>{ punchSubView='revise'; render(); };
   const viewer = $('#pu-viewer');
   if(viewer){
     if(punchDrawMode==='circle'){
@@ -11216,13 +11458,22 @@ function wirePunchDefectsView(){
     catch(e){ toast(link); }
   };
   const qrBtn=$('#pu-toggle-qr'); if(qrBtn) qrBtn.onclick=()=>{ punchShowQr=!punchShowQr; render(); };
+  const fillLinkBtn=$('#pu-copy-fill-link');
+  if(fillLinkBtn) fillLinkBtn.onclick = async ()=>{
+    const link = punchDefectFillLink(proj.id);
+    try{ await navigator.clipboard.writeText(link); toast(tf('คัดลอกลิงก์แล้ว','Link copied')); }
+    catch(e){ prompt(tf('คัดลอกลิงก์นี้เพื่อส่งให้ทีมงาน:','Copy this link to share:'), link); }
+  };
+  const xlsBtn=$('#pu-export-excel'); if(xlsBtn) xlsBtn.onclick = ()=> punchExportExcel(proj);
   refreshPunchPlanImages();
+  refreshPunchPhotos();
 }
 function syncPunchItemDraftFromDom(){
   if(!punchItemDraft) return;
   const g=(sel)=>{ const el=$(sel); return el?el.value:undefined; };
   const d = punchItemDraft;
   const title=g('#pu-title'); if(title!==undefined) d.title=title;
+  const location=g('#pu-location'); if(location!==undefined) d.location=location;
   const category=g('#pu-category'); if(category!==undefined) d.category=category;
   const severity=g('#pu-severity'); if(severity!==undefined) d.severity=severity;
   const assignee=g('#pu-assignee'); if(assignee!==undefined) d.assignedTo=assignee;
@@ -11234,14 +11485,14 @@ function openPunchItemDraft(proj, id, planId){
   if(id==='new'){
     const pin = punchPendingPin || {x:0.5,y:0.5,radius:0};
     punchItemDraft = {planId: planId||punchSelectedPlanId||null, x:pin.x, y:pin.y, radius:pin.radius||0,
-      title:'', category:'', severity:'medium', assignedTo:'', dueDate:'', notes:'', status:'open',
+      title:'', location:'', category:'', severity:'medium', assignedTo:'', dueDate:'', notes:'', status:'open',
       existingBeforeIds:[], pendingBefore:[], removedBeforeIds:[],
       existingAfterIds:[], pendingAfter:[], removedAfterIds:[], history:[]};
   } else {
     const it = proj.punchItems.find(i=>i.id===id);
     if(!it) return;
     punchItemDraft = {id:it.id, planId:it.planId, x:it.x, y:it.y, radius:it.radius||0,
-      title:it.title, category:it.category||'', severity:it.severity||'medium', assignedTo:it.assignedTo||'',
+      title:it.title, location:it.location||'', category:it.category||'', severity:it.severity||'medium', assignedTo:it.assignedTo||'',
       dueDate:it.dueDate||'', notes:it.notes||'', status:it.status,
       existingBeforeIds:(it.photosBefore||[]).slice(), pendingBefore:[], removedBeforeIds:[],
       existingAfterIds:(it.photosAfter||[]).slice(), pendingAfter:[], removedAfterIds:[],
@@ -11272,7 +11523,7 @@ async function commitPunchItem(statusOverride, historyNote){
   const photosAfter = keptAfter.concat(newAfterIds);
   const finalStatus = statusOverride || d.status;
   const by = currentActorName();
-  const fields = {title, category:(d.category||'').trim(), severity:d.severity, assignedTo:(d.assignedTo||'').trim(), dueDate:d.dueDate||'', notes:(d.notes||'').trim(), x:d.x, y:d.y, radius:d.radius||0, planId:d.planId, photosBefore, photosAfter};
+  const fields = {title, location:(d.location||'').trim(), category:(d.category||'').trim(), severity:d.severity, assignedTo:(d.assignedTo||'').trim(), dueDate:d.dueDate||'', notes:(d.notes||'').trim(), x:d.x, y:d.y, radius:d.radius||0, planId:d.planId, photosBefore, photosAfter};
   if(editingPunchItemId==='new'){
     const item = newPunchItem(d.planId, d.x, d.y, d.radius);
     Object.assign(item, fields, {status:finalStatus});
@@ -11332,12 +11583,13 @@ function punchItemModalHtml(){
       ${!isNew? `<div style="margin-bottom:10px">${statusBadge}</div>` : ''}
       <div class="grid cols-2">
         <div class="field" style="grid-column:1/-1"><label>${tf('หัวข้อ/รายละเอียดสั้นๆ','Title / short description')}</label><input type="text" id="pu-title" value="${escapeHtml(d.title)}" placeholder="${tf('เช่น กระเบื้องพื้นแตกใกล้ประตู','e.g. floor tile cracked near door')}"></div>
+        <div class="field" style="grid-column:1/-1"><label>📍 ${tf('ตำแหน่ง/ห้อง (Location/Room)','Location / room')}</label><input type="text" id="pu-location" value="${escapeHtml(d.location||'')}" placeholder="${tf('เช่น ห้องนอนชั้น 2, ผนังห้องรับแขก','e.g. 2nd floor bedroom, living room wall')}"></div>
         <div class="field" style="grid-column:1/-1"><label>${tf('ขนาดวงพื้นที่บนแปลน (% , 0 = หมุดจุดเดียว)','Circle size on plan (%, 0 = single-point pin)')} <span class="hint">${tf('ลากบนแปลนเพื่อวาดวงใหม่ หรือปรับตัวเลขนี้เพื่อขยับขนาด','Drag on the plan to redraw, or adjust this number to resize')}</span></label><input type="number" id="pu-radius" min="0" max="45" step="0.5" value="${((d.radius||0)*100).toFixed(1)}"></div>
-        <div class="field"><label>${tf('หมวดงาน','Category')}</label><input type="text" id="pu-category" list="pu-category-list" value="${escapeHtml(d.category)}"><datalist id="pu-category-list">${BOQ_CATEGORIES.map(c=>`<option value="${escapeHtml(c)}">`).join('')}</datalist></div>
+        <div class="field"><label>${tf('หมวดหมู่งาน (ประเภทงาน)','Category (work type)')}</label><input type="text" id="pu-category" list="pu-category-list" value="${escapeHtml(d.category)}"><datalist id="pu-category-list">${BOQ_CATEGORIES.map(c=>`<option value="${escapeHtml(c)}">`).join('')}</datalist></div>
         <div class="field"><label>${tf('ความรุนแรง','Severity')}</label><select id="pu-severity">${PUNCH_SEVERITY.map(s=>`<option value="${s.v}" ${d.severity===s.v?'selected':''}>${s.ic} ${tf(s.th,s.en)}</option>`).join('')}</select></div>
-        <div class="field"><label>${tf('ผู้รับผิดชอบแก้ไข','Assigned to')}</label><input type="text" id="pu-assignee" list="pu-assignee-list" value="${escapeHtml(d.assignedTo)}" placeholder="${tf('ชื่อทีม/ผู้รับเหมา','team / contractor name')}"><datalist id="pu-assignee-list">${assigneeList.map(a=>`<option value="${escapeHtml(a)}">`).join('')}</datalist></div>
-        <div class="field"><label>${tf('กำหนดแก้ไข (ไม่บังคับ)','Due date (optional)')}</label><input type="date" id="pu-due" value="${d.dueDate}"></div>
-        <div class="field" style="grid-column:1/-1"><label>${tf('รายละเอียดเพิ่มเติม (ไม่บังคับ)','Additional notes (optional)')}</label><textarea id="pu-notes" rows="2">${escapeHtml(d.notes)}</textarea></div>
+        <div class="field"><label>👷 ${tf('ทีมงาน/ผู้รับเหมาที่รับผิดชอบ','Responsible contractor / team')}</label><input type="text" id="pu-assignee" list="pu-assignee-list" value="${escapeHtml(d.assignedTo)}" placeholder="${tf('ใส่ชื่อทีม/ผู้รับเหมา','enter team / contractor name')}"><datalist id="pu-assignee-list">${assigneeList.map(a=>`<option value="${escapeHtml(a)}">`).join('')}</datalist></div>
+        <div class="field"><label>${tf('กำหนดแล้วเสร็จ (ไม่บังคับ)','Due date (optional)')}</label><input type="date" id="pu-due" value="${d.dueDate}"></div>
+        <div class="field" style="grid-column:1/-1"><label>${tf('รายละเอียดความเสียหาย (ไม่บังคับ)','Damage description (optional)')}</label><textarea id="pu-notes" rows="2">${escapeHtml(d.notes)}</textarea></div>
       </div>
       <div class="field" style="margin-top:12px">
         <label>📷 ${tf('รูปถ่ายจุดบกพร่อง (ก่อนแก้ไข)','Defect photos (before)')}</label>
@@ -11613,6 +11865,98 @@ function wirePunchStageLink(){
   if(!run) return;
   wirePunchClItemHandlers(run);
   wirePunchAnnotateModal();
+}
+// Restricted "report a new defect" form (PUNCH_DEFECT_FILL_MODE) -- a bare
+// form with none of the dashboard's filters/KPIs/other defects visible, so
+// a link to it can be handed to a site contractor or anyone walking the
+// site to self-report a defect straight into the shared project. Submitted
+// items get planId:null (no pin position); staff pin them onto a plan
+// later from the normal Defect Punch List if they want the geometry too --
+// see the PUNCH_DEFECT_FILL_MODE const comment near the top of the file.
+function renderPunchDefectFillLink(){
+  const {project:pid} = punchDefectFillParamsFromHash();
+  const proj = state.projects.find(p=>p.id===pid);
+  if(proj) ensurePunchDefaults(proj);
+  if(!proj){
+    // Same local-seed-vs-cloud-sync race as PUNCH_STAGE_MODE/
+    // renderPunchStageLink() above -- a brand-new tab paints local seed data
+    // first and the real shared project only arrives a moment later, so a
+    // missing project just means "hasn't synced yet" until cloudSyncReady.
+    if(!cloudSyncReady){
+      return `<div class="empty"><span class="ic">⏳</span>${tf('กำลังโหลด...','Loading...')}</div>`;
+    }
+    return `<div class="empty"><span class="ic">🔗</span>${tf('ไม่พบลิงก์นี้ กรุณาขอลิงก์ใหม่จากผู้ดูแลโครงการ','This link is invalid or no longer exists. Please ask the project owner for a new link.')}</div>`;
+  }
+  const d = punchFillDraft;
+  if(punchFillSubmitted){
+    return `<div class="card" style="text-align:center;padding:40px 20px">
+      <div class="empty"><span class="ic">✅</span>${tf('ส่งรายงาน Defect แล้ว ขอบคุณครับ/ค่ะ','Defect report submitted -- thank you!')}</div>
+      <button class="btn primary" style="margin-top:12px" id="pu-fill-again">+ ${tf('รายงาน Defect เพิ่มอีกรายการ','Report another defect')}</button>
+    </div>`;
+  }
+  const photosHtml = d.pendingPhotos.map((p,idx)=>`<div class="photo-item"><img src="${p.dataUrl}" alt=""><button class="rm" data-pu-fill-rm-photo="${idx}">✕</button></div>`).join('');
+  return `<div class="card">
+    <div class="page-head" style="margin:0 0 10px"><div><h2 style="font-size:16px">📝 ${tf('รายงาน Defect ใหม่','Report a new defect')}</h2><div class="sub">${escapeHtml(proj.name||'')}</div></div></div>
+    <div class="grid cols-2">
+      <div class="field" style="grid-column:1/-1"><label>📍 ${tf('ตำแหน่ง/ห้อง (Location/Room)','Location / room')}</label><input type="text" id="pu-fill-location" value="${escapeHtml(d.location)}" placeholder="${tf('เช่น ห้องนอนชั้น 2, ผนังห้องรับแขก','e.g. 2nd floor bedroom, living room wall')}"></div>
+      <div class="field"><label>${tf('หมวดหมู่งาน (ประเภทงาน)','Category (work type)')}</label><input type="text" id="pu-fill-category" list="pu-fill-category-list" value="${escapeHtml(d.category)}"><datalist id="pu-fill-category-list">${BOQ_CATEGORIES.map(c=>`<option value="${escapeHtml(c)}">`).join('')}</datalist></div>
+      <div class="field"><label>${tf('ความรุนแรง','Severity')}</label><select id="pu-fill-severity">${PUNCH_SEVERITY.map(s=>`<option value="${s.v}" ${d.severity===s.v?'selected':''}>${s.ic} ${tf(s.th,s.en)}</option>`).join('')}</select></div>
+      <div class="field" style="grid-column:1/-1"><label>${tf('รายละเอียดความเสียหาย','Damage description')}</label><textarea id="pu-fill-notes" rows="3" placeholder="${tf('เช่น กระเบื้องพื้นแตกใกล้ประตู','e.g. floor tile cracked near door')}">${escapeHtml(d.notes)}</textarea></div>
+    </div>
+    <div class="field" style="margin-top:12px">
+      <label>📷 ${tf('รูปภาพประกอบ (แนบได้หลายรูป)','Photos (attach as many as needed)')}</label>
+      <label class="photo-drop" for="pu-fill-photo-input">📷 ${tf('แตะเพื่อเลือกรูปภาพ','Tap to choose photos')}</label>
+      <input type="file" id="pu-fill-photo-input" accept="image/*" multiple style="display:none">
+      ${d.pendingPhotos.length? `<div class="photo-grid" style="margin-top:10px">${photosHtml}</div>` : ''}
+    </div>
+    <button class="btn primary block" id="pu-fill-submit" style="margin-top:16px">${tf('ส่งรายงาน Defect','Submit defect report')}</button>
+  </div>`;
+}
+function wirePunchDefectFillLink(){
+  const {project:pid} = punchDefectFillParamsFromHash();
+  const proj = state.projects.find(p=>p.id===pid);
+  const againBtn = $('#pu-fill-again');
+  if(againBtn) againBtn.onclick = ()=>{ punchFillSubmitted=false; punchFillDraft={location:'',category:'',severity:'medium',notes:'',pendingPhotos:[]}; render(); };
+  if(!proj) return;
+  const d = punchFillDraft;
+  const g=(sel)=>{ const el=$(sel); return el?el.value:undefined; };
+  const sync=()=>{
+    const location=g('#pu-fill-location'); if(location!==undefined) d.location=location;
+    const category=g('#pu-fill-category'); if(category!==undefined) d.category=category;
+    const severity=g('#pu-fill-severity'); if(severity!==undefined) d.severity=severity;
+    const notes=g('#pu-fill-notes'); if(notes!==undefined) d.notes=notes;
+  };
+  ['pu-fill-location','pu-fill-category','pu-fill-severity','pu-fill-notes'].forEach(id=>{
+    const el=$('#'+id); if(el) el.oninput=sync;
+  });
+  const photoInput = $('#pu-fill-photo-input');
+  if(photoInput) photoInput.onchange = async (e)=>{
+    sync();
+    const files = Array.from(e.target.files||[]);
+    for(const f of files){ try{ const dataUrl = await compressImage(f); d.pendingPhotos.push({dataUrl}); }catch(err){} }
+    photoInput.value=''; render();
+  };
+  $$('[data-pu-fill-rm-photo]').forEach(btn=> btn.onclick = ()=>{ sync(); d.pendingPhotos.splice(Number(btn.dataset.puFillRmPhoto),1); render(); });
+  const submitBtn = $('#pu-fill-submit');
+  if(submitBtn) submitBtn.onclick = async ()=>{
+    sync();
+    if(!(d.location||'').trim() && !(d.notes||'').trim()){ toast(tf('กรุณากรอกตำแหน่งหรือรายละเอียดอย่างน้อย 1 อย่าง','Please enter at least a location or a description')); return; }
+    const proj2 = state.projects.find(p=>p.id===pid);
+    if(!proj2) return;
+    const photoIds = [];
+    for(const p of d.pendingPhotos){ const id=uid(); await idbPut(id,p.dataUrl); photoIds.push(id); }
+    const item = newPunchItem(null, 0.5, 0.5, 0);
+    Object.assign(item, {
+      title: (d.location||'').trim() || (d.notes||'').trim().slice(0,40) || tf('รายงานจากลิงก์กรอก Defect','Reported via defect fill-in link'),
+      location: (d.location||'').trim(), category:(d.category||'').trim(), severity:d.severity||'medium',
+      notes:(d.notes||'').trim(), photosBefore:photoIds,
+    });
+    proj2.punchItems.push(item);
+    saveData();
+    punchFillDraft = {location:'', category:'', severity:'medium', notes:'', pendingPhotos:[]};
+    punchFillSubmitted = true;
+    render();
+  };
 }
 function punchChecklistGroupedTemplate(proj){
   const groups = {};
@@ -13366,6 +13710,7 @@ function wireJobBid(){
 function wireScreen(){
   if(JOB_BID_MODE) return wireJobBid();
   if(PUNCH_STAGE_MODE) return wirePunchStageLink();
+  if(PUNCH_DEFECT_FILL_MODE) return wirePunchDefectFillLink();
   if(FIELD_MODE){
     if(!state.currentProjectId) return;
     if(state.tab==='procure') return wireProcure();
