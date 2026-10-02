@@ -5021,7 +5021,7 @@ function resetTransient(){
   cjobDraft=null; editingCjobId=null; cjobDetailId=null; cjobHandoverPending=[]; cjobViewTrash=false;
   cjobPoPending=[]; cjobPoDraft=null; cjobShareImageUrl=null; cjobPhotoLightboxId=null;
   punchSelectedPlanId=null; punchPlanDraft=null; editingPunchPlanId=null;
-  punchDrawMode='pin'; punchDefectSearch=''; punchFocusItemId=null; punchPhotoLightboxId=null;
+  punchDefectSearch=''; punchFocusItemId=null; punchPhotoLightboxId=null;
   punchAnnotating=null; punchRecordLightboxId=null; punchChecklistManagerOpen=false; punchShowQr=false;
   punchSubView='defects'; punchSelectedRunId=null; punchNewRunZone=''; punchClExpanded=new Set();
   noteSubView='feed';
@@ -10596,12 +10596,11 @@ function wireNotes(){
 let punchSelectedPlanId = null;
 let punchPlanDraft = null; // {name, imageId, pendingPhoto:{dataUrl}|null}
 let editingPunchPlanId = null; // null | 'new' | planId
-let punchDrawMode = 'pin'; // 'pin' (tap to place a point) | 'circle' (drag to mark an area) -- which interaction the plan viewer's pointer handlers use right now
 // Defect Item List table state (replaces the old popup-based add/edit flow
-// per the user's explicit "ไม่เอาแบบ popup ... หัวข้อตามในรูป" request: a
-// directly fill-in-able table, not a dialog box). A click on the plan still
-// places a pin and creates a row immediately (no modal in between); clicking
-// an existing pin just scrolls/focuses that row instead of opening anything.
+// per the user's explicit "ไม่เอาแบบ popup ... หัวข้อตามในรูป" request, and
+// no longer has any plan/pin viewer at all per the follow-up "ไม่ต้องมีแปลน" --
+// it is just a flat, directly fill-in-able table, not a dialog box and not
+// tied to a blueprint).
 let punchDefectSearch = ''; // free-text search across zone/description/assignedTo/supervisor/remark
 let punchFocusItemId = null; // id of a just-added/just-clicked row to scroll to + focus after the next render
 let punchPhotoLightboxId = null; // a defect photo id currently shown full-size in the lightbox, or null when closed
@@ -10720,34 +10719,23 @@ function punchStatusFromProgress(progress){
   if(p>0) return 'fixed';
   return 'open';
 }
-// Renders one marker on a plan viewer -- either the classic single-point pin
-// (radius falsy/0) or a circle/area marker (radius>0, dragged via the
-// "Circle area" mode in wirePunchDefectsView). `interactive` adds the
-// data-pu-pin click hook + hover tooltip used by the live editable viewer;
-// the printable report reuses the exact same markup without them since it's
-// static. Both shapes share the same numbering so the list/report below
-// still lines up with whichever shape a given defect was marked with.
-function punchMarkerHtml(it, idx, interactive){
-  const tip = it.location || it.notes || '';
-  const hook = interactive? ` data-pu-pin="${it.id}" title="${escapeHtml(tip)}"` : '';
-  if(it.radius){
-    const size = (it.radius*2*100).toFixed(2);
-    return `<div class="punch-circle ${it.status}" style="left:${(it.x*100).toFixed(2)}%;top:${(it.y*100).toFixed(2)}%;width:${size}%;height:${size}%"${hook}><span class="punch-circle-label">${idx+1}</span></div>`;
-  }
-  return `<div class="punch-pin ${it.status}" style="left:${(it.x*100).toFixed(2)}%;top:${(it.y*100).toFixed(2)}%"${hook}><span>${idx+1}</span></div>`;
-}
 function punchShareLink(proj){ return projectLink(proj.id)+'&tab=punch'; }
 function punchOverdueCount(proj){
   const today = todayStr();
   return proj.punchItems.filter(it=> it.status==='open' && it.dueDate && it.dueDate<today).length;
 }
-// Every defect in the project (the table is project-wide, not scoped to the
-// currently-selected plan -- the Zone column is what tells rows apart now),
-// oldest first by Issue Date so the table reads top-to-bottom the way a
-// punch-list document normally would, with a free-text search across the
-// fields people actually look things up by.
+// Every defect in the project, oldest first by Issue Date so the table
+// reads top-to-bottom the way a punch-list document normally would.
+// Report/Excel export always use this UNFILTERED version -- a "download
+// everything" action should never silently drop rows just because the
+// on-screen search box happens to have something typed into it.
+function punchAllItemsSorted(proj){
+  return proj.punchItems.slice().sort((a,b)=> (a.issueDate||a.createdAt||'').localeCompare(b.issueDate||b.createdAt||''));
+}
+// The on-screen Defect Item List table applies the live search box on top
+// of punchAllItemsSorted.
 function punchSearchedItems(proj){
-  let items = proj.punchItems.slice();
+  let items = punchAllItemsSorted(proj);
   if(punchDefectSearch.trim()){
     const q = punchDefectSearch.trim().toLowerCase();
     items = items.filter(it=>
@@ -10758,7 +10746,7 @@ function punchSearchedItems(proj){
       (it.remark||'').toLowerCase().includes(q)
     );
   }
-  return items.sort((a,b)=> (a.issueDate||a.createdAt||'').localeCompare(b.issueDate||b.createdAt||''));
+  return items;
 }
 // Generic [data-thumb-id]/[data-plan-img] async thumbnail fillers -- same
 // idbGet-via-loadRefPhoto cache every other photo feature in the app already
@@ -10825,7 +10813,7 @@ function ensurePunchDefaults(proj){
 function renderPunch(){
   ensurePunchDefaults(P());
   return `
-  <div class="page-head"><div><h2>📍 ${tf('ตรวจสอบ (INSPECT)','INSPECT')}</h2><div class="sub">${tf('1) คอมเมนต์/แก้ไขแบบแปลน 2) เช็กลิสต์ตรวจงาน 3 ระยะ 3) ปักหมุด Defect พร้อมรายงานสรุป','1) Comment/revise plans 2) 3-stage inspection checklist 3) Pin defects with a summary report')}</div></div></div>
+  <div class="page-head"><div><h2>📍 ${tf('ตรวจสอบ (INSPECT)','INSPECT')}</h2><div class="sub">${tf('1) คอมเมนต์/แก้ไขแบบแปลน 2) เช็กลิสต์ตรวจงาน 3 ระยะ 3) กรอกรายการ Defect พร้อมรายงานสรุป','1) Comment/revise plans 2) 3-stage inspection checklist 3) Fill in Defect items with a summary report')}</div></div></div>
   <div class="punch-subnav">
     <button data-punch-sub="revise" class="${punchSubView==='revise'?'active':''}">🖊️ ${tf('1. งานปรับปรุง (แก้ไขแบบแปลน)','1. Plan Revisions')}</button>
     <button data-punch-sub="checklist" class="${punchSubView==='checklist'?'active':''}">📋 ${tf('2. งานตรวจสอบ Checklist','2. Inspection Checklist')}</button>
@@ -10895,59 +10883,14 @@ function renderPunchDefectsView(proj){
   </div>`;
   const topHtml = weeklyBoxHtml + kpiBigHtml;
 
-  // The Defect Item List table (punchDefectTableHtml below) is project-wide
-  // and never needs a plan to exist -- rows can be added straight into it
-  // via "+ Add row" (or the defect fill-in link) with no plan at all. Only
-  // the pin/plan viewer below it needs at least one blueprint, so a project
-  // with no plans yet still gets the full table, just with an "add a
-  // blueprint" placeholder in place of the viewer instead of skipping the
-  // whole screen.
-  if(!proj.punchPlans.length){
-    return topHtml + statsHtml + `<div class="card" style="text-align:center;padding:40px 20px">
-      <div class="empty"><span class="ic">📐</span>${tf('ยังไม่มีแปลนดิจิทัล — อัปโหลดรูปแปลนหรือไฟล์ PDF (ผังห้อง/ผังชั้น) เพื่อเริ่มปักหมุดจุดบกพร่อง','No digital blueprint yet -- upload a plan image or PDF (room/floor layout) to start pinning defects')}</div>
-      <button class="btn primary" style="margin-top:10px" id="pu-add-plan">+ ${tf('เพิ่มแปลน','Add blueprint')}</button>
-    </div>` + punchDefectTableHtml(proj) + punchReportSectionHtml(proj);
-  }
-  if(!punchSelectedPlanId || !proj.punchPlans.find(p=>p.id===punchSelectedPlanId)) punchSelectedPlanId = proj.punchPlans[0].id;
-  const plan = proj.punchPlans.find(p=>p.id===punchSelectedPlanId);
-  const planTabsHtml = `<div class="punch-plan-tabs">
-    ${proj.punchPlans.map(p=>`<div class="punch-plan-chip ${p.id===punchSelectedPlanId?'active':''}" data-pu-plan="${p.id}"><img data-plan-img="${p.imageId||''}" alt="">${escapeHtml(p.name||tf('แปลนไม่มีชื่อ','Untitled plan'))}</div>`).join('')}
-    <div class="punch-plan-chip" id="pu-add-plan"><span class="add">➕</span>${tf('เพิ่มแปลน','Add plan')}</div>
-  </div>`;
-
-  const planItems = proj.punchItems.filter(it=>it.planId===plan.id);
-  const pinsHtml = planItems.map((it,idx)=> punchMarkerHtml(it, idx, true)).join('');
-  const modeHint = punchDrawMode==='circle'
-    ? tf('ลากบนแปลนเพื่อวงพื้นที่บกพร่อง','Drag on the plan to circle a defect area')
-    : tf('แตะบนแปลนเพื่อปักหมุดจุดบกพร่องใหม่','Tap the plan to pin a new defect');
-  const viewerHtml = `<div class="card">
-    <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
-      <b style="font-family:var(--font-display);font-size:13.5px">📐 ${escapeHtml(plan.name||tf('แปลนไม่มีชื่อ','Untitled plan'))}</b>
-      <button class="btn ghost sm" id="pu-edit-plan" data-plan-id="${plan.id}">✏️ ${tf('แก้ไขแปลน','Edit plan')}</button>
-    </div>
-    <div class="punch-mode-toggle">
-      <button class="btn ghost sm ${punchDrawMode==='pin'?'active':''}" id="pu-mode-pin">📍 ${tf('ปักหมุด','Pin')}</button>
-      <button class="btn ghost sm ${punchDrawMode==='circle'?'active':''}" id="pu-mode-circle">⭕ ${tf('วงพื้นที่','Circle area')}</button>
-    </div>
-    <div class="punch-viewer" id="pu-viewer" style="margin-top:10px">
-      ${plan.imageId? `<img data-plan-img="${plan.imageId}" alt="">` : `<div class="empty" style="padding:60px 10px"><span class="ic">📐</span>${tf('แปลนนี้ยังไม่มีรูปภาพ','This plan has no image yet')}</div>`}
-      ${pinsHtml}
-    </div>
-    <div class="punch-legend">
-      <span><i style="background:var(--coral-500)"></i>${tf('รอแก้ไข','Open')}</span>
-      <span><i style="background:var(--amber-500)"></i>${tf('รอตรวจซ้ำ','Awaiting re-check')}</span>
-      <span><i style="background:var(--mint-500)"></i>${tf('ปิดงานแล้ว','Closed')}</span>
-      <span style="margin-left:auto">💡 ${modeHint}</span>
-    </div>
-    <div class="sub" style="margin-top:8px">🖊️ ${tf('ต้องการคอมเมนต์/วาดแก้ไขบนแปลนนี้?','Need to comment or mark up this plan?')} <a href="javascript:void(0)" id="pu-goto-revise">${tf('ไปที่แท็บ "งานปรับปรุง"','Go to the "Plan Revisions" tab')} →</a></div>
-  </div>`;
-
-  // The Defect Item List itself is the fill-in table below (project-wide,
-  // not scoped to `plan` -- see punchDefectTableHtml), matching the
-  // reference image the user sent: a directly-editable spreadsheet-style
-  // table, no popup. The plan+pin viewer above stays as a secondary visual
-  // tool for *where* a defect is, same as before.
-  return topHtml + statsHtml + planTabsHtml + viewerHtml + punchDefectTableHtml(proj) + punchReportSectionHtml(proj);
+  // Per the user's explicit "ไม่ต้องมีแปลน" (doesn't need a plan) follow-up:
+  // Function 3 no longer has any blueprint/pin viewer at all -- it is just
+  // the KPI boxes plus the directly fill-in-able Defect Item List table
+  // (punchDefectTableHtml) and the report section below it. Plans still
+  // exist as a concept for Function 1 ("งานปรับปรุง" / Plan Revisions,
+  // which still needs them for commenting/markup), but Function 3 no
+  // longer reads or writes plan/x/y/radius data on a defect item at all.
+  return topHtml + statsHtml + punchDefectTableHtml(proj) + punchReportSectionHtml(proj);
 }
 
 // ---- Function 1: "งานปรับปรุง" (Plan Revisions) ----
@@ -11164,27 +11107,17 @@ function punchReportRowsHtml(items){
 function punchReportHeadHtml(){
   return `<tr><th>${tf('ลำดับ','No')}</th><th>${tf('โซน','Zone')}</th><th>${tf('รายละเอียด','Description')}</th><th>${tf('รูปก่อน','Before')}</th><th>${tf('รูปหลัง','After')}</th><th>${tf('ทีมงาน','Assigned Team')}</th><th>${tf('ผู้ควบคุมงาน','Supervisor')}</th><th>${tf('วันที่แจ้ง','Issue Date')}</th><th>${tf('วันที่เริ่ม','Start Date')}</th><th>${tf('ความคืบหน้า','Progress')}</th><th>${tf('วันที่เสร็จ','Completed Date')}</th><th>${tf('หมายเหตุ','Remark')}</th></tr>`;
 }
+// Flat (no plan grouping) per the user's "ไม่ต้องมีแปลน" follow-up -- the
+// report is just one table of every defect in the project, same row order
+// as punchSearchedItems/the on-screen table.
 function punchReportBodyHtml(proj){
   const c = state.contractor||{};
-  const plansHtml = proj.punchPlans.map(plan=>{
-    const items = proj.punchItems.filter(it=>it.planId===plan.id);
-    if(!items.length && !plan.imageId) return '';
-    const pins = items.map((it,idx)=> punchMarkerHtml(it, idx, false)).join('');
-    const rows = punchReportRowsHtml(items);
-    return `<div class="rp-section" style="page-break-inside:avoid">
-      <h3>📐 ${escapeHtml(plan.name||tf('แปลนไม่มีชื่อ','Untitled plan'))}</h3>
-      ${plan.imageId? `<div class="punch-viewer" style="max-width:520px"><img data-plan-img="${plan.imageId}" alt="">${pins}</div>` : ''}
-      ${items.length? `<div class="table-wrap" style="margin-top:10px"><table><thead>${punchReportHeadHtml()}</thead><tbody>${rows}</tbody></table></div>` : `<div class="empty">${tf('ไม่มีรายการในแปลนนี้','No defects on this plan')}</div>`}
-    </div>`;
-  }).join('');
-  // Defects with no plan (added via "+ Add row" directly, or submitted
-  // through the defect fill-in link) still need to show up somewhere in
-  // the report instead of silently vanishing -- they get their own section.
-  const unplanned = proj.punchItems.filter(it=> !it.planId || !proj.punchPlans.find(p=>p.id===it.planId));
-  const unplannedHtml = unplanned.length ? `<div class="rp-section" style="page-break-inside:avoid">
-    <h3>📋 ${tf('ไม่ระบุแปลน','No plan')}</h3>
-    <div class="table-wrap" style="margin-top:10px"><table><thead>${punchReportHeadHtml()}</thead><tbody>${punchReportRowsHtml(unplanned)}</tbody></table></div>
-  </div>` : '';
+  const items = punchAllItemsSorted(proj);
+  const bodyHtml = items.length
+    ? `<div class="rp-section" style="page-break-inside:avoid">
+        <div class="table-wrap" style="margin-top:10px"><table><thead>${punchReportHeadHtml()}</thead><tbody>${punchReportRowsHtml(items)}</tbody></table></div>
+      </div>`
+    : `<div class="rp-section"><div class="empty">${tf('ยังไม่มีรายการ','No defects yet')}</div></div>`;
   return `
     <div class="rp-head">
       <div style="display:flex;align-items:center;gap:14px">
@@ -11196,7 +11129,7 @@ function punchReportBodyHtml(proj){
       <div><b>${tf('โครงการ','Project')}</b>${escapeHtml(proj.name||'-')}</div>
       <div><b>${tf('วันที่ออกรายงาน','Issue Date')}</b>${fmtDate(todayStr())}</div>
     </div>
-    ${(plansHtml||unplannedHtml) ? (plansHtml+unplannedHtml) : `<div class="rp-section"><div class="empty">${tf('ยังไม่มีรายการ','No defects yet')}</div></div>`}
+    ${bodyHtml}
     <div class="rp-foot"><span>${escapeHtml(c.company||'Project Management')}</span><span>${tf('สร้างรายงานเมื่อ','Report generated')} ${fmtDate(todayStr())}</span></div>
   `;
 }
@@ -11208,12 +11141,12 @@ function punchReportBodyHtml(proj){
 // column headers), no plugin/CDN dependency needed. PDF export is already
 // covered by the "Print / PDF" button above (window.print() against this
 // same report's @media print rules), so this only needs to add the Excel
-// path. Columns match the new Defect Item List table one-for-one.
+// path. Columns match the new Defect Item List table one-for-one -- flat,
+// no "Plan" column, per the user's "ไม่ต้องมีแปลน" follow-up.
 function punchExportExcelHtml(proj){
-  const rowsFor = (planName, items)=> items.map((it,idx)=>{
+  const rows = punchAllItemsSorted(proj).map((it,idx)=>{
     const beforeN = (it.photosBefore||[]).length, afterN = (it.photosAfter||[]).length;
     return `<tr>
-      <td>${escapeHtml(planName)}</td>
       <td>${idx+1}</td>
       <td>${escapeHtml(it.location||'-')}</td>
       <td>${escapeHtml(it.notes||'-')}</td>
@@ -11228,11 +11161,8 @@ function punchExportExcelHtml(proj){
       <td>${escapeHtml(it.remark||'-')}</td>
     </tr>`;
   }).join('');
-  let rows = '';
-  proj.punchPlans.forEach(plan=>{ rows += rowsFor(plan.name||'-', proj.punchItems.filter(it=>it.planId===plan.id)); });
-  rows += rowsFor(tf('ไม่ระบุแปลน','No plan'), proj.punchItems.filter(it=> !it.planId || !proj.punchPlans.find(p=>p.id===it.planId)));
   const head = `<tr>
-    <th>${tf('แปลน','Plan')}</th><th>${tf('ลำดับ','No')}</th><th>${tf('โซน','Zone')}</th><th>${tf('รายละเอียด','Description')}</th>
+    <th>${tf('ลำดับ','No')}</th><th>${tf('โซน','Zone')}</th><th>${tf('รายละเอียด','Description')}</th>
     <th>${tf('จำนวนรูปก่อน','Before photos')}</th><th>${tf('จำนวนรูปหลัง','After photos')}</th>
     <th>${tf('ทีมงาน','Assigned Team')}</th><th>${tf('ผู้ควบคุมงาน','Supervisor')}</th>
     <th>${tf('วันที่แจ้ง','Issue Date')}</th><th>${tf('วันที่เริ่ม','Start Date')}</th><th>${tf('ความคืบหน้า','Progress')}</th>
@@ -11417,91 +11347,10 @@ function wirePunch(){
 }
 function wirePunchDefectsView(){
   const proj = P();
-  const addPlanBtn = $('#pu-add-plan');
-  if(addPlanBtn) addPlanBtn.onclick = ()=>{ punchPlanDraft = {name:'', imageId:null, pendingPhoto:null}; editingPunchPlanId='new'; render(); };
-  $$('[data-pu-plan]').forEach(el=> el.onclick = ()=>{ punchSelectedPlanId = el.dataset.puPlan; render(); });
-  const editPlanBtn = $('#pu-edit-plan');
-  if(editPlanBtn) editPlanBtn.onclick = ()=>{
-    const pl = proj.punchPlans.find(p=>p.id===editPlanBtn.dataset.planId);
-    if(!pl) return;
-    punchPlanDraft = {name:pl.name, imageId:pl.imageId, pendingPhoto:null};
-    editingPunchPlanId = pl.id; render();
-  };
-  const modePinBtn = $('#pu-mode-pin'); if(modePinBtn) modePinBtn.onclick = ()=>{ punchDrawMode='pin'; render(); };
-  const modeCircleBtn = $('#pu-mode-circle'); if(modeCircleBtn) modeCircleBtn.onclick = ()=>{ punchDrawMode='circle'; render(); };
-  const gotoReviseLink = $('#pu-goto-revise');
-  if(gotoReviseLink) gotoReviseLink.onclick = ()=>{ punchSubView='revise'; render(); };
-  const viewer = $('#pu-viewer');
-  if(viewer){
-    if(punchDrawMode==='circle'){
-      // Drag-to-draw a circle/area marker -- mirrors the Gantt bar drag
-      // pattern elsewhere (direct style tweaks on a live preview element
-      // during the drag, a full render() only once on pointerup) so the
-      // circle grows smoothly under the finger/cursor instead of jumping
-      // between discrete re-renders. A short drag (below the ~1.5%-radius
-      // threshold) is treated as a plain tap and falls back to a normal
-      // point pin, so accidental micro-drags never create a near-invisible
-      // circle by mistake.
-      let dragging=false, startX=0, startY=0, previewEl=null;
-      viewer.addEventListener('pointerdown', (e)=>{
-        if(e.target.closest('[data-pu-pin]')) return;
-        const rect = viewer.getBoundingClientRect();
-        startX = clamp((e.clientX-rect.left)/rect.width, 0, 1);
-        startY = clamp((e.clientY-rect.top)/rect.height, 0, 1);
-        dragging = true;
-        previewEl = document.createElement('div');
-        previewEl.className = 'punch-circle punch-circle-preview open';
-        previewEl.style.left = (startX*100)+'%';
-        previewEl.style.top = (startY*100)+'%';
-        previewEl.style.width = '0%'; previewEl.style.height = '0%';
-        viewer.appendChild(previewEl);
-        try{ viewer.setPointerCapture(e.pointerId); }catch(err){}
-      });
-      viewer.addEventListener('pointermove', (e)=>{
-        if(!dragging || !previewEl) return;
-        const rect = viewer.getBoundingClientRect();
-        const curX = (e.clientX-rect.left)/rect.width, curY = (e.clientY-rect.top)/rect.height;
-        const r = Math.hypot(curX-startX, curY-startY);
-        previewEl.style.width = (r*2*100)+'%';
-        previewEl.style.height = (r*2*100)+'%';
-      });
-      viewer.addEventListener('pointerup', (e)=>{
-        if(!dragging) return;
-        dragging = false;
-        if(previewEl){ previewEl.remove(); previewEl=null; }
-        const rect = viewer.getBoundingClientRect();
-        const curX = clamp((e.clientX-rect.left)/rect.width, 0, 1), curY = clamp((e.clientY-rect.top)/rect.height, 0, 1);
-        const r = Math.hypot(curX-startX, curY-startY);
-        // No popup any more -- a drag on the plan creates the row directly
-        // and drops straight into the Defect Item List table below, already
-        // scrolled/focused to it (punchFocusItemId), matching the "fill-in
-        // table, not popup" request.
-        const pin = r<0.015
-          ? {x:clamp(startX,0.02,0.98), y:clamp(startY,0.02,0.98), radius:0}
-          : {x:clamp(startX,0.02,0.98), y:clamp(startY,0.02,0.98), radius:clamp(r,0.015,0.45)};
-        const item = newPunchItem(punchSelectedPlanId, pin.x, pin.y, pin.radius);
-        proj.punchItems.push(item);
-        saveData();
-        punchFocusItemId = item.id;
-        render();
-      });
-    } else {
-      viewer.addEventListener('click', (e)=>{
-        if(e.target.closest('[data-pu-pin]')) return;
-        const rect = viewer.getBoundingClientRect();
-        const x = clamp((e.clientX-rect.left)/rect.width, 0.02, 0.98);
-        const y = clamp((e.clientY-rect.top)/rect.height, 0.02, 0.98);
-        const item = newPunchItem(punchSelectedPlanId, x, y, 0);
-        proj.punchItems.push(item);
-        saveData();
-        punchFocusItemId = item.id;
-        render();
-      });
-    }
-  }
-  // Clicking an existing pin just jumps to its row in the table below --
-  // nothing opens on top of the plan any more.
-  $$('[data-pu-pin]').forEach(el=> el.onclick = (e)=>{ e.stopPropagation(); punchFocusItemId = el.dataset.puPin; render(); });
+  // No plan/pin viewer in this view any more (per the user's "ไม่ต้องมีแปลน"
+  // follow-up) -- just the KPI boxes, the Defect Item List table, and the
+  // report section, so this function only wires the report controls and
+  // the table itself.
   const printBtn=$('#pu-print'); if(printBtn) printBtn.onclick=()=> window.print();
   const copyBtn=$('#pu-copy-link');
   if(copyBtn) copyBtn.onclick = async ()=>{
@@ -11543,11 +11392,10 @@ function punchDefectPhotoCellHtml(it, kind){
 // Remark. Every text/date/number cell is a plain <input>/<textarea> edited
 // directly in place (see wirePunchDefectTable) -- no modal in between
 // typing and saving, per the user's explicit "ไม่เอาแบบ popup" request.
-// Deliberately project-wide rather than scoped to the currently-selected
-// plan, matching the flat single-table layout in the reference image --
-// rows created from any plan (or with no plan at all, e.g. via the defect
-// fill-in link, or the "+ Add row" button) all show up here together; the
-// plan+pin viewer above stays as a secondary *where-is-it* visual aid.
+// Deliberately project-wide and plan-free -- per the user's "ไม่ต้องมีแปลน"
+// follow-up, this function no longer has a blueprint/pin viewer at all;
+// rows created via the "+ Add row" button or the defect fill-in link all
+// just land in this one flat table.
 function punchDefectTableHtml(proj){
   const items = punchSearchedItems(proj);
   const teamList = Array.from(new Set(
@@ -12071,7 +11919,11 @@ function wirePunchChecklistModal(){
    math. Strokes are drawn straight onto the canvas as the pointer moves (no
    render() mid-stroke -- that would tear down the canvas element and lose
    the in-progress drawing); only opening/closing the modal and Undo/Clear/
-   Zoom go through a full redraw from the stored stroke list. ---- */
+   Zoom go through a full redraw from the stored stroke list. A two-finger
+   touch is treated as a pinch-to-zoom gesture (scaling st.zoom live from the
+   change in finger-to-finger distance) instead of a drawing stroke, so the
+   plan/photo can be enlarged just by spreading two fingers -- no need to tap
+   the 🔍+ / 🔍− buttons first. ---- */
 function punchAnnotateModalHtml(){
   if(!punchAnnotating) return '';
   const st = punchAnnotating;
@@ -12118,6 +11970,12 @@ function punchAnnotateModalHtml(){
 // prompts). All four live in one `marks` list in draw order, so Undo/Clear
 // and redraw don't need to know or care which tool made which mark.
 let _puAnImg=null, _puAnDrawing=false, _puAnCurrentStroke=null, _puAnDragStart=null;
+// Pinch-to-zoom tracking: _puAnPointers maps active pointerId -> last known
+// {x,y} client position. As soon as a second finger touches down, the
+// gesture becomes a pinch (any single-finger draw already in progress is
+// cancelled) and the live two-finger distance scales st.zoom from the
+// distance/zoom recorded at pinch start.
+let _puAnPointers={}, _puAnPinchStartDist=0, _puAnPinchStartZoom=1;
 function punchAnDrawStrokeMark(ctx, m){
   const pts = m.pts;
   if(!pts || pts.length<2) return;
@@ -12171,6 +12029,10 @@ function wirePunchAnnotateModal(){
   bg.addEventListener('click', e=>{ if(e.target===bg) close(); });
   const canvas = $('#pu-annotate-canvas');
   const wrap = $('#pu-annotate-wrap');
+  // Fresh canvas element each wire-up (render() rebuilds the modal's DOM) --
+  // reset any pinch/draw tracking left over from before so a stale pointer
+  // map can never carry across a tool switch or redraw.
+  _puAnPointers={}; _puAnPinchStartDist=0; _puAnDrawing=false; _puAnCurrentStroke=null; _puAnDragStart=null;
   const img = new Image();
   img.onload = ()=>{
     // Fit to BOTH dimensions of the wrap (not just a flat width cap) so the
@@ -12197,6 +12059,18 @@ function wirePunchAnnotateModal(){
   };
   canvas.onpointerdown = (e)=>{
     e.preventDefault();
+    _puAnPointers[e.pointerId] = {x:e.clientX, y:e.clientY};
+    const ids = Object.keys(_puAnPointers);
+    if(ids.length>=2){
+      // A second finger just landed -- this is a pinch, not a draw. Drop
+      // any single-finger stroke that may have been starting and record the
+      // starting two-finger distance + current zoom to scale from.
+      _puAnDrawing=false; _puAnCurrentStroke=null; _puAnDragStart=null;
+      const [a,b] = ids.map(id=>_puAnPointers[id]);
+      _puAnPinchStartDist = Math.hypot(a.x-b.x, a.y-b.y) || 1;
+      _puAnPinchStartZoom = st.zoom||1;
+      return;
+    }
     const pos = getPos(e);
     if(st.tool==='text'){
       const text = (prompt(tf('พิมพ์ข้อความที่จะแปะบนรูป:','Type the text to place on the photo:'))||'').trim();
@@ -12209,6 +12083,19 @@ function wirePunchAnnotateModal(){
     else _puAnCurrentStroke=[pos];
   };
   canvas.onpointermove = (e)=>{
+    if(_puAnPointers[e.pointerId]) _puAnPointers[e.pointerId] = {x:e.clientX, y:e.clientY};
+    const ids = Object.keys(_puAnPointers);
+    if(ids.length>=2){
+      // Two fingers down and moving -- live pinch-to-zoom, scaled off the
+      // distance recorded when the second finger touched down. No drawing
+      // happens while pinching.
+      e.preventDefault();
+      const [a,b] = ids.map(id=>_puAnPointers[id]);
+      const dist = Math.hypot(a.x-b.x, a.y-b.y) || 1;
+      st.zoom = Math.max(1, Math.min(3, _puAnPinchStartZoom * (dist/_puAnPinchStartDist)));
+      punchAnApplyZoom(canvas, st);
+      return;
+    }
     if(!_puAnDrawing || !_puAnImg) return;
     e.preventDefault();
     const pos = getPos(e);
@@ -12222,6 +12109,8 @@ function wirePunchAnnotateModal(){
     }
   };
   const endStroke = (e)=>{
+    delete _puAnPointers[e.pointerId];
+    if(Object.keys(_puAnPointers).length<2) _puAnPinchStartDist=0;
     if(!_puAnDrawing) return;
     _puAnDrawing=false;
     if(st.tool==='circle' && _puAnDragStart){
