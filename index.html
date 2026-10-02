@@ -8600,6 +8600,25 @@ const DRIVE_TOTAL_KEYWORDS_PRIORITY = [
   ['รวมทั้งสิ้น','รวมเงินทั้งสิ้น','รวมเป็นเงินทั้งสิ้น','ยอดรวมสุทธิ','ยอดสุทธิ','จำนวนเงินรวมทั้งสิ้น','grand total','net total','total amount due','amount due'],
   ['ยอดรวม','จำนวนเงินรวม','รวมเป็นเงิน','total amount','total'],
 ];
+// Real-world incident (found while investigating a user report of wildly
+// wrong logged amounts, Oct 2026): Thai POs/invoices almost always print
+// their grand total TWICE -- once as a number, and once spelled out in
+// words ending in "...บาทถ้วน" ("...baht exactly"). The spelled-out line
+// contains the same tier-1 keyword (e.g. "จำนวนเงินรวมทั้งสิ้น") but has no
+// digits of its own, so the old code fell through to grabbing whatever
+// numbers happened to sit on the very next OCR line -- which, for a
+// multi-column "remarks | totals" layout, is NOT reliably the numeric total
+// row directly below it; it's just as often an unrelated ID (bank account
+// number, tax ID) from the remarks column that OCR's linearized reading
+// order placed there. Checked against 13 real auto-imported entries: 5 had
+// silently wrong totals, 4 of them this exact bank-account-digit collision
+// (e.g. a PO whose real total was ฿840.00 got logged as ฿134,385.00 --
+// "134385" lifted straight from a "เลขบัญชี : 114 1 34383 2" bank-account
+// line). Fixed by (a) never treating a spelled-out "...ถ้วน" line as a
+// usable match, and (b) only trusting a next-line fallback number when it's
+// formatted like real currency (exactly 2 decimal places) -- a bare integer
+// such as an account/tax/phone number almost never is, while every real
+// total on this app's PO template always prints as x,xxx.xx.
 function parseAmountFromText(text){
   if(!text) return {amount:null, confident:false};
   // Matches a comma-grouped number (2,550.00) as one token first -- it must
@@ -8608,6 +8627,12 @@ function parseAmountFromText(text){
   // falling through to the second, no-comma alternative.
   const numRe = /\d{1,3}(?:,\d{3})+(?:\.\d{1,2})?|\d+(?:\.\d{1,2})?/g;
   const numsIn = (s)=> (s.match(numRe)||[]).map(n=>parseFloat(n.replace(/,/g,''))).filter(n=>!isNaN(n) && n>0);
+  // A properly currency-formatted number: exactly 2 decimal places. Used
+  // only to sanity-check the riskier "next line" fallback below -- a match
+  // found directly on the keyword's own line is trusted as-is, same as
+  // before, since it's never been the source of a wrong amount.
+  const decimalNumRe = /\d{1,3}(?:,\d{3})*\.\d{2}\b/g;
+  const decimalNumsIn = (s)=> (s.match(decimalNumRe)||[]).map(n=>parseFloat(n.replace(/,/g,''))).filter(n=>!isNaN(n) && n>0);
   const lines = text.split(/\r?\n/);
   for(const tier of DRIVE_TOTAL_KEYWORDS_PRIORITY){
     // Within a tier, scan from the bottom of the document up: the real
@@ -8616,11 +8641,20 @@ function parseAmountFromText(text){
     // keywords (e.g. "ยอดรวม" appearing once before tax, once after).
     for(let i=lines.length-1;i>=0;i--){
       const low = lines[i].toLowerCase();
-      if(tier.some(k=>low.includes(k))){
-        let nums = numsIn(lines[i]);
-        if(!nums.length && lines[i+1]) nums = numsIn(lines[i+1]); // amount sometimes sits on the next line/table cell
-        if(nums.length) return {amount: Math.max(...nums), confident:true};
+      if(!tier.some(k=>low.includes(k))) continue;
+      // The spelled-out-in-words total line -- never a reliable number
+      // source (see comment above). Skip it entirely rather than falling
+      // through to whatever digits happen to be nearby, and keep scanning
+      // upward for the real numeric row instead.
+      if(low.includes('ถ้วน')) continue;
+      const nums = numsIn(lines[i]);
+      if(nums.length) return {amount: Math.max(...nums), confident:true};
+      if(lines[i+1]){
+        const decNums = decimalNumsIn(lines[i+1]);
+        if(decNums.length) return {amount: Math.max(...decNums), confident:true};
       }
+      // No trustworthy number here -- don't stop at this match; an earlier
+      // (higher up) occurrence of this tier's keyword may still have one.
     }
   }
   const allNums = numsIn(text);
