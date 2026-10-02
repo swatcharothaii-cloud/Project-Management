@@ -1416,7 +1416,7 @@ function deleteCloudProject(id){
 // instantly on every load, then "catches up" to the shared cloud copy a
 // moment later once it arrives -- and stays live via onSnapshot from then on.
 async function initCloudSync(){
-  if(!cloudDb){ cloudSyncReady = true; return; } // Firebase never loaded/initialized -- stay local-only, silently
+  if(!cloudDb){ cloudSyncReady = true; safeRerender(); return; } // Firebase never loaded/initialized -- stay local-only, silently
   try{
     const metaSnap = await cloudDb.collection('meta').doc('settings').get();
     const projSnap = await cloudDb.collection('projects').get();
@@ -1430,6 +1430,7 @@ async function initCloudSync(){
       // (freshly seeded demo/Richmond data, most likely) becomes the shared
       // starting point that every other device will pull from.
       await pushStateToCloud();
+      safeRerender(); // lets any "waiting on cloudSyncReady" UI (e.g. the punch-stage share link) resolve out of its loading state now that cloudSyncReady is true
     } else {
       if(metaSnap.exists){
         const data = metaSnap.data();
@@ -1447,7 +1448,7 @@ async function initCloudSync(){
       saveDataLocalOnly();
       render();
     }
-  }catch(e){ /* offline on first load, or Firestore unreachable -- keep working on local data */ }
+  }catch(e){ cloudSyncReady = true; safeRerender(); /* offline on first load, or Firestore unreachable -- keep working on local data; the rerender lets any "waiting on cloudSyncReady" UI (e.g. the punch-stage share link) resolve out of its loading state instead of hanging */ }
   cloudSyncReady = true; // still true if the try block threw before reaching the line above
   if(pushPendingWhenReady){ pushPendingWhenReady = false; scheduleCloudPush(); }
   cloudDb.collection('meta').doc('settings').onSnapshot(
@@ -10994,6 +10995,15 @@ function renderPunchStageLink(){
   const run = proj ? (proj.punchChecklistRuns||[]).find(r=>r.id===runId) : null;
   const stDef = PUNCH_CL_STAGES.find(s=>s.v===stage);
   if(!proj || !run || !stDef){
+    // On a brand-new tab (no local cache), bootstrap() paints the local
+    // seed data first and the real shared project only arrives a moment
+    // later via initCloudSync()'s async fetch (see the cloudSyncReady
+    // comment above). Until that first cloud read has resolved, a missing
+    // proj/run just means "hasn't synced yet", not "really doesn't exist" --
+    // show a loading state instead of scaring off whoever opened the link.
+    if(!cloudSyncReady){
+      return `<div class="empty"><span class="ic">⏳</span>${tf('กำลังโหลดเช็กลิสต์...','Loading checklist...')}</div>`;
+    }
     return `<div class="empty"><span class="ic">🔗</span>${tf('ไม่พบเช็กลิสต์นี้ หรือลิงก์ไม่ถูกต้อง กรุณาขอลิงก์ใหม่จากผู้ดูแลโครงการ','This checklist link is invalid or no longer exists. Please ask the project owner for a new link.')}</div>`;
   }
   const items = (proj.punchChecklist||[]).filter(it=>it.stage===stDef.v);
