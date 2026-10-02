@@ -11948,7 +11948,12 @@ function punchDefectTableHtml(proj){
         ${options.map(v=>`<option value="${escapeHtml(v)}" ${current===v?'selected':''}>${escapeHtml(v)}</option>`).join('')}
       </select></div>`;
   }
-  return `<div class="card" style="margin-top:14px">
+  // Wrapped in the existing .mp-full-bleed breakout (same trick already used
+  // by Master Plan's Gantt and the Contractor Jobs table) so this wide table
+  // uses the real viewport width instead of being squeezed into main's
+  // centered max-width:1180px column -- per the user's explicit "ขยายตารางให้
+  // เต็มหน้าจอ ไม่ต้องเหลือพื้นที่ด้านข้าง" request.
+  return `<div class="mp-full-bleed"><div class="card" style="margin-top:14px">
     <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
       <b style="font-family:var(--font-display);font-size:14px">📋 ${tf('รายการ Defect (Defect Item List)','Defect Item List')}</b>
       <div style="display:flex;gap:8px;align-items:center">
@@ -11987,7 +11992,7 @@ function punchDefectTableHtml(proj){
     </div>
     <button class="btn ghost sm" id="pu-add-row" style="margin-top:10px">+ ${tf('เพิ่มแถว','Add row')}</button>
     ${lightboxHtml}
-  </div>`;
+  </div></div>`;
 }
 function wirePunchDefectTable(proj){
   const searchEl = $('#pu-defect-search');
