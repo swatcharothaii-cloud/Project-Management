@@ -5021,7 +5021,7 @@ function resetTransient(){
   cjobDraft=null; editingCjobId=null; cjobDetailId=null; cjobHandoverPending=[]; cjobViewTrash=false;
   cjobPoPending=[]; cjobPoDraft=null; cjobShareImageUrl=null; cjobPhotoLightboxId=null;
   punchSelectedPlanId=null; punchPlanDraft=null; editingPunchPlanId=null;
-  punchDefectSearch=''; punchFocusItemId=null; punchPhotoLightboxId=null;
+  punchDefectSearch=''; punchDefectFilters={zone:'', team:'', supervisor:'', status:''}; punchFocusItemId=null; punchPhotoLightboxId=null;
   punchAnnotating=null; punchRecordLightboxId=null; punchChecklistManagerOpen=false; punchShowQr=false;
   punchSubView='defects'; punchSelectedRunId=null; punchNewRunZone=''; punchClExpanded=new Set();
   noteSubView='feed';
@@ -10602,6 +10602,14 @@ let editingPunchPlanId = null; // null | 'new' | planId
 // it is just a flat, directly fill-in-able table, not a dialog box and not
 // tied to a blueprint).
 let punchDefectSearch = ''; // free-text search across zone/description/assignedTo/supervisor/remark
+// Per-column dropdown filters for the Defect Item List table, per the user's
+// request to narrow the list to e.g. only one team or only one progress
+// status instead of (or combined with) the free-text search above. '' means
+// "all" for that column. Like punchDefectSearch, these only affect the
+// on-screen table (punchSearchedItems) -- the report and Excel export always
+// read the unfiltered punchAllItemsSorted so a "download everything" action
+// never silently drops rows because a filter was left set on screen.
+let punchDefectFilters = {zone:'', team:'', supervisor:'', status:''};
 let punchFocusItemId = null; // id of a just-added/just-clicked row to scroll to + focus after the next render
 let punchPhotoLightboxId = null; // a defect photo id currently shown full-size in the lightbox, or null when closed
 let punchAnnotating = null; // {dataUrl, marks:[], zoom, tool, onSave, isPlan, saveAsRecord} -- drives the annotate modal, opened on top of the item modal (or directly from the main plan viewer). marks is a mixed list of {type:'stroke'|'circle'|'text', ...} in draw order (replaces the old single-purpose `strokes` list so pen/highlight/circle/text all undo and redraw together in the order they were drawn). `tool` is whichever of 'pen'|'highlight'|'circle'|'text' is currently selected in the toolbar. `isPlan` is true when annotating a copy of the blueprint (as opposed to a before/after defect photo) -- purely cosmetic (title/hint text), the save behavior itself is entirely decided by the caller's own `onSave`. `saveAsRecord` is true only for the main-plan-viewer entry point, where saving prompts for a name and stores a standalone, viewable/deletable revision record on the plan (proj.punchPlans[].annotations) instead of attaching a photo to one defect item.
@@ -10732,10 +10740,17 @@ function punchOverdueCount(proj){
 function punchAllItemsSorted(proj){
   return proj.punchItems.slice().sort((a,b)=> (a.issueDate||a.createdAt||'').localeCompare(b.issueDate||b.createdAt||''));
 }
-// The on-screen Defect Item List table applies the live search box on top
-// of punchAllItemsSorted.
+// The on-screen Defect Item List table applies the live search box AND the
+// per-column dropdown filters (punchDefectFilters) on top of
+// punchAllItemsSorted. Dropdown filters match the column's value exactly
+// (not a substring like the search box), since they're built from the
+// column's own distinct values -- see punchDistinctValues() below.
 function punchSearchedItems(proj){
   let items = punchAllItemsSorted(proj);
+  if(punchDefectFilters.zone) items = items.filter(it=> (it.location||'')===punchDefectFilters.zone);
+  if(punchDefectFilters.team) items = items.filter(it=> (it.assignedTo||'')===punchDefectFilters.team);
+  if(punchDefectFilters.supervisor) items = items.filter(it=> (it.supervisor||'')===punchDefectFilters.supervisor);
+  if(punchDefectFilters.status) items = items.filter(it=> it.status===punchDefectFilters.status);
   if(punchDefectSearch.trim()){
     const q = punchDefectSearch.trim().toLowerCase();
     items = items.filter(it=>
@@ -10747,6 +10762,14 @@ function punchSearchedItems(proj){
     );
   }
   return items;
+}
+// Distinct, non-empty values for one column across EVERY defect in the
+// project (not just the currently-filtered set) so each dropdown always
+// offers every option regardless of what the other filters are set to --
+// picking a team shouldn't hide zones that only appear on other teams' rows.
+function punchDistinctValues(proj, field){
+  return Array.from(new Set(proj.punchItems.map(it=> (it[field]||'').trim()).filter(Boolean)))
+    .sort((a,b)=> a.localeCompare(b, 'th'));
 }
 // Generic [data-thumb-id]/[data-plan-img] async thumbnail fillers -- same
 // idbGet-via-loadRefPhoto cache every other photo feature in the app already
@@ -11430,11 +11453,35 @@ function punchDefectTableHtml(proj){
     <button class="lightbox-close" id="pu-photo-lightbox-close" title="${tf('ปิด','Close')}">✕</button>
     <img data-thumb-id="${punchPhotoLightboxId}" alt="">
   </div>` : '';
+  const zoneOptions = punchDistinctValues(proj,'location');
+  const teamOptions = punchDistinctValues(proj,'assignedTo');
+  const supervisorOptions = punchDistinctValues(proj,'supervisor');
+  const filtersActive = !!(punchDefectFilters.zone||punchDefectFilters.team||punchDefectFilters.supervisor||punchDefectFilters.status);
+  const filterBarHtml = `<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:8px">
+    <select id="pu-filter-zone" style="max-width:150px">
+      <option value="">${tf('ทุกโซน','All zones')}</option>
+      ${zoneOptions.map(v=>`<option value="${escapeHtml(v)}" ${punchDefectFilters.zone===v?'selected':''}>${escapeHtml(v)}</option>`).join('')}
+    </select>
+    <select id="pu-filter-team" style="max-width:150px">
+      <option value="">${tf('ทุกทีมงาน','All teams')}</option>
+      ${teamOptions.map(v=>`<option value="${escapeHtml(v)}" ${punchDefectFilters.team===v?'selected':''}>${escapeHtml(v)}</option>`).join('')}
+    </select>
+    <select id="pu-filter-supervisor" style="max-width:160px">
+      <option value="">${tf('ทุกผู้ควบคุมงาน','All supervisors')}</option>
+      ${supervisorOptions.map(v=>`<option value="${escapeHtml(v)}" ${punchDefectFilters.supervisor===v?'selected':''}>${escapeHtml(v)}</option>`).join('')}
+    </select>
+    <select id="pu-filter-status" style="max-width:190px">
+      <option value="">${tf('ทุกความคืบหน้า','All progress')}</option>
+      ${PUNCH_STATUS.map(s=>`<option value="${s.v}" ${punchDefectFilters.status===s.v?'selected':''}>${escapeHtml(tf(s.th,s.en))}</option>`).join('')}
+    </select>
+    ${filtersActive? `<button class="btn ghost sm" id="pu-filter-clear">✕ ${tf('ล้างตัวกรอง','Clear filters')}</button>` : ''}
+  </div>`;
   return `<div class="card" style="margin-top:14px">
     <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
       <b style="font-family:var(--font-display);font-size:14px">📋 ${tf('รายการ Defect (Defect Item List)','Defect Item List')}</b>
       <input type="text" id="pu-defect-search" value="${escapeHtml(punchDefectSearch)}" placeholder="${tf('ค้นหา...','Search...')}" style="max-width:220px">
     </div>
+    ${filterBarHtml}
     <div class="sub" style="margin-top:8px;font-size:12.5px">${tf('โครงการ','Project')} : <b>${escapeHtml(proj.name||'-')}</b> &nbsp;&nbsp;&nbsp; ${tf('วันที่','Issue Date')} : <b>${fmtDate(todayStr())}</b></div>
     <datalist id="pu-team-list">${teamList.map(t=>`<option value="${escapeHtml(t)}">`).join('')}</datalist>
     <div class="table-wrap" style="margin-top:10px">
@@ -11457,7 +11504,7 @@ function punchDefectTableHtml(proj){
           <tr><th>${tf('ก่อน','Before')}</th><th>${tf('หลัง','After')}</th></tr>
         </thead>
         <tbody>
-          ${rows || `<tr><td colspan="13" style="text-align:center;padding:20px"><span class="empty"><span class="ic">✅</span>${tf('ยังไม่มีรายการ Defect','No defects yet')}</span></td></tr>`}
+          ${rows || (proj.punchItems.length? `<tr><td colspan="13" style="text-align:center;padding:20px"><span class="empty"><span class="ic">🔍</span>${tf('ไม่พบรายการที่ตรงกับตัวกรอง/คำค้นหา','No items match the filters/search')}</span></td></tr>` : `<tr><td colspan="13" style="text-align:center;padding:20px"><span class="empty"><span class="ic">✅</span>${tf('ยังไม่มีรายการ Defect','No defects yet')}</span></td></tr>`)}
         </tbody>
       </table>
     </div>
@@ -11468,6 +11515,14 @@ function punchDefectTableHtml(proj){
 function wirePunchDefectTable(proj){
   const searchEl = $('#pu-defect-search');
   if(searchEl){ searchEl.oninput=()=>{ punchDefectSearch=searchEl.value; }; searchEl.onchange=()=>{ punchDefectSearch=searchEl.value; render(); }; }
+  // Per-column dropdown filters -- each picks one exact value for that
+  // column (or '' for "all"); changing any of them re-renders so the table
+  // body, the row count, and the empty-state message all update together.
+  const zoneSel = $('#pu-filter-zone'); if(zoneSel) zoneSel.onchange = ()=>{ punchDefectFilters.zone = zoneSel.value; render(); };
+  const teamSel = $('#pu-filter-team'); if(teamSel) teamSel.onchange = ()=>{ punchDefectFilters.team = teamSel.value; render(); };
+  const supSel = $('#pu-filter-supervisor'); if(supSel) supSel.onchange = ()=>{ punchDefectFilters.supervisor = supSel.value; render(); };
+  const statusSel = $('#pu-filter-status'); if(statusSel) statusSel.onchange = ()=>{ punchDefectFilters.status = statusSel.value; render(); };
+  const filterClearBtn = $('#pu-filter-clear'); if(filterClearBtn) filterClearBtn.onclick = ()=>{ punchDefectFilters = {zone:'', team:'', supervisor:'', status:''}; render(); };
   const addRowBtn = $('#pu-add-row');
   if(addRowBtn) addRowBtn.onclick = ()=>{
     const item = newPunchItem(null, 0.5, 0.5, 0);
