@@ -1194,6 +1194,14 @@ select.pp-status-select.pp-noneed{background:var(--surface-2);color:var(--ink-50
   #reportPrintable .rp-thumb{width:26px!important;height:26px!important}
   #reportPrintable .rp-thumb-cell{page-break-inside:avoid;break-inside:avoid}
   #reportPrintable .rp-foot{padding:6px 16px!important;font-size:9px!important}
+  /* .table-wrap{overflow-x:auto} (base rule) is what makes a wide table
+     scrollable on screen -- printed, that same overflow:auto still reserves
+     scrollbar gutter space and can clip the table at the wrapper's on-screen
+     width instead of letting it flow onto the printed page, which is the
+     "scroll row" ("และแถว scroll") the user saw under the Defect table in
+     print preview. Printing has no scrollbar to begin with, so forcing the
+     wrapper back to visible overflow just lets the full table print. */
+  #reportPrintable .table-wrap{overflow:visible!important}
 }
 .exported-wrap{margin-top:10px;text-align:center}
 .exported-wrap img{max-width:100%;border-radius:12px;border:1px solid var(--line)}
@@ -11587,7 +11595,18 @@ function wirePunchReviseView(){
 function punchReportSectionHtml(proj){
   const total = proj.punchItems.length;
   const link = punchShareLink(proj);
-  return `<div class="card" style="margin-top:14px" id="reportPrintable">
+  // id="reportPrintable" used to sit on this whole outer card, so printing
+  // (window.print() against @media print's "only #reportPrintable is
+  // visible" rule) also printed this screen-only chrome above the actual
+  // report -- the title/button row, the Defect fill-in link blurb, and the
+  // QR block -- none of which belong on the printed page itself. Moving the
+  // id down onto just the inner wrapper around punchReportBodyHtml's output
+  // (the same content punchExportExcelHtml/the actual report card mirror)
+  // means @media print's visibility rule now only keeps that content, and
+  // everything above it collapses out of the print output along with the
+  // rest of the page per the user's "ในรายงานเวลาพิมพ์ pdf ไม่ต้องแสดง..."
+  // follow-up.
+  return `<div class="card" style="margin-top:14px">
     <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px">
       <div><b style="font-family:var(--font-display);font-size:14px">🖨️ ${tf('รายงานสรุปผลตรวจ Defect','Defect Inspection Summary Report')}</b><div class="sub">${tf('รวมทุกแปลนในโปรเจ็คนี้','Covers every plan in this project')}</div></div>
       <div style="display:flex;gap:8px;flex-wrap:wrap">
@@ -11600,7 +11619,9 @@ function punchReportSectionHtml(proj){
     </div>
     <div class="sub" style="margin-top:6px">${tf('ลิงก์กรอก Defect: ส่งให้ทีมงาน/ผู้รับเหมาหน้างานกรอกรายการ Defect เองได้โดยไม่ต้องเข้าถึงแดชบอร์ดทั้งหมด','Defect fill-in link: let a site contractor/crew log a defect themselves, without access to the full dashboard')}</div>
     ${punchShowQr? `<div style="margin-top:10px"><img src="https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=${encodeURIComponent(link)}" alt="QR" width="160" height="160"><div class="sub" style="margin-top:4px;word-break:break-all">${escapeHtml(link)}</div></div>` : ''}
-    ${!total? `<div class="empty" style="margin-top:14px"><span class="ic">📄</span>${tf('ยังไม่มีรายการ Defect สำหรับสรุปรายงาน','No defects yet to summarize')}</div>` : punchReportBodyHtml(proj)}
+    <div id="reportPrintable" style="margin-top:14px">
+      ${!total? `<div class="empty"><span class="ic">📄</span>${tf('ยังไม่มีรายการ Defect สำหรับสรุปรายงาน','No defects yet to summarize')}</div>` : punchReportBodyHtml(proj)}
+    </div>
   </div>`;
 }
 // Builds one plan's/unplanned-section's row set for both the printable
@@ -11680,15 +11701,34 @@ function punchReportBodyHtml(proj){
 // same report's @media print rules), so this only needs to add the Excel
 // path. Columns match the new Defect Item List table one-for-one -- flat,
 // no "Plan" column, per the user's "ไม่ต้องมีแปลน" follow-up.
-function punchExportExcelHtml(proj){
-  const rows = punchAllItemsSorted(proj).map((it,idx)=>{
-    const beforeN = (it.photosBefore||[]).length, afterN = (it.photosAfter||[]).length;
+// Before/After cells embed the actual photo (as a data: URI <img>, same as
+// the on-screen table/PDF report) rather than just a photo count -- a count
+// read as "ไม่สมบูรณ์" (incomplete) once the PDF report itself already showed
+// real photos, since the two exports visibly disagreed on how much detail a
+// "complete" copy of the list should carry. Excel/the HTML-table-as-.xls
+// trick both render embedded data-URI images fine. Unlike the rest of this
+// function this needs to be async: the photo ids have to resolve to actual
+// image data via loadRefPhoto() (idbGet, cached) before the HTML string can
+// be built, so punchExportExcel() below awaits it before triggering the
+// download.
+async function punchExportExcelHtml(proj){
+  const items = punchAllItemsSorted(proj);
+  const allIds = [];
+  items.forEach(it=>{ (it.photosBefore||[]).forEach(id=>allIds.push(id)); (it.photosAfter||[]).forEach(id=>allIds.push(id)); });
+  const photoCache = {};
+  await Promise.all(Array.from(new Set(allIds)).map(async id=>{ photoCache[id] = await loadRefPhoto(id); }));
+  function photoCellHtml(ids){
+    const dataUrls = (ids||[]).map(id=> photoCache[id]).filter(Boolean);
+    if(!dataUrls.length) return '-';
+    return dataUrls.map(src=> `<img src="${src}" width="70" height="70" style="object-fit:cover">`).join(' ');
+  }
+  const rows = items.map((it,idx)=>{
     return `<tr>
       <td>${idx+1}</td>
       <td>${escapeHtml(it.location||'-')}</td>
       <td>${escapeHtml(it.notes||'-')}</td>
-      <td>${beforeN}</td>
-      <td>${afterN}</td>
+      <td>${photoCellHtml(it.photosBefore)}</td>
+      <td>${photoCellHtml(it.photosAfter)}</td>
       <td>${escapeHtml(it.assignedTo||'-')}</td>
       <td>${escapeHtml(it.supervisor||'-')}</td>
       <td>${it.issueDate? fmtDate(it.issueDate) : '-'}</td>
@@ -11700,15 +11740,16 @@ function punchExportExcelHtml(proj){
   }).join('');
   const head = `<tr>
     <th>${tf('ลำดับ','No')}</th><th>${tf('โซน','Zone')}</th><th>${tf('รายละเอียด','Description')}</th>
-    <th>${tf('จำนวนรูปก่อน','Before photos')}</th><th>${tf('จำนวนรูปหลัง','After photos')}</th>
+    <th>${tf('รูปก่อน','Before photo')}</th><th>${tf('รูปหลัง','After photo')}</th>
     <th>${tf('ทีมงาน','Assigned Team')}</th><th>${tf('ผู้ควบคุมงาน','Supervisor')}</th>
     <th>${tf('วันที่แจ้ง','Issue Date')}</th><th>${tf('วันที่เริ่ม','Start Date')}</th><th>${tf('ความคืบหน้า','Progress')}</th>
     <th>${tf('วันที่เสร็จ','Completed Date')}</th><th>${tf('หมายเหตุ','Remark')}</th>
   </tr>`;
   return `<html><head><meta charset="UTF-8"></head><body><table border="1">${head}${rows}</table></body></html>`;
 }
-function punchExportExcel(proj){
-  const html = punchExportExcelHtml(proj);
+async function punchExportExcel(proj){
+  toast(tf('กำลังเตรียมไฟล์ Excel...','Preparing Excel file...'));
+  const html = await punchExportExcelHtml(proj);
   const blob = new Blob(['﻿'+html], {type:'application/vnd.ms-excel'});
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
