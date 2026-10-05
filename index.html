@@ -6973,6 +6973,15 @@ async function refreshGalleryPhotos(){
 
 /* ============================= SCREEN: DAILY LOG ============================= */
 let pendingPhotos = []; // {dataUrl, caption, tag}
+// Photo ids from an *already-saved* log (existing.photoIds) that the user
+// removed in this editing session but hasn't saved yet -- kept separate from
+// pendingPhotos (brand-new, not-yet-saved photos) since a saved photo has no
+// local File/dataUrl to re-attach, only an id to hide from the grid and
+// actually delete (idbDelete, see saveDailyLogAndReturnDate()) once the user
+// hits save. Per the user's "บันทึกงานประจำวัน สามารถลดและเพิ่มใหม่ได้" request --
+// previously an already-saved photo had no remove control at all, only a
+// read-only count ("มีรูปที่บันทึกไว้แล้ว N / 30").
+let removedSavedPhotoIds = [];
 let dailyDraft = null;  // {date, weather, workforce:[], entries:[], issues:[], deliveryNote} -- persists across re-renders
 let dailyEntryDraft = {itemSearch:'', itemId:'', qty:'', note:'', customText:''}; // the "not yet added" progress-entry composer row -- customText backs the free-text ("not tied to a BOQ item") composer alongside it
 let historyModalOpen=false, historyDate=null, historyViewing=false; // Daily Log "history" viewer: pick a date, list saved logs, view read-only without touching today's draft
@@ -7039,6 +7048,7 @@ function pctOfLabel(actualQty, qtyTotal){
 function ensureDailyDraft(){
   const date = state.selectedLogDate;
   if(dailyDraft && dailyDraft.date===date) return;
+  removedSavedPhotoIds = []; // switching dates -- drop any pending removal marks from the previous date's draft
   const existing = P().logs.find(l=>l.date===date);
   const c = state.contractor||{};
   dailyDraft = {
@@ -7317,7 +7327,31 @@ function renderDailyLog(){
       </select>
       <button class="rm" data-rm-photo="${idx}">✕</button>
     </div>`).join('');
-  const savedPhotoCount = (existing&&existing.photoIds&&existing.photoIds.length)||0;
+  // Already-saved photos (existing.photoIds) -- excludes any marked for
+  // removal this session (removedSavedPhotoIds) so the grid/count update the
+  // instant the user hits "✕", before they've hit the main Save button.
+  // These render as the same [data-thumb-id] placeholder + async-fill
+  // pattern used everywhere else in the app (refreshPunchPhotos(), called
+  // below in wireDailyLog()) since a saved photo's actual data lives in
+  // IndexedDB/Firestore (idbGet via loadRefPhoto), not in memory like
+  // pendingPhotos. No caption/tag editing here -- those were set once at
+  // upload time and editing them isn't part of what was asked for; this is
+  // purely view + remove.
+  const savedPhotoIdsLive = ((existing&&existing.photoIds)||[]).filter(id=> !removedSavedPhotoIds.includes(id));
+  const savedPhotoCards = savedPhotoIdsLive.map(id=>{
+    const meta = (existing&&existing.photoMeta&&existing.photoMeta[id]) || {};
+    if(meta.kind==='pdf'){
+      return `<div class="photo-item">
+        <div class="photo-pdf-icon">📄<span class="photo-pdf-name">${escapeHtml(meta.name||'PDF')}</span></div>
+        <button class="rm" data-rm-saved-photo="${id}">✕</button>
+      </div>`;
+    }
+    return `<div class="photo-item">
+      <img data-thumb-id="${id}" alt="">
+      <button class="rm" data-rm-saved-photo="${id}">✕</button>
+    </div>`;
+  }).join('');
+  const savedPhotoCount = savedPhotoIdsLive.length;
   const totalPhotoCount = savedPhotoCount + pendingPhotos.length;
   const photoCard = `
   <div class="card">
@@ -7328,8 +7362,8 @@ function renderDailyLog(){
       <div class="progressline"><i id="compress-bar" style="width:0%"></i></div>
       <div class="sub" id="compress-label" style="margin-top:6px"></div>
     </div>
-    ${(pendingPhotos.length||savedPhotoCount)? `<div class="photo-grid" id="photo-grid" style="margin-top:12px">${photoCards}</div>` : ''}
-    ${savedPhotoCount? `<div class="sub" style="margin-top:8px">${tf('มีรูปที่บันทึกไว้แล้ว','Already saved')} ${savedPhotoCount} / ${PHOTO_MAX} ${tf('รูปสำหรับวันนี้ (รูปใหม่จะถูกเพิ่มต่อท้ายเมื่อบันทึก)','photo(s) for today (new photos will be appended on save)')}</div>`:''}
+    ${savedPhotoCount? `<div class="sub" style="margin-top:10px">📁 ${tf('รูปที่บันทึกไว้แล้ว (กด ✕ เพื่อลบ)','Already saved (tap ✕ to remove)')}</div><div class="photo-grid" id="saved-photo-grid" style="margin-top:8px">${savedPhotoCards}</div>` : ''}
+    ${pendingPhotos.length? `<div class="sub" style="margin-top:10px">🆕 ${tf('รูปใหม่ที่ยังไม่บันทึก','New (not saved yet)')}</div><div class="photo-grid" id="photo-grid" style="margin-top:8px">${photoCards}</div>` : ''}
   </div>`;
 
   /* ---- Section 6: material delivery check & quick link to procurement ---- */
@@ -7443,12 +7477,26 @@ async function saveDailyLogAndReturnDate(){
   log.entries = dailyDraft.entries.slice();
   log.issues = dailyDraft.issues.filter(i=> (i.detail||'').trim());
   log.deliveryNote = dailyDraft.deliveryNote;
-  log.photoIds = (log.photoIds||[]).concat(newPhotoIds);
+  // Drop any already-saved photos the user marked "✕" this session (see
+  // removedSavedPhotoIds / data-rm-saved-photo in renderDailyLog()) before
+  // appending the newly-uploaded ones -- actually deleted from storage
+  // (idbDelete removes both the local cache and the shared Firestore
+  // "photos" doc) rather than just unlinked, since each photo id is a
+  // fresh uid() minted only for this one upload and nothing else in the
+  // app can be pointing at it.
+  if(removedSavedPhotoIds.length){
+    for(const id of removedSavedPhotoIds){
+      try{ await idbDelete(id); }catch(e){ /* best-effort */ }
+      if(log.photoMeta) delete log.photoMeta[id];
+    }
+  }
+  log.photoIds = (log.photoIds||[]).filter(id=> !removedSavedPhotoIds.includes(id)).concat(newPhotoIds);
   log.photoMeta = Object.assign(log.photoMeta||{}, newPhotoMeta);
   log.recordedAt = new Date().toISOString();
   P().logs.sort((a,b)=> a.date<b.date?-1:1);
   saveData();
   pendingPhotos=[];
+  removedSavedPhotoIds=[];
   dailyDraft=null;
   // Returned as an object (not just the date string) so callers can fold
   // photoFailCount into a single combined toast -- calling toast() twice in
@@ -7458,16 +7506,19 @@ async function saveDailyLogAndReturnDate(){
 }
 function wireDailyLog(){
   const dateInput = $('#log-date');
-  if(dateInput) dateInput.onchange = ()=>{ state.selectedLogDate = dateInput.value; pendingPhotos=[]; dailyDraft=null; render(); };
+  if(dateInput) dateInput.onchange = ()=>{ state.selectedLogDate = dateInput.value; pendingPhotos=[]; removedSavedPhotoIds=[]; dailyDraft=null; render(); };
   const historyBtn = $('#btn-log-history');
   if(historyBtn) historyBtn.onclick = ()=>{ historyModalOpen=true; historyDate=state.selectedLogDate; historyViewing=false; render(); };
+
+  $$('[data-rm-saved-photo]').forEach(b=> b.onclick = ()=>{ syncDailyDraftFromDom(); removedSavedPhotoIds.push(b.dataset.rmSavedPhoto); render(); });
+  refreshPunchPhotos(); // fills the saved-photo [data-thumb-id] placeholders above via idbGet/loadRefPhoto
 
   const photoInput = $('#photo-input');
   if(photoInput) photoInput.onchange = async (e)=>{
     const files = Array.from(e.target.files||[]);
     if(!files.length) return;
     const existing = P().logs.find(l=>l.date===state.selectedLogDate);
-    const savedCount = (existing&&existing.photoIds&&existing.photoIds.length)||0;
+    const savedCount = ((existing&&existing.photoIds)||[]).filter(id=> !removedSavedPhotoIds.includes(id)).length;
     const room = PHOTO_MAX - savedCount - pendingPhotos.length;
     if(room<=0){ toast(tf('ครบจำนวนสูงสุด 30 รูปแล้ว','Reached the maximum of 30 photos')); photoInput.value=''; return; }
     const toProcess = files.slice(0, room);
