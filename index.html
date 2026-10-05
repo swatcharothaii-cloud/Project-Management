@@ -5043,6 +5043,18 @@ function renderScreen(){
   if(FIELD_MODE){
     if(!state.currentProjectId) return `<div class="empty"><span class="ic">🔗</span>${tf('ไม่พบโปรเจ็คสำหรับลิงก์นี้ กรุณาขอลิงก์ใหม่จากผู้ดูแลโปรเจ็ค','This link is not linked to any project. Please ask the project owner for a new link.')}</div>`;
     if(state.tab==='procure') return renderProcure();
+    // The Daily Log's own "ส่งออก PDF"/"ส่งออกรูปภาพ" buttons (see wireDailyLog())
+    // save, then set state.tab='report' and call window.print()/exportReportAsImage()
+    // against #reportPrintable -- but that id only exists in renderReport()'s
+    // markup. Without this case FIELD_MODE always fell through to
+    // renderDailyLog() instead (there's no "report" tab in its tabbar, so
+    // nothing else ever requested it), leaving no #reportPrintable in the DOM
+    // at all when window.print() fired. The print CSS
+    // (body *{visibility:hidden}; #reportPrintable,#reportPrintable
+    // *{visibility:visible}) then hid literally everything, producing
+    // blank-but-nonzero-page-count printouts -- exactly what a site
+    // contractor hit using their field link's "ส่งออก PDF" button.
+    if(state.tab==='report') return renderReport();
     return renderDailyLog();
   }
   if(state.view==='hub') return renderHub();
@@ -14296,6 +14308,11 @@ function wireScreen(){
   if(FIELD_MODE){
     if(!state.currentProjectId) return;
     if(state.tab==='procure') return wireProcure();
+    // Mirrors the renderScreen() fix above -- the "report" screen that the
+    // Daily Log's export buttons navigate to needs its own wiring too
+    // (wireReport()'s refreshReportPhotos() call fills in the actual <img>
+    // tags before window.print()/exportReportAsImage() fires).
+    if(state.tab==='report') return wireReport();
     return wireDailyLog();
   }
   if(state.view==='hub') return wireHub();
