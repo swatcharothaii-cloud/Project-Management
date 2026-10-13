@@ -6534,14 +6534,20 @@ let mpExpandedCats=new Set(); // categories currently expanded on Master Plan & 
 let ganttJustDragged=false; // set right before the synthetic click that follows a real drag's mouseup, so the shared [data-edit-item] click handler can swallow it instead of popping the edit modal open
 let editingItemId=null;
 let itemDraft=null; // {name,category,zone,team,qtyTotal,unit,startDate,endDate,actualStartDate,actualEndDate,notes,existingPhotoIds,pendingPhotos,removedPhotoIds} -- persists across re-renders (e.g. photo add/remove) so in-progress typing is never lost
-function openItemDraft(id){
+// When true, itemModalHtml() renders only the % progress and start/end date
+// fields instead of the full editor -- used for the Dashboard's "สถานะราย
+// รายการ" kanban, where tapping a card is meant to be a quick status update,
+// not a trip through every BOQ field (name, team, unit price, photos, ...).
+let itemDraftQuickMode=false;
+function openItemDraft(id, opts){
   if(id==='new'){
-    itemDraft = {name:'',category:'',zone:'',team:'',leader:'',manpower:'',workType:'',allowedHours:'',itemCode:'',qtyTotal:'',unit:tf('ตร.ม.','sqm'),unitPrice:'',startDate:todayStr(),endDate:addDays(todayStr(),3),actualStartDate:'',actualEndDate:'',notes:'',existingPhotoIds:[],pendingPhotos:[],removedPhotoIds:[],dependsOn:[]};
+    itemDraft = {name:'',category:'',zone:'',team:'',leader:'',manpower:'',workType:'',allowedHours:'',itemCode:'',qtyTotal:'',unit:tf('ตร.ม.','sqm'),unitPrice:'',startDate:todayStr(),endDate:addDays(todayStr(),3),actualStartDate:'',actualEndDate:'',notes:'',progress:0,existingPhotoIds:[],pendingPhotos:[],removedPhotoIds:[],dependsOn:[]};
   } else {
     const it = P().boq.find(i=>i.id===id);
-    itemDraft = {name:it.name,category:it.category||'',zone:it.zone||'',team:it.team||'',leader:it.leader||'',manpower:it.manpower==null?'':it.manpower,workType:it.workType||'',allowedHours:it.allowedHours||'',itemCode:it.itemCode||'',qtyTotal:it.qtyTotal,unit:it.unit,unitPrice:it.unitPrice==null?'':it.unitPrice,startDate:it.startDate,endDate:it.endDate,actualStartDate:it.actualStartDate||'',actualEndDate:it.actualEndDate||'',notes:it.notes||'',existingPhotoIds:(it.refPhotoIds||[]).slice(),pendingPhotos:[],removedPhotoIds:[],dependsOn:(it.dependsOn||[]).slice()};
+    itemDraft = {name:it.name,category:it.category||'',zone:it.zone||'',team:it.team||'',leader:it.leader||'',manpower:it.manpower==null?'':it.manpower,workType:it.workType||'',allowedHours:it.allowedHours||'',itemCode:it.itemCode||'',qtyTotal:it.qtyTotal,unit:it.unit,unitPrice:it.unitPrice==null?'':it.unitPrice,startDate:it.startDate,endDate:it.endDate,actualStartDate:it.actualStartDate||'',actualEndDate:it.actualEndDate||'',notes:it.notes||'',progress:it.progress==null?0:it.progress,existingPhotoIds:(it.refPhotoIds||[]).slice(),pendingPhotos:[],removedPhotoIds:[],dependsOn:(it.dependsOn||[]).slice()};
   }
   editingItemId = id;
+  itemDraftQuickMode = !!(opts && opts.quick);
 }
 function syncItemDraftFromDom(){
   if(!itemDraft) return;
@@ -6560,6 +6566,7 @@ function syncItemDraftFromDom(){
   const unitPrice=g('#im-unitprice'); if(unitPrice!==undefined) itemDraft.unitPrice=unitPrice;
   const s=g('#im-start'); if(s!==undefined) itemDraft.startDate=s;
   const en=g('#im-end'); if(en!==undefined) itemDraft.endDate=en;
+  const progress=g('#im-progress'); if(progress!==undefined) itemDraft.progress=progress;
   const as=g('#im-actual-start'); if(as!==undefined) itemDraft.actualStartDate=as;
   const ae=g('#im-actual-end'); if(ae!==undefined) itemDraft.actualEndDate=ae;
   const notes=g('#im-notes'); if(notes!==undefined) itemDraft.notes=notes;
@@ -6569,6 +6576,29 @@ function syncItemDraftFromDom(){
 function itemModalHtml(){
   if(!itemDraft) return '';
   const d = itemDraft;
+  if(itemDraftQuickMode){
+    // Quick status update from the Dashboard's "สถานะรายรายการ" kanban --
+    // only % progress and the planned start/end dates, nothing else. The
+    // underlying item keeps every other field untouched since itemDraft was
+    // still loaded in full by openItemDraft(); #im-save just never sees
+    // inputs for them, so syncItemDraftFromDom() leaves those draft values
+    // as-is and they round-trip back unchanged.
+    return `
+    <div class="modal-bg" id="item-modal-bg">
+      <div class="modal">
+        <div class="modal-head"><h3>${tf('อัปเดตความคืบหน้า','Update progress')}</h3><button class="iconbtn" id="item-modal-close">✕</button></div>
+        <div class="field" style="margin-bottom:4px"><label>${tf('รายการงาน','Work item')}</label><div style="font-weight:600">${escapeHtml(d.name)}</div></div>
+        <div class="grid cols-2">
+          <div class="field" style="grid-column:1/-1"><label>${tf('ความคืบหน้า (%)','Progress (%)')}</label><input type="number" min="0" max="100" step="5" id="im-progress" value="${clamp(Number(d.progress)||0,0,100)}"></div>
+          <div class="field"><label>${tf('วันที่เริ่มต้น','Start date')}</label><input type="date" id="im-start" value="${d.startDate}"></div>
+          <div class="field"><label>${tf('วันที่สิ้นสุด','End date')}</label><input type="date" id="im-end" value="${d.endDate}"></div>
+        </div>
+        <div style="display:flex;gap:10px;margin-top:16px">
+          <button class="btn primary block" id="im-save">${tf('บันทึกรายการ','Save item')}</button>
+        </div>
+      </div>
+    </div>`;
+  }
   const existingIds = d.existingPhotoIds.filter(id=>!d.removedPhotoIds.includes(id));
   const existingThumbs = existingIds.map(id=>`<div class="photo-item"><img data-thumb-id="${id}" alt=""><button class="rm" data-rm-existing-photo="${id}">✕</button></div>`).join('');
   const pendingThumbs = d.pendingPhotos.map((p,idx)=>`<div class="photo-item"><img src="${p.dataUrl}" alt=""><button class="rm" data-rm-pending-photo="${idx}">✕</button></div>`).join('');
@@ -6821,7 +6851,7 @@ function wireMasterPlan(){
   };
 }
 
-function closeItemModal(){ editingItemId=null; itemDraft=null; render(); }
+function closeItemModal(){ editingItemId=null; itemDraft=null; itemDraftQuickMode=false; render(); }
 function wireItemModal(){
   const bg = $('#item-modal-bg');
   if(!bg) return;
@@ -6853,6 +6883,7 @@ function wireItemModal(){
     const leader=d.leader.trim(), manpower=d.manpower===''?null:parseInt(d.manpower,10), workType=d.workType||'', allowedHours=d.allowedHours.trim();
     const itemCode=d.itemCode.trim(), unitPrice=d.unitPrice===''?null:parseFloat(d.unitPrice);
     const s=d.startDate, en=d.endDate, actualStartDate=d.actualStartDate, actualEndDate=d.actualEndDate, notes=d.notes.trim();
+    const progress = clamp(parseInt(d.progress,10)||0,0,100);
     if(!name || !qty || qty<=0 || !unit || !s || !en || en<s){ toast(tf('กรอกข้อมูลให้ครบและถูกต้อง','Please fill in all fields correctly')); return; }
     if(actualStartDate && actualEndDate && actualEndDate<actualStartDate){ toast(tf('วันสิ้นสุดจริงต้องไม่ก่อนวันเริ่มต้นจริง','Actual end date cannot be before actual start date')); return; }
     if(unitPrice!==null && (isNaN(unitPrice) || unitPrice<0)){ toast(tf('ราคาต่อหน่วยตามแผนต้องเป็นตัวเลขที่มากกว่าหรือเท่ากับ 0','Planned unit price must be a number >= 0')); return; }
@@ -6861,9 +6892,9 @@ function wireItemModal(){
     for(const p of d.pendingPhotos){ const id=uid(); await idbPut(id,p.dataUrl); newIds.push(id); }
     const refPhotoIds = keptExisting.concat(newIds);
     const dependsOn = (d.dependsOn||[]).filter(pid=>pid!==editingItemId);
-    if(editingItemId==='new'){ P().boq.push({id:uid(),name,category,zone,team,leader,manpower,workType,allowedHours,itemCode,qtyTotal:qty,unit,unitPrice,startDate:s,endDate:en,actualStartDate,actualEndDate,notes,refPhotoIds,dependsOn}); }
-    else { const it = P().boq.find(i=>i.id===editingItemId); Object.assign(it,{name,category,zone,team,leader,manpower,workType,allowedHours,itemCode,qtyTotal:qty,unit,unitPrice,startDate:s,endDate:en,actualStartDate,actualEndDate,notes,refPhotoIds,dependsOn}); }
-    saveData(); editingItemId=null; itemDraft=null; render(); toast(tf('บันทึกรายการแล้ว','Item saved'));
+    if(editingItemId==='new'){ P().boq.push({id:uid(),name,category,zone,team,leader,manpower,workType,allowedHours,itemCode,qtyTotal:qty,unit,unitPrice,startDate:s,endDate:en,actualStartDate,actualEndDate,notes,progress,refPhotoIds,dependsOn}); }
+    else { const it = P().boq.find(i=>i.id===editingItemId); Object.assign(it,{name,category,zone,team,leader,manpower,workType,allowedHours,itemCode,qtyTotal:qty,unit,unitPrice,startDate:s,endDate:en,actualStartDate,actualEndDate,notes,progress,refPhotoIds,dependsOn}); }
+    saveData(); editingItemId=null; itemDraft=null; itemDraftQuickMode=false; render(); toast(tf('บันทึกรายการแล้ว','Item saved'));
   };
   refreshItemModalPhotos();
 }
@@ -10564,7 +10595,7 @@ function wireDashboard(){
   // Tapping a kcard opens the same Master Plan item editor as everywhere
   // else an item can be opened from (e.g. Budget's ✏️ icon), rather than
   // building a second, Dashboard-only item detail view.
-  $$('[data-dash-item-open]').forEach(el=> el.onclick = ()=>{ openItemDraft(el.dataset.dashItemOpen); render(); });
+  $$('[data-dash-item-open]').forEach(el=> el.onclick = ()=>{ openItemDraft(el.dataset.dashItemOpen, {quick:true}); render(); });
 }
 function buildSCurve(asOf){
   const proj = P();
