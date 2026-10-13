@@ -8848,6 +8848,61 @@ function parsePoNumberFromText(text){
   const m = text.match(/(?:เลขที่|PO\s*No\.?|PO#|Purchase\s*Order\s*No\.?)\s*[:\-]?\s*([A-Za-z0-9\-\/]{3,20})/i);
   return m? m[1] : '';
 }
+// Best-effort item-name guess, same spirit as parseAmountFromText above but
+// for the "รายการสินค้า" column -- previously left entirely blank
+// (entry.itemName='') with a note telling the user to type it in by hand
+// every single time, per the user's "ชื่อรายการงานให้ดึงมาจาก หมายเหตุของแต่ละ po"
+// request. A real PO's line-item table almost always carries its
+// description under a "หมายเหตุ"/"รายละเอียด"/"รายการ" column, but OCR
+// linearizes that table into plain text with the original column alignment
+// lost -- so unlike the amount (one single number to find), a PO can have
+// several line items each with their own description. Rather than guessing
+// at just one and frequently picking the wrong row, every plausible
+// description line found is collected and joined, matching the "ให้ครบ และ
+// ละเอียดกว่านี้" (complete, and more detailed than before) ask.
+const ITEM_NAME_KEYWORDS = ['หมายเหตุ','รายละเอียด','รายการสินค้า','รายการ','คำอธิบาย','description','remark','item'];
+// A line next to one of the keywords above that's really just a number,
+// date, PO code or currency amount OCR happened to split onto its own line
+// -- stripping those characters out should leave almost nothing behind if
+// so, which is how this tells a real (if short) description like "ท่อ PVC"
+// apart from noise like "12/10/2569" or "2,550.00".
+function looksLikeNoiseLine(s){
+  if(!s) return true;
+  const stripped = s.replace(/[\d,.\-\/:()บาทTHB%]/g,'').trim();
+  return stripped.length < 2;
+}
+function parseItemNameFromText(text){
+  if(!text) return '';
+  const lines = text.split(/\r?\n/).map(l=>l.trim()).filter(Boolean);
+  const found = [];
+  const seen = new Set();
+  for(let i=0;i<lines.length;i++){
+    const low = lines[i].toLowerCase();
+    const kw = ITEM_NAME_KEYWORDS.find(k=> low.includes(k));
+    if(!kw) continue;
+    // Strip the keyword itself plus any immediately-following colon/dash so
+    // "หมายเหตุ: งานก่อผนัง" becomes "งานก่อผนัง", not the label itself.
+    const idx = low.indexOf(kw);
+    let rest = lines[i].slice(idx + kw.length).replace(/^[\s:：\-–—]+/, '').trim();
+    // A bare column header with nothing after it on the same line -- the
+    // actual description is very often the very next OCR line instead
+    // (common when a table header gets split from its first data row).
+    if(!rest && lines[i+1] && !looksLikeNoiseLine(lines[i+1])) rest = lines[i+1].trim();
+    if(!rest || looksLikeNoiseLine(rest)) continue;
+    const key = rest.toLowerCase();
+    if(seen.has(key)) continue; // same description repeated (e.g. a table header printed on every page)
+    seen.add(key);
+    found.push(rest);
+  }
+  if(!found.length) return '';
+  // Every distinct description found is joined, not just the first -- a PO
+  // with several line items should produce a name that reflects everything
+  // actually bought. Capped so one unusually noisy OCR read can't blow up
+  // the field with garbage.
+  let joined = found.join(' / ');
+  if(joined.length>200) joined = joined.slice(0,197)+'...';
+  return joined;
+}
 // The Cost Log menu page's Drive-sync card: setup hint when not configured
 // yet, a "Sync now" button + live progress while running, or the last run's
 // summary + log once done (dismissible, with a "Sync again" shortcut).
@@ -8945,7 +9000,8 @@ async function driveSyncCostLog(proj){
         const po = parsePoNumberFromText(text) || fileBaseName;
         const entry = newCostLogEntry();
         entry.taskId = f.category;
-        entry.itemName = '';
+        const itemName = parseItemNameFromText(text);
+        entry.itemName = itemName;
         entry.po = po;
         entry.qty = 1;
         entry.unitCost = amount!=null? amount : 0;
@@ -8956,7 +9012,7 @@ async function driveSyncCostLog(proj){
         const noteParts = [tf('นำเข้าอัตโนมัติจาก Google Drive','Auto-imported from Google Drive')];
         if(amount==null) noteParts.push(tf('อ่านยอดเงินไม่สำเร็จ กรุณากรอกเอง','couldn\'t read an amount, please fill it in'));
         else if(!confident) noteParts.push(tf('โปรดตรวจสอบยอดเงิน','please double-check the amount'));
-        noteParts.push(tf('กรุณากรอกชื่อรายการสินค้า','please fill in the item name'));
+        if(!itemName) noteParts.push(tf('กรุณากรอกชื่อรายการสินค้า','please fill in the item name'));
         entry.note = noteParts.join(' — ');
         proj.costLog = proj.costLog || [];
         proj.costLog.push(entry);
@@ -9013,7 +9069,7 @@ function renderCostLog(proj=P()){
   </div>
   ${costLogSubnavHtml(costLogView)}
   ${breadcrumb}
-  ${body}
+  <div class="mp-full-bleed">${body}</div>
   `;
 }
 function wireCostLog(proj=P()){
