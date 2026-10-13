@@ -1263,17 +1263,35 @@ select.pp-status-select.pp-noneed{background:var(--surface-2);color:var(--ink-50
 // Measures the real scrollbar width (0 on touch/overlay-scrollbar browsers)
 // and exposes it as --sbw so .mp-full-bleed (see RESET/.mp-full-bleed above)
 // can size itself to the actually-visible viewport instead of the
-// scrollbar-inclusive 100vw. Runs immediately (document.documentElement is
-// already available this far down the body) and again on resize, since
-// resizing the window -- or a scrollbar appearing/disappearing as content
-// changes -- can change this value.
+// scrollbar-inclusive 100vw.
+//
+// A plain "run once + listen for resize" isn't enough here: this script runs
+// before the SPA below has rendered anything into #app, so the page is still
+// short and has no vertical scrollbar yet -- the very first measurement is
+// always 0. The scrollbar only shows up afterwards, once render() has filled
+// #app with enough content to make the page taller than the window -- and
+// that doesn't fire a 'resize' event (only resizing the actual browser
+// window does), so --sbw would stay stuck at 0 forever in the common case.
+// A MutationObserver on #app re-measures (rAF-coalesced, so a burst of DOM
+// changes from one render() only costs one re-measure) every time the SPA
+// re-renders, which is exactly when a scrollbar can appear or disappear.
 (function(){
+  var raf = null;
   function setSbw(){
     var sbw = window.innerWidth - document.documentElement.clientWidth;
-    document.documentElement.style.setProperty('--sbw', Math.max(0, sbw) + 'px');
+    var next = Math.max(0, sbw) + 'px';
+    if(document.documentElement.style.getPropertyValue('--sbw') !== next){
+      document.documentElement.style.setProperty('--sbw', next);
+    }
+  }
+  function scheduleSetSbw(){
+    if(raf) return;
+    raf = requestAnimationFrame(function(){ raf = null; setSbw(); });
   }
   setSbw();
-  window.addEventListener('resize', setSbw);
+  window.addEventListener('resize', scheduleSetSbw);
+  var appEl = document.getElementById('app');
+  if(appEl) new MutationObserver(scheduleSetSbw).observe(appEl, {childList:true, subtree:true});
 })();
 </script>
 
