@@ -513,16 +513,32 @@ tbody tr:hover{background:var(--surface-2)}
 .mp-cat-count{font-weight:400;opacity:.75;font-size:11.5px}
 .mp-expand-controls{display:flex;gap:8px;margin:0 0 12px}
 
-/* ---------- Full-bleed breakout (Master Plan, Contractor Jobs) ----------
+/* ---------- Full-bleed breakout (Master Plan, Contractor Jobs, Cost Log, Defects) ----------
    main{} centers content at max-width:1180px, which is right for every
    other screen but leaves distracting blank margins beside a wide table
-   (Master Plan's timeline, the Contractor Jobs summary table). Any screen
-   with a wide table can opt into this same class to break out to the actual
-   viewport width (the classic negative-margin trick: 50% of the centered
-   parent minus 50% of the viewport cancels the parent's own centering)
-   while keeping its own side padding so content still isn't flush against
-   the browser edge. */
-.mp-full-bleed{width:100vw;margin-left:calc(-50vw + 50%);margin-right:calc(-50vw + 50%);padding:0 18px;box-sizing:border-box}
+   (Master Plan's timeline, the Contractor Jobs summary table, Cost Log).
+   Any screen with a wide table can opt into this same class to break out to
+   the actual viewport width (the classic negative-margin trick: 50% of the
+   centered parent minus 50% of the viewport cancels the parent's own
+   centering) while keeping its own side padding so content still isn't
+   flush against the browser edge.
+   width uses calc(100vw - var(--sbw,0px)) rather than plain 100vw: on a
+   desktop browser with a classic (non-overlay) scrollbar, 100vw is measured
+   against the initial containing block, which includes the scrollbar's own
+   width, so a bare 100vw element is a few pixels WIDER than the actually-
+   visible viewport. margin-left (which sets this element's left edge at x=0)
+   is unaffected by that, but the old plain-100vw width pushed the right edge
+   past the real right edge of the screen -- body's overflow-x:hidden (see
+   RESET above) kept that from showing as a page scrollbar, but it also
+   silently clipped that same sliver of width off the right side of every
+   full-bleed table, permanently hiding whatever content fell in it (e.g. the
+   tail end of Cost Log's "หมายเหตุ" column). --sbw is measured once on load
+   (and on resize) by the small inline script right after #app below, so
+   subtracting it here makes the element exactly as wide as what's actually
+   visible -- nothing overflows, so nothing needs clipping, and the old
+   overflow-x:hidden stays on purely as a no-op safety net for the instant
+   before that script runs. */
+.mp-full-bleed{width:calc(100vw - var(--sbw,0px));margin-left:calc(-50vw + 50%);margin-right:calc(-50vw + 50%);padding:0 18px;box-sizing:border-box}
 @media(max-width:900px){.mp-full-bleed{padding:0 10px}}
 
 /* ---------- Master Plan: Gantt chart (the single, merged table+timeline view) ---------- */
@@ -1242,6 +1258,24 @@ select.pp-status-select.pp-noneed{background:var(--surface-2);color:var(--ink-50
 
 <div id="app"></div>
 <div id="toast" class="toast"></div>
+
+<script>
+// Measures the real scrollbar width (0 on touch/overlay-scrollbar browsers)
+// and exposes it as --sbw so .mp-full-bleed (see RESET/.mp-full-bleed above)
+// can size itself to the actually-visible viewport instead of the
+// scrollbar-inclusive 100vw. Runs immediately (document.documentElement is
+// already available this far down the body) and again on resize, since
+// resizing the window -- or a scrollbar appearing/disappearing as content
+// changes -- can change this value.
+(function(){
+  function setSbw(){
+    var sbw = window.innerWidth - document.documentElement.clientWidth;
+    document.documentElement.style.setProperty('--sbw', Math.max(0, sbw) + 'px');
+  }
+  setSbw();
+  window.addEventListener('resize', setSbw);
+})();
+</script>
 
 <!-- html2canvas 1.4.1 (MIT License, https://html2canvas.hertzen.com) -- vendored
      inline (not loaded from a CDN) so the report's "long image" export keeps
