@@ -826,12 +826,23 @@ input.gl-mini-input[type="date"]::-webkit-calendar-picker-indicator{padding:2px;
 .badge.mps-delivery{background:var(--blue-50);color:var(--blue-600)}
 .badge.mps-cancelled{background:var(--coral-50);color:var(--coral-600)}
 /* Purchasing Plan (แผนสั่งของ) order/payment status vocabulary -- its own
-   5-state order status (incl. "no need to order" for labor/service lines)
+   9-state order status (incl. "no need to order" for labor/service lines)
    and separate payment-status axis, kept visually distinct from the Master
-   Plan chart's mps-* set above even though a couple of colors repeat. */
+   Plan chart's mps-* set above even though a couple of colors repeat. Only
+   5 hues exist in the palette, so the 4 extra states added for the Excel
+   import feature share a hue with the existing state they're closest to in
+   the real ordering workflow rather than inventing new colors: awaiting_po
+   reads as "still not actually ordered" (same amber as not_ordered),
+   in_production gets its own purple (no existing state was close enough to
+   share), delivered reads as "done, arrived" (same mint as ordered), and
+   installing reads as "still in motion on site" (same blue as shipping). */
 .badge.pp-not-ordered{background:var(--amber-50);color:var(--amber-600)}
+.badge.pp-awaiting-po{background:var(--amber-50);color:var(--amber-600)}
 .badge.pp-shipping{background:var(--blue-50);color:var(--blue-600)}
+.badge.pp-installing{background:var(--blue-50);color:var(--blue-600)}
 .badge.pp-ordered{background:var(--mint-50);color:var(--mint-600)}
+.badge.pp-delivered{background:var(--mint-50);color:var(--mint-600)}
+.badge.pp-in-production{background:var(--purple-50);color:var(--purple-700)}
 .badge.pp-cancelled{background:var(--coral-50);color:var(--coral-600)}
 .badge.pp-noneed{background:var(--surface-2);color:var(--ink-500)}
 .badge.pp-pay-pending{background:var(--amber-50);color:var(--amber-600)}
@@ -841,9 +852,10 @@ input.gl-mini-input[type="date"]::-webkit-calendar-picker-indicator{padding:2px;
    status reads at a glance while still being a plain, immediately-editable
    dropdown -- no extra click into a separate "edit" mode needed. */
 select.pp-status-select{border-radius:6px;font-weight:600;font-size:12.5px}
-select.pp-status-select.pp-not-ordered,select.pp-status-select.pp-pay-pending{background:var(--amber-50);color:var(--amber-600);border-color:var(--amber-500)}
-select.pp-status-select.pp-shipping{background:var(--blue-50);color:var(--blue-600);border-color:var(--blue-500)}
-select.pp-status-select.pp-ordered,select.pp-status-select.pp-pay-paid{background:var(--mint-50);color:var(--mint-600);border-color:var(--mint-500)}
+select.pp-status-select.pp-not-ordered,select.pp-status-select.pp-awaiting-po,select.pp-status-select.pp-pay-pending{background:var(--amber-50);color:var(--amber-600);border-color:var(--amber-500)}
+select.pp-status-select.pp-shipping,select.pp-status-select.pp-installing{background:var(--blue-50);color:var(--blue-600);border-color:var(--blue-500)}
+select.pp-status-select.pp-ordered,select.pp-status-select.pp-delivered,select.pp-status-select.pp-pay-paid{background:var(--mint-50);color:var(--mint-600);border-color:var(--mint-500)}
+select.pp-status-select.pp-in-production{background:var(--purple-50);color:var(--purple-700);border-color:var(--purple-500)}
 select.pp-status-select.pp-cancelled,select.pp-status-select.pp-pay-cancelled{background:var(--coral-50);color:var(--coral-600);border-color:var(--coral-500)}
 select.pp-status-select.pp-noneed{background:var(--surface-2);color:var(--ink-500)}
 .pp-table tr.pp-row-overdue td{background:var(--coral-50)}
@@ -4546,15 +4558,31 @@ const NECESSITY_TYPES = [
 // payment status). Deliberately its own vocabulary rather than reusing
 // MP_PROCURE_STATUS_DEFS above, since that one models "no linked material
 // request yet" for the Master Plan chart's inline cells, while this models
-// a richer advance-ordering workflow with its own 5-state order status
-// (including "no need to order" for labor/service line items) and a
-// separate payment-status axis. th/en resolved live via tf() at render time,
-// same convention as MP_PROCURE_STATUS_DEFS, so no rebuildLangConstants()
-// entry is needed.
+// a richer advance-ordering workflow with its own order status (including
+// "no need to order" for labor/service line items) and a separate
+// payment-status axis. th/en resolved live via tf() at render time, same
+// convention as MP_PROCURE_STATUS_DEFS, so no rebuildLangConstants() entry
+// is needed.
+//
+// Grew from 5 to 9 states when the user's real Excel purchasing-plan sheet
+// (imported via the "Import from Excel" button below) turned out to track a
+// finer-grained flow than the original 5 covered -- awaiting_po/in_production/
+// delivered/installing all collapsed into "ordered" before this, losing real
+// distinctions the user's own spreadsheet made. Rather than lossily map the
+// richer source data down to fit, the vocabulary was extended to match it
+// exactly, so nothing the user already tracks gets flattened away on import.
+// Ordered here as the real-world sequence runs (not_ordered -> awaiting_po ->
+// ordered -> in_production -> shipping -> delivered -> installing), with the
+// two terminal/skip states (cancelled, no_need) last -- same order the
+// dropdown and the status filter list render in.
 const PP_ORDER_STATUS = [
   {v:'not_ordered', th:'ยังไม่สั่ง', en:'Not ordered', cls:'pp-not-ordered'},
+  {v:'awaiting_po', th:'รอเปิด PO', en:'Awaiting PO', cls:'pp-awaiting-po'},
+  {v:'ordered', th:'สั่งแล้ว (เปิด PO แล้ว)', en:'Ordered (PO issued)', cls:'pp-ordered'},
+  {v:'in_production', th:'กำลังผลิต', en:'In production', cls:'pp-in-production'},
   {v:'shipping', th:'กำลังจัดส่ง', en:'Shipping', cls:'pp-shipping'},
-  {v:'ordered', th:'สั่งแล้ว', en:'Ordered', cls:'pp-ordered'},
+  {v:'delivered', th:'ถึงหน้างานแล้ว', en:'Delivered to site', cls:'pp-delivered'},
+  {v:'installing', th:'กำลังติดตั้ง', en:'Installing', cls:'pp-installing'},
   {v:'cancelled', th:'ยกเลิก', en:'Cancelled', cls:'pp-cancelled'},
   {v:'no_need', th:'ไม่ต้องสั่ง (งานบริการ/แรงงาน)', en:'N/A (service / labor)', cls:'pp-noneed'},
 ];
@@ -4584,6 +4612,128 @@ function ppMatchesStatusFilter(item, filter){
   if(filter==='overdue') return ppAlertStatus(item)==='overdue';
   if(filter==='duesoon') return ppAlertStatus(item)==='duesoon';
   return (item.ppOrderStatus||'not_ordered')===filter;
+}
+// ---- Purchasing Plan: "Import from Excel" ----
+// Bulk-fills ppOrderStatus/ppNotes on existing BOQ items from a real
+// purchasing-plan spreadsheet (like the one the 9-state vocabulary above was
+// modelled on), matched row-by-row against each BOQ item's own itemCode --
+// never a separate imported list, so there's exactly one record per item,
+// same "no shadow copy" principle as the rest of this screen. Lives entirely
+// on top of the app's normal write path (reads a file the user picks,
+// fills in `item.ppOrderStatus`/`item.ppNotes` on the SAME BOQ item objects
+// already in state, then calls saveData() once at the end) -- not a
+// separate bulk-write mechanism.
+//
+// ppImport holds the modal's state while it's open: null when closed,
+// otherwise {loading, warning, rows, headerRowIndex, mapping:{code,status,
+// notes}, statusValueMap:{<raw text from the file>: <PP_ORDER_STATUS value>},
+// sourceLabel}. rows/headerRowIndex/mapping mirror the existing BOQ-import
+// modal's own boqImport shape (same parseXlsxFile/parseDelimitedText
+// parsers, reused as-is) -- the one real difference is this file's header
+// isn't row 1 (the real export has a title row, a blank row, then the
+// header), so the header row itself has to be located by scanning rather
+// than assumed.
+let ppImport = null;
+// Scans the first several rows for one that has both a "No./item code" -ish
+// cell and a "status" -ish cell -- that combination is specific enough to
+// reliably be the real header row even with title/blank rows above it.
+// Falls back to row 0 (plain "first row is the header") if nothing matches,
+// same assumption the BOQ importer makes.
+function guessPpHeaderRowIndex(rows){
+  const norm = s => String(s||'').toLowerCase().replace(/[()]/g,'').trim();
+  for(let i=0;i<Math.min(rows.length,12);i++){
+    const h = (rows[i]||[]).map(norm);
+    const hasStatus = h.some(c=> c.includes('status') || c.includes('สถานะ'));
+    const hasCode = h.some(c=> c==='no' || c.startsWith('no.') || c.startsWith('no ') || c.includes('ลำดับ') || c.includes('รหัส'));
+    if(hasStatus && hasCode) return i;
+  }
+  return 0;
+}
+function guessPpColumns(headerRow){
+  const norm = s => String(s||'').toLowerCase().replace(/[()]/g,'').trim();
+  const h = (headerRow||[]).map(norm);
+  const find = (keywords)=>{ for(let i=0;i<h.length;i++){ if(keywords.some(k=>h[i].includes(k))) return i; } return -1; };
+  return {
+    code: find(['no','ลำดับ','รหัส']),
+    status: find(['status','สถานะ']),
+    notes: find(['remark','หมายเหตุ','note']),
+  };
+}
+// Keyword groups used to pre-guess which PP_ORDER_STATUS each distinct
+// status string found in the file should map to -- checked in this order so
+// a combined label like "ไม่ต้องสั่ง/ยกเลิก" (which contains both "not
+// required" and "cancelled" wording at once, a single Excel status standing
+// in for two different real meanings) resolves to no_need rather than
+// cancelled, since "not required" is the more common case for the
+// preliminary/permit-type line items that carry that combined label. These
+// are only a starting guess -- every distinct value gets its own dropdown in
+// the import modal so the mapping is always checked, never applied blind.
+// Order matters: checked top to bottom, first match wins. "not_ordered" has
+// to be checked before the bare word "ordered" would ever come up, since
+// "Not Ordered" itself contains "ordered" as a substring -- with "ordered"
+// in its own keyword list and checked first, every not_ordered row was
+// silently mis-guessed as ordered (caught by testing this against the
+// user's real file before deploying). The "ordered" group below only keys
+// off its more specific phrases (เปิด PO / PO issued / สั่งแล้ว) for exactly
+// that reason, not the bare word.
+const PP_STATUS_GUESS_KEYWORDS = [
+  {kw:['ไม่ต้องสั่ง','not required','n/a'], v:'no_need'},
+  {kw:['ยกเลิก','cancel'], v:'cancelled'},
+  {kw:['รอเปิด','awaiting po','รอ po'], v:'awaiting_po'},
+  {kw:['รอสรุป','ยังไม่สั่ง','pending','not ordered'], v:'not_ordered'},
+  {kw:['กำลังผลิต','production'], v:'in_production'},
+  {kw:['กำลังติดตั้ง','install'], v:'installing'},
+  {kw:['ถึงหน้างาน','delivered'], v:'delivered'},
+  {kw:['กำลังจัดส่ง','shipping','in transit'], v:'shipping'},
+  {kw:['เปิด po','po issued','สั่งแล้ว'], v:'ordered'},
+];
+function guessPpStatusValue(raw){
+  const norm = String(raw||'').toLowerCase();
+  for(const g of PP_STATUS_GUESS_KEYWORDS){ if(g.kw.some(k=>norm.includes(k))) return g.v; }
+  return 'not_ordered';
+}
+// Rows below the detected header, trimmed down to {code,statusRaw,notesRaw}.
+// A row is only kept if it has a non-blank code AND (when a status column is
+// mapped) a non-blank status -- which doubles as the filter that drops the
+// file's "เฟส N" phase-divider rows without any special-case code, since
+// those rows carry a phase label in the code column but no status.
+function ppImportParsedRows(){
+  if(!ppImport || !ppImport.rows || !ppImport.rows.length) return [];
+  const {rows, headerRowIndex, mapping} = ppImport;
+  const dataRows = rows.slice(headerRowIndex+1);
+  const out = [];
+  dataRows.forEach(r=>{
+    const code = mapping.code>=0? (r[mapping.code]||'').trim() : '';
+    if(!code) return;
+    const statusRaw = mapping.status>=0? (r[mapping.status]||'').trim() : '';
+    if(mapping.status>=0 && !statusRaw) return;
+    const notesRaw = mapping.notes>=0? (r[mapping.notes]||'').trim() : '';
+    out.push({code, statusRaw, notesRaw});
+  });
+  return out;
+}
+function ppImportDistinctStatusValues(){
+  const seen = new Set();
+  ppImportParsedRows().forEach(r=>{ if(r.statusRaw) seen.add(r.statusRaw); });
+  return Array.from(seen);
+}
+// Splits the parsed rows into ones whose code matches an existing BOQ item's
+// itemCode (exact trim match -- confirmed to be how the real export's "No."
+// column lines up with this app's own itemCode scheme) and ones that don't
+// (phase-divider rows, and any item the spreadsheet tracks that hasn't been
+// added to this project's BOQ yet) -- the latter are shown as a skipped
+// count rather than silently dropped, so a typo'd code doesn't vanish
+// unnoticed.
+function ppImportPreview(){
+  const proj = P();
+  const byCode = {};
+  proj.boq.forEach(it=>{ if(it.itemCode) byCode[String(it.itemCode).trim()] = it; });
+  const matched = [], unmatched = [];
+  ppImportParsedRows().forEach(row=>{
+    const item = byCode[row.code];
+    if(item) matched.push({row, item}); else unmatched.push(row);
+  });
+  return {matched, unmatched};
 }
 // NOTE: ROLE_LABEL/STATUS_LABEL/PSTATUS above are captured once at parse time
 // using tf(), which reads state.lang at that instant. rebuildLangConstants()
@@ -5007,6 +5157,7 @@ function renderModalRoot(){
   if(procureDetailId) return detailModalHtml();
   if(refGalleryItemId) return refGalleryModalHtml();
   if(projectDraft) return projectModalHtml();
+  if(ppImport) return ppImportModalHtml();
   if(contractorDraft) return contractorModalHtml();
   if(contractorHistoryId) return contractorHistoryModalHtml();
   if(cjobShareImageUrl) return cjobShareImageModalHtml();
@@ -5138,7 +5289,7 @@ function resetTransient(){
   creatingRequest=false; requestForm=null; procureDetailId=null; refGalleryItemId=null;
   galleryLightboxIndex=null; galleryPhotoDataCache=[];
   if(galleryLightboxKeyHandler){ document.removeEventListener('keydown', galleryLightboxKeyHandler); galleryLightboxKeyHandler=null; }
-  projectDraft=null; editingProjectId=null; boqImport=null;
+  projectDraft=null; editingProjectId=null; boqImport=null; ppImport=null;
   dailyDraft=null; dailyEntryDraft={itemSearch:'',itemId:'',qty:'',note:''};
   contractorDraft=null; editingContractorId=null; contractorHistoryId=null;
   historyModalOpen=false; historyViewing=false;
@@ -5196,6 +5347,7 @@ function wireGlobal(){
   wireCjobModal();
   wireCjobDetailModal();
   wireCjobShareImageModal();
+  wirePpImportModal();
 }
 
 /* ============================= SCREEN: HUB (ALL PROJECTS) ============================= */
@@ -6235,13 +6387,15 @@ function ppOrderByDate(item){
   const lt = hasLt ? Number(item.ppLeadTimeDays) : PP_DEFAULT_LEAD_DAYS;
   return addDays(need,-lt);
 }
-// Alert only fires for items still sitting at "not ordered" -- once an item
-// is ordered/shipping/cancelled/marked no-need, there is nothing left to
-// chase, so the alert column goes quiet for it. 'overdue' = order-by date
-// already passed; 'duesoon' = within 3 days of it.
+// Alert only fires for items still sitting at "not ordered" or "awaiting PO"
+// -- both mean the actual order hasn't gone out yet, so there's still
+// something to chase. Once an item is ordered (or further along: in
+// production/shipping/delivered/installing) or cancelled/marked no-need,
+// there is nothing left to chase, so the alert column goes quiet for it.
+// 'overdue' = order-by date already passed; 'duesoon' = within 3 days of it.
 function ppAlertStatus(item){
   const status = item.ppOrderStatus || 'not_ordered';
-  if(status!=='not_ordered') return '';
+  if(status!=='not_ordered' && status!=='awaiting_po') return '';
   const orderBy = ppOrderByDate(item);
   if(!orderBy) return '';
   const today = todayStr();
@@ -9276,6 +9430,132 @@ function wireCostLog(proj=P()){
   });
 }
 
+// Modal body for the Purchasing Plan "Import from Excel" button -- file
+// picker, then (once a file's parsed) column mapping, a per-value status
+// mapping table, a live preview of what will change, and the commit button.
+// Mirrors projectModalHtml()'s boqImportSectionHtml() structure/wording on
+// purpose (same column-mapping-select pattern, same preview-table-then-count
+// footer) since it's the same kind of "map columns, check the preview, then
+// commit" flow the user already knows from creating a project with a BOQ
+// attachment.
+function ppImportModalHtml(){
+  if(!ppImport) return '';
+  let body = '';
+  if(ppImport.loading){
+    body = `<div class="hint" style="margin-top:10px">⏳ ${tf('กำลังประมวลผลไฟล์...','Processing file...')}</div>`;
+  } else if(ppImport.warning){
+    body = `<div class="role-note" style="margin-top:12px;background:var(--amber-50);border-color:var(--amber-500)">⚠️ ${escapeHtml(ppImport.warning)}</div>`;
+  } else if(ppImport.rows && ppImport.rows.length){
+    const colCount = Math.max(...ppImport.rows.map(r=>r.length));
+    const colOptions = (selected)=>{
+      let opts = `<option value="-1" ${selected===-1?'selected':''}>${tf('— ไม่ใช้ —','— none —')}</option>`;
+      for(let i=0;i<colCount;i++){
+        const sampleRow = ppImport.rows.find(r=>(r[i]||'').trim());
+        const sample = sampleRow? (sampleRow[i]||'') : '';
+        opts += `<option value="${i}" ${selected===i?'selected':''}>${tf('คอลัมน์','Column')} ${i+1}${sample? ' — '+escapeHtml(sample.slice(0,22)) : ''}</option>`;
+      }
+      return opts;
+    };
+    const m = ppImport.mapping;
+    const distinctStatuses = ppImportDistinctStatusValues();
+    const statusMapRows = distinctStatuses.map(raw=>{
+      const cur = ppImport.statusValueMap[raw]!=null? ppImport.statusValueMap[raw] : guessPpStatusValue(raw);
+      return `<tr>
+        <td style="max-width:260px;overflow-wrap:anywhere">${escapeHtml(raw)}</td>
+        <td><select data-pp-import-status-map="${escapeHtml(raw)}">${PP_ORDER_STATUS.map(s=>`<option value="${s.v}" ${cur===s.v?'selected':''}>${escapeHtml(tf(s.th,s.en))}</option>`).join('')}</select></td>
+      </tr>`;
+    }).join('');
+    const {matched, unmatched} = ppImportPreview();
+    const previewRows = matched.slice(0,8).map(({row,item})=>{
+      const mappedStatus = ppImport.mapping.status>=0? (ppImport.statusValueMap[row.statusRaw] || guessPpStatusValue(row.statusRaw)) : null;
+      const def = mappedStatus? PP_ORDER_STATUS.find(s=>s.v===mappedStatus) : null;
+      return `<tr>
+        <td class="tabular hint">${escapeHtml(row.code)}</td>
+        <td title="${escapeHtml(item.name)}">${escapeHtml(item.name)}</td>
+        <td>${def? `<span class="badge ${def.cls}">${escapeHtml(tf(def.th,def.en))}</span>` : '-'}</td>
+        <td style="max-width:200px;overflow-wrap:anywhere">${ppImport.mapping.notes>=0? escapeHtml(row.notesRaw||'-') : '-'}</td>
+      </tr>`;
+    }).join('');
+    body = `
+    <div class="hint" style="margin:10px 0 8px">${tf('ระบุว่าคอลัมน์ไหนคือข้อมูลอะไร','Map which column is which')}</div>
+    <div class="grid cols-2" style="gap:10px">
+      <div class="field"><label class="hint">${tf('เลขรายการ (No. — จำเป็น ใช้จับคู่กับ BOQ)','Item no. (required — matched against the BOQ)')}</label><select id="pp-import-map-code">${colOptions(m.code)}</select></div>
+      <div class="field"><label class="hint">${tf('สถานะการสั่งของ','Order status')}</label><select id="pp-import-map-status">${colOptions(m.status)}</select></div>
+      <div class="field" style="grid-column:1/-1"><label class="hint">${tf('หมายเหตุ','Notes')}</label><select id="pp-import-map-notes">${colOptions(m.notes)}</select></div>
+    </div>
+    ${distinctStatuses.length? `
+    <div class="hint" style="margin-top:14px;margin-bottom:6px">${tf('จับคู่ข้อความสถานะในไฟล์กับสถานะในระบบ (ตรวจสอบก่อนนำเข้า)','Map each status text found in the file to a status in the system (check before importing)')}</div>
+    <div class="table-wrap"><table><thead><tr><th>${tf('ข้อความในไฟล์','Text in file')}</th><th>${tf('สถานะในระบบ','System status')}</th></tr></thead><tbody>${statusMapRows}</tbody></table></div>
+    ` : ''}
+    <div class="role-note" style="margin-top:14px;background:var(--amber-50);border-color:var(--amber-500)">⚠️ ${tf('การนำเข้าจะเขียนทับสถานะและ/หรือหมายเหตุเดิมของทุกรายการที่จับคู่ได้ (ตามคอลัมน์ที่เลือกไว้ด้านบน) ย้อนกลับไม่ได้','Importing overwrites the existing status and/or notes of every matched item (per the columns mapped above) — this cannot be undone')}</div>
+    <div class="table-wrap" style="margin-top:12px"><table><thead><tr><th>No.</th><th>${tf('รายการ','Item')}</th><th>${tf('สถานะใหม่','New status')}</th><th>${tf('หมายเหตุใหม่','New notes')}</th></tr></thead><tbody>${previewRows||`<tr><td colspan="4" class="hint">${tf('ยังไม่พบรายการที่จับคู่ได้ (ตรวจสอบคอลัมน์ "เลขรายการ")','No matched items yet (check the "Item no." column)')}</td></tr>`}</tbody></table></div>
+    <div class="hint" style="margin-top:8px">${tf('จับคู่กับ BOQ ได้ ','Matched to the BOQ: ')}${matched.length}${tf(' รายการ (แสดงตัวอย่าง 8 รายการแรก)',' item(s) (showing the first 8)')}${unmatched.length? ` · ${tf('ข้าม (ไม่พบเลขรายการที่ตรงกันใน BOQ) ','Skipped (no matching item no. in the BOQ): ')}${unmatched.length} ${tf('รายการ','item(s)')}` : ''}</div>
+    <button class="btn primary block" style="margin-top:16px" id="pp-import-commit" ${matched.length? '' : 'disabled'}>${tf('นำเข้า ','Import ')}${matched.length}${tf(' รายการ',' item(s)')}</button>
+    `;
+  }
+  return `<div class="modal-bg" id="pp-import-modal-bg"><div class="modal">
+    <div class="modal-head"><h3>📥 ${tf('นำเข้าแผนสั่งของจาก Excel','Import purchasing plan from Excel')}</h3><button class="iconbtn" id="pp-import-modal-close">✕</button></div>
+    <div class="hint">${tf('รองรับไฟล์ Excel (.xlsx) หรือ CSV ที่มีคอลัมน์เลขรายการ (No.) ตรงกับรหัสรายการใน BOQ','Supports Excel (.xlsx) or CSV with an item-no. column that matches the BOQ item code')}</div>
+    <div style="margin-top:10px">
+      <label class="btn ghost sm" for="pp-import-file-input" style="cursor:pointer;margin:0">${tf('เลือกไฟล์ (.xlsx / .csv)','Choose file (.xlsx / .csv)')}</label>
+      <input type="file" id="pp-import-file-input" accept=".csv,.xlsx,.xls" style="display:none">
+      ${ppImport.sourceLabel? `<span class="hint" style="margin-left:8px">${escapeHtml(ppImport.sourceLabel)}</span>` : ''}
+    </div>
+    ${body}
+  </div></div>`;
+}
+function wirePpImportModal(){
+  const bg = $('#pp-import-modal-bg'); if(!bg) return;
+  $('#pp-import-modal-close').onclick = ()=>{ ppImport=null; render(); };
+  bg.addEventListener('click', e=>{ if(e.target===bg){ ppImport=null; render(); } });
+  const blankState = (sourceLabel)=>({rows:[], headerRowIndex:0, mapping:{code:-1,status:-1,notes:-1}, statusValueMap:{}, warning:'', sourceLabel});
+  const fileInput = $('#pp-import-file-input');
+  if(fileInput) fileInput.onchange = async (e)=>{
+    const file = e.target.files && e.target.files[0];
+    if(!file) return;
+    const fname = file.name.toLowerCase();
+    ppImport = {...blankState(file.name), loading:true};
+    render();
+    try{
+      let rows;
+      if(fname.endsWith('.csv')) rows = parseDelimitedText(await file.text());
+      else if(fname.endsWith('.xlsx') || fname.endsWith('.xls')) rows = await parseXlsxFile(file);
+      else { toast(tf('รองรับเฉพาะไฟล์ .csv, .xlsx, .xls','Only .csv, .xlsx, .xls files are supported')); ppImport = null; render(); return; }
+      if(!rows.length){
+        ppImport = {...blankState(file.name), warning: tf('ไม่พบข้อมูลตาราง','No table data found')};
+      } else {
+        const headerRowIndex = guessPpHeaderRowIndex(rows);
+        const mapping = guessPpColumns(rows[headerRowIndex]);
+        ppImport = {...blankState(file.name), rows, headerRowIndex, mapping};
+      }
+    }catch(err){
+      ppImport = {...blankState(file.name), warning: tf('เกิดข้อผิดพลาดขณะอ่านไฟล์ (ต้องใช้อินเทอร์เน็ตเพื่อโหลดตัวอ่านไฟล์ครั้งแรก): ','Error reading file (an internet connection is needed the first time, to load the file reader): ')+((err&&err.message)||err)};
+    }
+    render();
+  };
+  ['code','status','notes'].forEach(field=>{
+    const sel = $('#pp-import-map-'+field);
+    if(sel) sel.onchange = ()=>{ ppImport.mapping[field] = parseInt(sel.value,10); render(); };
+  });
+  $$('[data-pp-import-status-map]').forEach(sel=>{
+    sel.onchange = ()=>{ ppImport.statusValueMap[sel.dataset.ppImportStatusMap] = sel.value; render(); };
+  });
+  const commitBtn = $('#pp-import-commit');
+  if(commitBtn) commitBtn.onclick = ()=>{
+    const {matched} = ppImportPreview();
+    if(!matched.length) return;
+    matched.forEach(({row,item})=>{
+      if(ppImport.mapping.status>=0) item.ppOrderStatus = ppImport.statusValueMap[row.statusRaw] || guessPpStatusValue(row.statusRaw);
+      if(ppImport.mapping.notes>=0) item.ppNotes = row.notesRaw || '';
+    });
+    saveData();
+    const count = matched.length;
+    ppImport = null;
+    render();
+    toast(`${tf('นำเข้าแล้ว ','Imported ')}${count}${tf(' รายการ',' item(s)')}`);
+  };
+}
+
 /* ============================= SCREEN: PURCHASING PLAN (แผนสั่งของ) =============================
    Per-project material ordering roadmap modelled on a real purchasing-plan
    spreadsheet the user shared. One row per BOQ item (never a separate,
@@ -9379,6 +9659,7 @@ function renderPurchasePlan(proj=P()){
   return `
   <div class="page-head">
     <div><h2>${tf('แผนสั่งของ (Purchasing Plan)','Purchasing Plan')}</h2><div class="sub">${tf(`แผนสั่งของเข้าหน้างานของทุกรายการใน BOQ — วันที่ต้องถึงหน้างานดึงจากแผนงานหลักอัตโนมัติ ส่วนวันที่ต้องสั่งซื้อคำนวณจาก Lead Time ที่กรอกต่อรายการ (ค่าเริ่มต้น ${PP_DEFAULT_LEAD_DAYS} วันก่อนถึงหน้างาน ถ้าไม่ได้กรอก)`,`Material ordering plan for every BOQ item — the need-on-site date is pulled automatically from the Master Plan, and the order-by date is computed from the lead time entered per item (defaults to ${PP_DEFAULT_LEAD_DAYS} days before the need-on-site date if left blank)`)}</div></div>
+    <button class="btn ghost sm" id="btn-pp-import-excel">📥 ${tf('นำเข้าจาก Excel','Import from Excel')}</button>
   </div>
   ${groups.length>1? `<div class="mp-expand-controls">
     <button class="btn ghost sm" id="btn-pp-expand-all-cat">${tf('ขยายทั้งหมด','Expand all')}</button>
@@ -9423,6 +9704,8 @@ function wirePpTopscroll(){
 }
 function wirePurchasePlan(proj=P()){
   wirePpTopscroll();
+  const importBtn = $('#btn-pp-import-excel');
+  if(importBtn) importBtn.onclick = ()=>{ ppImport = {rows:[], headerRowIndex:0, mapping:{code:-1,status:-1,notes:-1}, statusValueMap:{}, warning:'', sourceLabel:''}; render(); };
   const filterSel = $('#pp-status-filter');
   if(filterSel) filterSel.onchange = ()=>{ ppStatusFilter = filterSel.value; render(); };
   $$('[data-toggle-pp-cat]').forEach(row=> row.onclick = ()=>{
