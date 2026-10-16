@@ -8623,7 +8623,7 @@ function costLogRowHtml(c, idx, boqCategories){
   return `<tr data-cl-row="${c.id}">
     <td class="tabular hint">${idx+1}</td>
     <td><input type="date" data-cl-field="date" value="${c.date||''}"></td>
-    <td><input type="text" data-cl-field="po" value="${escapeHtml(c.po||'')}" placeholder="${tf('เลขที่','No.')}" style="width:110px"></td>
+    <td style="white-space:nowrap"><div style="display:flex;align-items:center;gap:4px"><input type="text" data-cl-field="po" value="${escapeHtml(c.po||'')}" placeholder="${tf('เลขที่','No.')}" style="width:88px">${c.driveFileUrl? `<a class="iconbtn" href="${escapeHtml(c.driveFileUrl)}" target="_blank" rel="noopener" title="${tf('เปิดไฟล์ PDF ต้นฉบับจาก Google Drive','Open the original PDF from Google Drive')}" style="flex:none;width:26px;height:26px;font-size:13px">📄</a>` : ''}</div></td>
     <td><input type="text" data-cl-field="workType" value="${escapeHtml(c.workType||'')}" placeholder="${tf('เช่น งานไฟฟ้า','e.g. Electrical')}" style="width:120px"></td>
     <td><select data-cl-field="workNature">${COSTLOG_WORK_NATURE.map(w=>`<option value="${w.v}" ${c.workNature===w.v?'selected':''}>${escapeHtml(tf(w.th,w.en))}</option>`).join('')}</select></td>
     <td><input type="text" data-cl-field="itemName" value="${escapeHtml(c.itemName||'')}" placeholder="${tf('รายการสินค้า','Item')}" style="width:180px"></td>
@@ -8635,7 +8635,7 @@ function costLogRowHtml(c, idx, boqCategories){
     <td><input type="text" data-cl-field="orderedBy" value="${escapeHtml(c.orderedBy||'')}" placeholder="${tf('ผู้สั่ง','Ordered by')}" style="width:100px"></td>
     <td><select data-cl-field="status">${COSTLOG_STATUS.map(s=>`<option value="${s.v}" ${c.status===s.v?'selected':''}>${s.ic} ${escapeHtml(tf(s.th,s.en))}</option>`).join('')}</select></td>
     <td><input type="text" data-cl-field="note" value="${escapeHtml(c.note||'')}" placeholder="${tf('หมายเหตุ','Note')}" style="width:140px"></td>
-    <td style="white-space:nowrap">${c.driveFileUrl? `<a class="iconbtn" href="${escapeHtml(c.driveFileUrl)}" target="_blank" rel="noopener" title="${tf('เปิดไฟล์ต้นฉบับจาก Google Drive','Open the original file from Google Drive')}">🔗</a>` : ''}<button class="iconbtn" data-cl-duplicate="${c.id}" title="${tf('เพิ่มอีกรายการในใบสั่งซื้อเดียวกัน (คัดลอกวันที่/เลขที่/ประเภทงาน/ผู้สั่ง)','Add another item to this same PO (copies date/PO no./work type/ordered by)')}">➕🧾</button><button class="iconbtn" data-cl-delete="${c.id}" title="${tf('ลบ','Delete')}">🗑️</button></td>
+    <td style="white-space:nowrap"><button class="iconbtn" data-cl-duplicate="${c.id}" title="${tf('เพิ่มอีกรายการในใบสั่งซื้อเดียวกัน (คัดลอกวันที่/เลขที่/ประเภทงาน/ผู้สั่ง)','Add another item to this same PO (copies date/PO no./work type/ordered by)')}">➕🧾</button><button class="iconbtn" data-cl-delete="${c.id}" title="${tf('ลบ','Delete')}">🗑️</button></td>
   </tr>`;
 }
 // The status-filterable table section, shared by the 'all' view (scoped =
@@ -8795,9 +8795,39 @@ function costLogAllCategories(proj){
    needs a human to fill in the number. */
 const DRIVE_API_BASE = 'https://www.googleapis.com/drive/v3';
 function driveReady(proj){ return !!(state.driveApiKey && proj && proj.driveFolderId); }
+// Drive sync runs a burst of several fetches back-to-back (list a folder,
+// download each file in it), and in practice a chunk of them can fail
+// together with a bare "Failed to fetch" -- a TypeError the browser throws
+// when the request never even got an HTTP response (a brief wifi/VPN drop,
+// a blocked/retried connection, etc), not something Drive itself reported.
+// That's normally gone by the very next attempt, so every Drive fetch goes
+// through this wrapper instead of a bare fetch(): up to 2 extra tries with a
+// short backoff before the failure is allowed to surface to the user as a
+// real, give-up-and-tell-them failure. A 4xx response (bad API key, a file's
+// sharing permissions, a real 404, ...) is returned immediately without
+// retrying -- that's a real problem retrying blindly won't fix, so it's left
+// for the caller's own res.ok handling to turn into its usual error message.
+// Only a network-level throw or a 5xx (transient on Google's end too) is
+// retried.
+async function driveFetchWithRetry(url, retries, baseDelayMs){
+  retries = retries==null? 2 : retries;
+  baseDelayMs = baseDelayMs==null? 600 : baseDelayMs;
+  let lastErr;
+  for(let attempt=0; attempt<=retries; attempt++){
+    try{
+      const res = await fetch(url);
+      if(res.ok || (res.status>=400 && res.status<500)) return res;
+      lastErr = new Error(`Drive API ${res.status}`);
+    }catch(err){
+      lastErr = err;
+    }
+    if(attempt<retries) await new Promise(r=> setTimeout(r, baseDelayMs*(attempt+1)));
+  }
+  throw lastErr;
+}
 async function driveApiList(q, apiKey, fields){
   const url = `${DRIVE_API_BASE}/files?q=${encodeURIComponent(q)}&fields=${encodeURIComponent(fields||'files(id,name,mimeType,webViewLink,modifiedTime)')}&pageSize=200&key=${encodeURIComponent(apiKey)}`;
-  const res = await fetch(url);
+  const res = await driveFetchWithRetry(url);
   if(!res.ok){
     const body = await res.text().catch(()=>'');
     throw new Error(`Drive API ${res.status}: ${body.slice(0,200)}`);
@@ -8812,7 +8842,7 @@ function driveListFilesInFolder(folderId, apiKey){
   return driveApiList(`'${folderId}' in parents and mimeType!='application/vnd.google-apps.folder' and trashed=false`, apiKey);
 }
 async function driveDownloadFile(fileId, apiKey){
-  const res = await fetch(`${DRIVE_API_BASE}/files/${fileId}?alt=media&key=${encodeURIComponent(apiKey)}`);
+  const res = await driveFetchWithRetry(`${DRIVE_API_BASE}/files/${fileId}?alt=media&key=${encodeURIComponent(apiKey)}`);
   if(!res.ok) throw new Error(`Drive download ${res.status}`);
   return res.blob();
 }
