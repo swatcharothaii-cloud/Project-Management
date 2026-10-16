@@ -4693,10 +4693,18 @@ function guessPpStatusValue(raw){
   return 'not_ordered';
 }
 // Rows below the detected header, trimmed down to {code,statusRaw,notesRaw}.
-// A row is only kept if it has a non-blank code AND (when a status column is
-// mapped) a non-blank status -- which doubles as the filter that drops the
-// file's "เฟส N" phase-divider rows without any special-case code, since
-// those rows carry a phase label in the code column but no status.
+// A row is only kept if it has a non-blank code -- that's it. An earlier
+// version of this also required a non-blank status, meaning to use that as
+// a free way to drop the file's "เฟส N" phase-divider rows (which carry a
+// phase label in the code column but no status) without a special case --
+// but that same rule also silently dropped real BOQ items whose status just
+// hadn't been filled in yet in the user's own sheet (caught on the user's
+// real file: items 4.3 and 15.1 both exist in the BOQ and in the file, but
+// their status cell was blank, so they went missing from the import
+// entirely instead of just importing with nothing to change). The
+// code-only filter still drops the phase rows just fine -- they never match
+// a real itemCode in ppImportPreview() below, so they land in `unmatched`
+// instead -- without punishing a legitimate item for an empty cell.
 function ppImportParsedRows(){
   if(!ppImport || !ppImport.rows || !ppImport.rows.length) return [];
   const {rows, headerRowIndex, mapping} = ppImport;
@@ -4706,7 +4714,6 @@ function ppImportParsedRows(){
     const code = mapping.code>=0? (r[mapping.code]||'').trim() : '';
     if(!code) return;
     const statusRaw = mapping.status>=0? (r[mapping.status]||'').trim() : '';
-    if(mapping.status>=0 && !statusRaw) return;
     const notesRaw = mapping.notes>=0? (r[mapping.notes]||'').trim() : '';
     out.push({code, statusRaw, notesRaw});
   });
@@ -9467,12 +9474,17 @@ function ppImportModalHtml(){
     }).join('');
     const {matched, unmatched} = ppImportPreview();
     const previewRows = matched.slice(0,8).map(({row,item})=>{
-      const mappedStatus = ppImport.mapping.status>=0? (ppImport.statusValueMap[row.statusRaw] || guessPpStatusValue(row.statusRaw)) : null;
+      // A blank status cell is left alone (see ppImportParsedRows' comment --
+      // it's "not filled in yet" in the source sheet, not "clear whatever
+      // was there"), so the preview has to show that as "no change" rather
+      // than running it through the guesser, which would otherwise fabricate
+      // a not_ordered default for a cell that was never actually that value.
+      const mappedStatus = (ppImport.mapping.status>=0 && row.statusRaw)? (ppImport.statusValueMap[row.statusRaw] || guessPpStatusValue(row.statusRaw)) : null;
       const def = mappedStatus? PP_ORDER_STATUS.find(s=>s.v===mappedStatus) : null;
       return `<tr>
         <td class="tabular hint">${escapeHtml(row.code)}</td>
         <td title="${escapeHtml(item.name)}">${escapeHtml(item.name)}</td>
-        <td>${def? `<span class="badge ${def.cls}">${escapeHtml(tf(def.th,def.en))}</span>` : '-'}</td>
+        <td>${def? `<span class="badge ${def.cls}">${escapeHtml(tf(def.th,def.en))}</span>` : `<span class="hint">${tf('— ไม่เปลี่ยน (ไม่มีสถานะในไฟล์) —','— unchanged (no status in file) —')}</span>`}</td>
         <td style="max-width:200px;overflow-wrap:anywhere">${ppImport.mapping.notes>=0? escapeHtml(row.notesRaw||'-') : '-'}</td>
       </tr>`;
     }).join('');
@@ -9487,7 +9499,7 @@ function ppImportModalHtml(){
     <div class="hint" style="margin-top:14px;margin-bottom:6px">${tf('จับคู่ข้อความสถานะในไฟล์กับสถานะในระบบ (ตรวจสอบก่อนนำเข้า)','Map each status text found in the file to a status in the system (check before importing)')}</div>
     <div class="table-wrap"><table><thead><tr><th>${tf('ข้อความในไฟล์','Text in file')}</th><th>${tf('สถานะในระบบ','System status')}</th></tr></thead><tbody>${statusMapRows}</tbody></table></div>
     ` : ''}
-    <div class="role-note" style="margin-top:14px;background:var(--amber-50);border-color:var(--amber-500)">⚠️ ${tf('การนำเข้าจะเขียนทับสถานะและ/หรือหมายเหตุเดิมของทุกรายการที่จับคู่ได้ (ตามคอลัมน์ที่เลือกไว้ด้านบน) ย้อนกลับไม่ได้','Importing overwrites the existing status and/or notes of every matched item (per the columns mapped above) — this cannot be undone')}</div>
+    <div class="role-note" style="margin-top:14px;background:var(--amber-50);border-color:var(--amber-500)">⚠️ ${tf('การนำเข้าจะเขียนทับสถานะและ/หรือหมายเหตุเดิมของทุกรายการที่จับคู่ได้ (ตามคอลัมน์ที่เลือกไว้ด้านบน) ย้อนกลับไม่ได้ — ยกเว้นรายการที่ไม่มีข้อมูลสถานะในไฟล์ (ช่องว่าง) จะไม่ถูกแก้ไขสถานะ แต่หมายเหตุจะถูกเขียนทับเสมอแม้ในไฟล์จะว่างก็ตาม','Importing overwrites the existing status and/or notes of every matched item (per the columns mapped above) — this cannot be undone. The one exception: an item with no status in the file (a blank cell) keeps its existing status unchanged — but notes are always overwritten, even with a blank')}</div>
     <div class="table-wrap" style="margin-top:12px"><table><thead><tr><th>No.</th><th>${tf('รายการ','Item')}</th><th>${tf('สถานะใหม่','New status')}</th><th>${tf('หมายเหตุใหม่','New notes')}</th></tr></thead><tbody>${previewRows||`<tr><td colspan="4" class="hint">${tf('ยังไม่พบรายการที่จับคู่ได้ (ตรวจสอบคอลัมน์ "เลขรายการ")','No matched items yet (check the "Item no." column)')}</td></tr>`}</tbody></table></div>
     <div class="hint" style="margin-top:8px">${tf('จับคู่กับ BOQ ได้ ','Matched to the BOQ: ')}${matched.length}${tf(' รายการ (แสดงตัวอย่าง 8 รายการแรก)',' item(s) (showing the first 8)')}${unmatched.length? ` · ${tf('ข้าม (ไม่พบเลขรายการที่ตรงกันใน BOQ) ','Skipped (no matching item no. in the BOQ): ')}${unmatched.length} ${tf('รายการ','item(s)')}` : ''}</div>
     <button class="btn primary block" style="margin-top:16px" id="pp-import-commit" ${matched.length? '' : 'disabled'}>${tf('นำเข้า ','Import ')}${matched.length}${tf(' รายการ',' item(s)')}</button>
@@ -9545,7 +9557,15 @@ function wirePpImportModal(){
     const {matched} = ppImportPreview();
     if(!matched.length) return;
     matched.forEach(({row,item})=>{
-      if(ppImport.mapping.status>=0) item.ppOrderStatus = ppImport.statusValueMap[row.statusRaw] || guessPpStatusValue(row.statusRaw);
+      // Status: only overwritten when the file actually has a status for
+      // this row -- a blank cell means "not filled in yet" in the source
+      // sheet, not "set this item back to a specific status", so leave
+      // item.ppOrderStatus exactly as it already was rather than guessing.
+      if(ppImport.mapping.status>=0 && row.statusRaw) item.ppOrderStatus = ppImport.statusValueMap[row.statusRaw] || guessPpStatusValue(row.statusRaw);
+      // Notes: always overwritten, including with an empty string -- unlike
+      // status, a blank remark cell is a real, meaningful value ("no note"),
+      // matching the user's own choice that the file should fully replace
+      // whatever was already on the item.
       if(ppImport.mapping.notes>=0) item.ppNotes = row.notesRaw || '';
     });
     saveData();
