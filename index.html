@@ -838,12 +838,11 @@ input.gl-mini-input[type="date"]::-webkit-calendar-picker-indicator{padding:2px;
    installing reads as "still in motion on site" (same blue as shipping). */
 .badge.pp-not-ordered{background:var(--amber-50);color:var(--amber-600)}
 .badge.pp-awaiting-po{background:var(--amber-50);color:var(--amber-600)}
-.badge.pp-shipping{background:var(--blue-50);color:var(--blue-600)}
+.badge.pp-ordered{background:var(--blue-50);color:var(--blue-600)}
 .badge.pp-installing{background:var(--blue-50);color:var(--blue-600)}
-.badge.pp-ordered{background:var(--mint-50);color:var(--mint-600)}
+.badge.pp-paid{background:var(--mint-50);color:var(--mint-600)}
 .badge.pp-delivered{background:var(--mint-50);color:var(--mint-600)}
 .badge.pp-in-production{background:var(--purple-50);color:var(--purple-700)}
-.badge.pp-cancelled{background:var(--coral-50);color:var(--coral-600)}
 .badge.pp-noneed{background:var(--surface-2);color:var(--ink-500)}
 .badge.pp-pay-pending{background:var(--amber-50);color:var(--amber-600)}
 .badge.pp-pay-paid{background:var(--mint-50);color:var(--mint-600)}
@@ -853,10 +852,10 @@ input.gl-mini-input[type="date"]::-webkit-calendar-picker-indicator{padding:2px;
    dropdown -- no extra click into a separate "edit" mode needed. */
 select.pp-status-select{border-radius:6px;font-weight:600;font-size:12.5px}
 select.pp-status-select.pp-not-ordered,select.pp-status-select.pp-awaiting-po,select.pp-status-select.pp-pay-pending{background:var(--amber-50);color:var(--amber-600);border-color:var(--amber-500)}
-select.pp-status-select.pp-shipping,select.pp-status-select.pp-installing{background:var(--blue-50);color:var(--blue-600);border-color:var(--blue-500)}
-select.pp-status-select.pp-ordered,select.pp-status-select.pp-delivered,select.pp-status-select.pp-pay-paid{background:var(--mint-50);color:var(--mint-600);border-color:var(--mint-500)}
+select.pp-status-select.pp-ordered,select.pp-status-select.pp-installing{background:var(--blue-50);color:var(--blue-600);border-color:var(--blue-500)}
+select.pp-status-select.pp-paid,select.pp-status-select.pp-delivered,select.pp-status-select.pp-pay-paid{background:var(--mint-50);color:var(--mint-600);border-color:var(--mint-500)}
 select.pp-status-select.pp-in-production{background:var(--purple-50);color:var(--purple-700);border-color:var(--purple-500)}
-select.pp-status-select.pp-cancelled,select.pp-status-select.pp-pay-cancelled{background:var(--coral-50);color:var(--coral-600);border-color:var(--coral-500)}
+select.pp-status-select.pp-pay-cancelled{background:var(--coral-50);color:var(--coral-600);border-color:var(--coral-500)}
 select.pp-status-select.pp-noneed{background:var(--surface-2);color:var(--ink-500)}
 .pp-table tr.pp-row-overdue td{background:var(--coral-50)}
 .pp-table tr.pp-row-duesoon td{background:var(--amber-50)}
@@ -4553,38 +4552,36 @@ const NECESSITY_TYPES = [
 ];
 // Vocabulary for the "แผนสั่งของ" (Purchasing Plan) screen -- a per-project,
 // per-BOQ-item material ordering roadmap modelled on a real purchasing-plan
-// spreadsheet the user shared (columns: quotation qty vs. drawing qty,
-// supplier, lead time -> order-by date, order status, delivery source,
-// payment status). Deliberately its own vocabulary rather than reusing
-// MP_PROCURE_STATUS_DEFS above, since that one models "no linked material
-// request yet" for the Master Plan chart's inline cells, while this models
-// a richer advance-ordering workflow with its own order status (including
-// "no need to order" for labor/service line items) and a separate
-// payment-status axis. th/en resolved live via tf() at render time, same
-// convention as MP_PROCURE_STATUS_DEFS, so no rebuildLangConstants() entry
-// is needed.
+// spreadsheet the user shared. Deliberately its own vocabulary rather than
+// reusing MP_PROCURE_STATUS_DEFS above, since that one models "no linked
+// material request yet" for the Master Plan chart's inline cells, while this
+// models a richer advance-ordering workflow. th/en resolved live via tf() at
+// render time, same convention as MP_PROCURE_STATUS_DEFS, so no
+// rebuildLangConstants() entry is needed.
 //
-// Grew from 5 to 9 states when the user's real Excel purchasing-plan sheet
-// (imported via the "Import from Excel" button below) turned out to track a
-// finer-grained flow than the original 5 covered -- awaiting_po/in_production/
-// delivered/installing all collapsed into "ordered" before this, losing real
-// distinctions the user's own spreadsheet made. Rather than lossily map the
-// richer source data down to fit, the vocabulary was extended to match it
-// exactly, so nothing the user already tracks gets flattened away on import.
-// Ordered here as the real-world sequence runs (not_ordered -> awaiting_po ->
-// ordered -> in_production -> shipping -> delivered -> installing), with the
-// two terminal/skip states (cancelled, no_need) last -- same order the
-// dropdown and the status filter list render in.
+// These exact 8 values -- value AND label -- are copied verbatim from the
+// "Lists" sheet in the user's real Excel purchasing-plan file (the sheet
+// that drives that file's own Status dropdown via data validation), per the
+// user's explicit request to match it exactly rather than keep the app's
+// own paraphrased wording. This replaced an earlier 9-state version that
+// had invented a "shipping" state the user's real sheet never had, and was
+// missing "paid" (ทำจ่ายแล้ว) which the user's real sheet does have -- both
+// caught by diffing this screen's old vocabulary against the Lists sheet
+// once the user actually shared it. Order matches the Lists sheet's own row
+// order, which is also the real-world sequence an order moves through
+// (not_ordered -> awaiting_po -> ordered -> paid -> in_production ->
+// delivered -> installing), with the one terminal/skip state (no_need,
+// itself a combined "not required OR cancelled" label in the source sheet
+// -- it doesn't distinguish the two) last.
 const PP_ORDER_STATUS = [
-  {v:'not_ordered', th:'ยังไม่สั่ง', en:'Not ordered', cls:'pp-not-ordered'},
+  {v:'not_ordered', th:'รอสรุป/ยังไม่สั่ง', en:'Pending / Not Ordered', cls:'pp-not-ordered'},
   {v:'awaiting_po', th:'รอเปิด PO', en:'Awaiting PO', cls:'pp-awaiting-po'},
-  {v:'ordered', th:'สั่งแล้ว (เปิด PO แล้ว)', en:'Ordered (PO issued)', cls:'pp-ordered'},
-  {v:'in_production', th:'กำลังผลิต', en:'In production', cls:'pp-in-production'},
-  {v:'shipping', th:'กำลังจัดส่ง', en:'Shipping', cls:'pp-shipping'},
-  {v:'delivered', th:'ถึงหน้างานแล้ว', en:'Delivered to site', cls:'pp-delivered'},
-  {v:'installing', th:'กำลังติดตั้ง', en:'Installing', cls:'pp-installing'},
-  {v:'cancelled', th:'ยกเลิก', en:'Cancelled', cls:'pp-cancelled'},
-  {v:'no_need', th:'ไม่ต้องสั่ง (งานบริการ/แรงงาน)', en:'N/A (service / labor)', cls:'pp-noneed'},
+  {v:'ordered', th:'สั่งแล้ว เปิด PO แล้ว รอทำจ่าย', en:'PO Issued / Awaiting Payment', cls:'pp-ordered'},
+  {v:'paid', th:'ทำจ่ายแล้ว', en:'Paid', cls:'pp-paid'},
+  {v:'in_production', th:'กำลังผลิต', en:'In Production', cls:'pp-in-production'},
+  {v:'delivered', th:'ถึงหน้างานเรียบร้อย', en:'Delivered to Site', cls:'pp-delivered'},
+  {v:'installing', th:'กำลังติดตั้ง', en:'On Process Install', cls:'pp-installing'},
+  {v:'no_need', th:'ไม่ต้องสั่ง/ยกเลิก', en:'Not Required / Cancelled', cls:'pp-noneed'},
 ];
 const PP_PAYMENT_STATUS = [
   {v:'pending', th:'รอจ่าย', en:'Pending payment', cls:'pp-pay-pending'},
@@ -4595,11 +4592,10 @@ const PP_DELIVERY_SOURCE = [
   {v:'domestic', th:'ในประเทศ', en:'Domestic'},
   {v:'import', th:'นำเข้า/ต่างประเทศ', en:'Import'},
 ];
-// Which slice of the Purchasing Plan table is currently shown: 'all', the
-// two derived alert states ('overdue'/'duesoon', from ppAlertStatus()) shown
-// in the summary banner above the table, or one of PP_ORDER_STATUS's own
-// values. Lives at module scope (not persisted, resets on reload) the same
-// way costLogStatusFilter does -- it's view state, not project data.
+// Which slice of the Purchasing Plan table is currently shown: 'all' or one
+// of PP_ORDER_STATUS's own values. Lives at module scope (not persisted,
+// resets on reload) the same way costLogStatusFilter does -- it's view
+// state, not project data.
 let ppStatusFilter = 'all';
 // Categories currently expanded on the Purchasing Plan table -- same
 // collapse/expand-by-default convention as Master Plan's mpExpandedCats,
@@ -4609,8 +4605,6 @@ let ppStatusFilter = 'all';
 let ppExpandedCats = new Set();
 function ppMatchesStatusFilter(item, filter){
   if(filter==='all') return true;
-  if(filter==='overdue') return ppAlertStatus(item)==='overdue';
-  if(filter==='duesoon') return ppAlertStatus(item)==='duesoon';
   return (item.ppOrderStatus||'not_ordered')===filter;
 }
 // ---- Purchasing Plan: "Import from Excel" ----
@@ -4657,17 +4651,21 @@ function guessPpColumns(headerRow){
     code: find(['no','ลำดับ','รหัส']),
     status: find(['status','สถานะ']),
     notes: find(['remark','หมายเหตุ','note']),
+    headSupervisor: find(['head supervisor','หัวหน้าทีม']),
+    teamSupport: find(['team support','ทีมสนับสนุน']),
   };
 }
 // Keyword groups used to pre-guess which PP_ORDER_STATUS each distinct
 // status string found in the file should map to -- checked in this order so
 // a combined label like "ไม่ต้องสั่ง/ยกเลิก" (which contains both "not
 // required" and "cancelled" wording at once, a single Excel status standing
-// in for two different real meanings) resolves to no_need rather than
-// cancelled, since "not required" is the more common case for the
-// preliminary/permit-type line items that carry that combined label. These
-// are only a starting guess -- every distinct value gets its own dropdown in
-// the import modal so the mapping is always checked, never applied blind.
+// in for two different real meanings) resolves to no_need, the one value in
+// the current 8-state vocabulary that combines both ("Not Required /
+// Cancelled") -- there's no longer a separate "cancelled" value to prefer it
+// over, since the real Lists sheet this vocabulary now matches verbatim
+// never had one either. These are only a starting guess -- every distinct
+// value gets its own dropdown in the import modal so the mapping is always
+// checked, never applied blind.
 // Order matters: checked top to bottom, first match wins. "not_ordered" has
 // to be checked before the bare word "ordered" would ever come up, since
 // "Not Ordered" itself contains "ordered" as a substring -- with "ordered"
@@ -4675,16 +4673,22 @@ function guessPpColumns(headerRow){
 // silently mis-guessed as ordered (caught by testing this against the
 // user's real file before deploying). The "ordered" group below only keys
 // off its more specific phrases (เปิด PO / PO issued / สั่งแล้ว) for exactly
-// that reason, not the bare word.
+// that reason, not the bare word. "paid" (ทำจ่ายแล้ว) is checked before
+// "ordered" too, out of the same caution, even though its keyword already
+// requires the "แล้ว" suffix right after "จ่าย" -- which "ordered"'s own
+// Thai text ("...รอทำจ่าย", no trailing แล้ว) never has, so the two can't
+// actually collide; checked first anyway since that costs nothing. There is
+// no longer a "shipping" group -- the real Lists sheet never had that state,
+// it was an earlier invented addition to this screen's vocabulary that got
+// removed once the authoritative sheet was shared.
 const PP_STATUS_GUESS_KEYWORDS = [
-  {kw:['ไม่ต้องสั่ง','not required','n/a'], v:'no_need'},
-  {kw:['ยกเลิก','cancel'], v:'cancelled'},
+  {kw:['ไม่ต้องสั่ง','not required','n/a','ยกเลิก','cancel'], v:'no_need'},
   {kw:['รอเปิด','awaiting po','รอ po'], v:'awaiting_po'},
   {kw:['รอสรุป','ยังไม่สั่ง','pending','not ordered'], v:'not_ordered'},
+  {kw:['ทำจ่ายแล้ว','paid'], v:'paid'},
   {kw:['กำลังผลิต','production'], v:'in_production'},
   {kw:['กำลังติดตั้ง','install'], v:'installing'},
   {kw:['ถึงหน้างาน','delivered'], v:'delivered'},
-  {kw:['กำลังจัดส่ง','shipping','in transit'], v:'shipping'},
   {kw:['เปิด po','po issued','สั่งแล้ว'], v:'ordered'},
 ];
 function guessPpStatusValue(raw){
@@ -4715,7 +4719,9 @@ function ppImportParsedRows(){
     if(!code) return;
     const statusRaw = mapping.status>=0? (r[mapping.status]||'').trim() : '';
     const notesRaw = mapping.notes>=0? (r[mapping.notes]||'').trim() : '';
-    out.push({code, statusRaw, notesRaw});
+    const headSupervisorRaw = mapping.headSupervisor>=0? (r[mapping.headSupervisor]||'').trim() : '';
+    const teamSupportRaw = mapping.teamSupport>=0? (r[mapping.teamSupport]||'').trim() : '';
+    out.push({code, statusRaw, notesRaw, headSupervisorRaw, teamSupportRaw});
   });
   return out;
 }
@@ -6376,40 +6382,14 @@ function itemProcureInfo(item){
 // a lead-time reminder even before any material request has been created yet.
 function itemOrderDate(item){ return item.startDate? addDays(item.startDate,-5) : ''; }
 // ---- Purchasing Plan (แผนสั่งของ) helpers ----
-// Need-on-site date is simply the item's own Master Plan start date -- the
-// purchasing plan doesn't keep a separate copy of it, so the two screens can
-// never drift out of sync with each other.
-function ppNeedOnSiteDate(item){ return item.startDate || ''; }
-// Order-by date = need-on-site date minus this item's own lead time (days).
-// Most items never get a supplier-specific lead time filled in, so rather
-// than silently going blank (and the alert column along with it -- see
-// ppAlertStatus below), items with no lead time entered fall back to a
-// standard 5-day default. Entering an actual lead time for an item always
-// overrides the default.
-const PP_DEFAULT_LEAD_DAYS = 5;
-function ppOrderByDate(item){
-  const need = ppNeedOnSiteDate(item);
-  if(!need) return '';
-  const hasLt = item.ppLeadTimeDays!=null && item.ppLeadTimeDays!=='';
-  const lt = hasLt ? Number(item.ppLeadTimeDays) : PP_DEFAULT_LEAD_DAYS;
-  return addDays(need,-lt);
-}
-// Alert only fires for items still sitting at "not ordered" or "awaiting PO"
-// -- both mean the actual order hasn't gone out yet, so there's still
-// something to chase. Once an item is ordered (or further along: in
-// production/shipping/delivered/installing) or cancelled/marked no-need,
-// there is nothing left to chase, so the alert column goes quiet for it.
-// 'overdue' = order-by date already passed; 'duesoon' = within 3 days of it.
-function ppAlertStatus(item){
-  const status = item.ppOrderStatus || 'not_ordered';
-  if(status!=='not_ordered' && status!=='awaiting_po') return '';
-  const orderBy = ppOrderByDate(item);
-  if(!orderBy) return '';
-  const today = todayStr();
-  if(orderBy<today) return 'overdue';
-  if(daysBetween(today,orderBy)<=3) return 'duesoon';
-  return '';
-}
+// The need-on-site/lead-time/order-by-date/overdue-alert columns this screen
+// used to compute (ppNeedOnSiteDate/ppOrderByDate/ppAlertStatus, plus the
+// ppLeadTimeDays/ppActualOrderQty/ppPoNo fields they and the old table
+// relied on) were removed when the screen was rebuilt to mirror the user's
+// real Excel purchasing-plan sheet exactly, which tracks none of that --
+// just status, a remark, and who's responsible (ppHeadSupervisor/
+// ppTeamSupport below). Any of those old field values already saved on an
+// item are left alone (harmless, just unused) rather than stripped out.
 function fmtMonthYear(dateStr){
   const d = parseYMD(dateStr);
   return state.lang==='en' ? (ENMONTHS[d.getMonth()]+' '+d.getFullYear()) : (THMONTHS[d.getMonth()]+' '+(d.getFullYear()+543));
@@ -9486,6 +9466,8 @@ function ppImportModalHtml(){
         <td title="${escapeHtml(item.name)}">${escapeHtml(item.name)}</td>
         <td>${def? `<span class="badge ${def.cls}">${escapeHtml(tf(def.th,def.en))}</span>` : `<span class="hint">${tf('— ไม่เปลี่ยน (ไม่มีสถานะในไฟล์) —','— unchanged (no status in file) —')}</span>`}</td>
         <td style="max-width:200px;overflow-wrap:anywhere">${ppImport.mapping.notes>=0? escapeHtml(row.notesRaw||'-') : '-'}</td>
+        <td style="max-width:140px;overflow-wrap:anywhere">${ppImport.mapping.headSupervisor>=0? escapeHtml(row.headSupervisorRaw||'-') : '-'}</td>
+        <td style="max-width:140px;overflow-wrap:anywhere">${ppImport.mapping.teamSupport>=0? escapeHtml(row.teamSupportRaw||'-') : '-'}</td>
       </tr>`;
     }).join('');
     body = `
@@ -9493,14 +9475,16 @@ function ppImportModalHtml(){
     <div class="grid cols-2" style="gap:10px">
       <div class="field"><label class="hint">${tf('เลขรายการ (No. — จำเป็น ใช้จับคู่กับ BOQ)','Item no. (required — matched against the BOQ)')}</label><select id="pp-import-map-code">${colOptions(m.code)}</select></div>
       <div class="field"><label class="hint">${tf('สถานะการสั่งของ','Order status')}</label><select id="pp-import-map-status">${colOptions(m.status)}</select></div>
-      <div class="field" style="grid-column:1/-1"><label class="hint">${tf('หมายเหตุ','Notes')}</label><select id="pp-import-map-notes">${colOptions(m.notes)}</select></div>
+      <div class="field"><label class="hint">${tf('หมายเหตุ','Notes')}</label><select id="pp-import-map-notes">${colOptions(m.notes)}</select></div>
+      <div class="field"><label class="hint">${tf('หัวหน้าทีมดูแล (Head Supervisor)','Head Supervisor')}</label><select id="pp-import-map-headSupervisor">${colOptions(m.headSupervisor)}</select></div>
+      <div class="field" style="grid-column:1/-1"><label class="hint">${tf('ทีมสนับสนุน (Team Support)','Team Support')}</label><select id="pp-import-map-teamSupport">${colOptions(m.teamSupport)}</select></div>
     </div>
     ${distinctStatuses.length? `
     <div class="hint" style="margin-top:14px;margin-bottom:6px">${tf('จับคู่ข้อความสถานะในไฟล์กับสถานะในระบบ (ตรวจสอบก่อนนำเข้า)','Map each status text found in the file to a status in the system (check before importing)')}</div>
     <div class="table-wrap"><table><thead><tr><th>${tf('ข้อความในไฟล์','Text in file')}</th><th>${tf('สถานะในระบบ','System status')}</th></tr></thead><tbody>${statusMapRows}</tbody></table></div>
     ` : ''}
-    <div class="role-note" style="margin-top:14px;background:var(--amber-50);border-color:var(--amber-500)">⚠️ ${tf('การนำเข้าจะเขียนทับสถานะและ/หรือหมายเหตุเดิมของทุกรายการที่จับคู่ได้ (ตามคอลัมน์ที่เลือกไว้ด้านบน) ย้อนกลับไม่ได้ — ยกเว้นรายการที่ไม่มีข้อมูลสถานะในไฟล์ (ช่องว่าง) จะไม่ถูกแก้ไขสถานะ แต่หมายเหตุจะถูกเขียนทับเสมอแม้ในไฟล์จะว่างก็ตาม','Importing overwrites the existing status and/or notes of every matched item (per the columns mapped above) — this cannot be undone. The one exception: an item with no status in the file (a blank cell) keeps its existing status unchanged — but notes are always overwritten, even with a blank')}</div>
-    <div class="table-wrap" style="margin-top:12px"><table><thead><tr><th>No.</th><th>${tf('รายการ','Item')}</th><th>${tf('สถานะใหม่','New status')}</th><th>${tf('หมายเหตุใหม่','New notes')}</th></tr></thead><tbody>${previewRows||`<tr><td colspan="4" class="hint">${tf('ยังไม่พบรายการที่จับคู่ได้ (ตรวจสอบคอลัมน์ "เลขรายการ")','No matched items yet (check the "Item no." column)')}</td></tr>`}</tbody></table></div>
+    <div class="role-note" style="margin-top:14px;background:var(--amber-50);border-color:var(--amber-500)">⚠️ ${tf('การนำเข้าจะเขียนทับสถานะ/หมายเหตุ/หัวหน้าทีมดูแล/ทีมสนับสนุนเดิมของทุกรายการที่จับคู่ได้ (ตามคอลัมน์ที่เลือกไว้ด้านบน) ย้อนกลับไม่ได้ — ยกเว้นรายการที่ไม่มีข้อมูลสถานะในไฟล์ (ช่องว่าง) จะไม่ถูกแก้ไขสถานะ ส่วนหมายเหตุ/หัวหน้าทีมดูแล/ทีมสนับสนุนจะถูกเขียนทับเสมอแม้ในไฟล์จะว่างก็ตาม','Importing overwrites the existing status/notes/head supervisor/team support of every matched item (per the columns mapped above) — this cannot be undone. The one exception: an item with no status in the file (a blank cell) keeps its existing status unchanged — notes/head supervisor/team support are always overwritten, even with a blank')}</div>
+    <div class="table-wrap" style="margin-top:12px"><table><thead><tr><th>No.</th><th>${tf('รายการ','Item')}</th><th>${tf('สถานะใหม่','New status')}</th><th>${tf('หมายเหตุใหม่','New notes')}</th><th>${tf('หัวหน้าทีมดูแล','Head Supervisor')}</th><th>${tf('ทีมสนับสนุน','Team Support')}</th></tr></thead><tbody>${previewRows||`<tr><td colspan="6" class="hint">${tf('ยังไม่พบรายการที่จับคู่ได้ (ตรวจสอบคอลัมน์ "เลขรายการ")','No matched items yet (check the "Item no." column)')}</td></tr>`}</tbody></table></div>
     <div class="hint" style="margin-top:8px">${tf('จับคู่กับ BOQ ได้ ','Matched to the BOQ: ')}${matched.length}${tf(' รายการ (แสดงตัวอย่าง 8 รายการแรก)',' item(s) (showing the first 8)')}${unmatched.length? ` · ${tf('ข้าม (ไม่พบเลขรายการที่ตรงกันใน BOQ) ','Skipped (no matching item no. in the BOQ): ')}${unmatched.length} ${tf('รายการ','item(s)')}` : ''}</div>
     <button class="btn primary block" style="margin-top:16px" id="pp-import-commit" ${matched.length? '' : 'disabled'}>${tf('นำเข้า ','Import ')}${matched.length}${tf(' รายการ',' item(s)')}</button>
     `;
@@ -9520,7 +9504,7 @@ function wirePpImportModal(){
   const bg = $('#pp-import-modal-bg'); if(!bg) return;
   $('#pp-import-modal-close').onclick = ()=>{ ppImport=null; render(); };
   bg.addEventListener('click', e=>{ if(e.target===bg){ ppImport=null; render(); } });
-  const blankState = (sourceLabel)=>({rows:[], headerRowIndex:0, mapping:{code:-1,status:-1,notes:-1}, statusValueMap:{}, warning:'', sourceLabel});
+  const blankState = (sourceLabel)=>({rows:[], headerRowIndex:0, mapping:{code:-1,status:-1,notes:-1,headSupervisor:-1,teamSupport:-1}, statusValueMap:{}, warning:'', sourceLabel});
   const fileInput = $('#pp-import-file-input');
   if(fileInput) fileInput.onchange = async (e)=>{
     const file = e.target.files && e.target.files[0];
@@ -9545,7 +9529,7 @@ function wirePpImportModal(){
     }
     render();
   };
-  ['code','status','notes'].forEach(field=>{
+  ['code','status','notes','headSupervisor','teamSupport'].forEach(field=>{
     const sel = $('#pp-import-map-'+field);
     if(sel) sel.onchange = ()=>{ ppImport.mapping[field] = parseInt(sel.value,10); render(); };
   });
@@ -9562,11 +9546,14 @@ function wirePpImportModal(){
       // sheet, not "set this item back to a specific status", so leave
       // item.ppOrderStatus exactly as it already was rather than guessing.
       if(ppImport.mapping.status>=0 && row.statusRaw) item.ppOrderStatus = ppImport.statusValueMap[row.statusRaw] || guessPpStatusValue(row.statusRaw);
-      // Notes: always overwritten, including with an empty string -- unlike
-      // status, a blank remark cell is a real, meaningful value ("no note"),
+      // Notes/Head Supervisor/Team Support: always overwritten, including
+      // with an empty string -- unlike status, a blank cell in any of these
+      // is a real, meaningful value ("no note" / "no one assigned yet"),
       // matching the user's own choice that the file should fully replace
       // whatever was already on the item.
       if(ppImport.mapping.notes>=0) item.ppNotes = row.notesRaw || '';
+      if(ppImport.mapping.headSupervisor>=0) item.ppHeadSupervisor = row.headSupervisorRaw || '';
+      if(ppImport.mapping.teamSupport>=0) item.ppTeamSupport = row.teamSupportRaw || '';
     });
     saveData();
     const count = matched.length;
@@ -9583,15 +9570,26 @@ function wirePpImportModal(){
    grouped by the same BOQ category headings and the same itemCode sort order
    as the Budget and Master Plan & BOQ screens (boqCategoryGroups()), which is
    what keeps "No." identical to the item's own BOQ code everywhere in the
-   app. Need-on-site date is read straight from the item's Master Plan start
-   date; order-by date is computed from that minus the item's own lead time.
-   All the purchasing-specific fields (quotation/drawing qty, variance note,
-   supplier, lead time, actual order qty, PO no., order status, delivery
-   source, payment status, notes) live directly on the BOQ item itself
-   (pp-prefixed fields), the same "extra fields bolted onto the BOQ item"
-   pattern already used for procureOrderDateManual/etc. on the Master Plan
-   chart -- so there's exactly one BOQ item record per line, never a second
-   shadow copy that could disagree with it. */
+   app.
+   Rebuilt to mirror the user's real Excel sheet's own columns exactly (No. /
+   Item / Unit-Qty / Status / Remark / Head Supervisor / Team Support) rather
+   than the richer need-on-site-date/lead-time/order-by-date/alert/PO-no.
+   layout this screen carried before -- that whole tracking model doesn't
+   exist in the source sheet, so it was dropped rather than kept alongside.
+   Unit-Qty is read straight off the BOQ item's own unit/qtyTotal (never a
+   separate copy); the purchasing-specific fields (order status, remark, head
+   supervisor, team support) live directly on the BOQ item itself (pp-
+   prefixed fields), the same "extra fields bolted onto the BOQ item" pattern
+   already used for procureOrderDateManual/etc. on the Master Plan chart --
+   so there's exactly one BOQ item record per line, never a second shadow
+   copy that could disagree with it. ppHeadSupervisor/ppTeamSupport are their
+   own fields rather than reusing item.team/item.leader (the Master Plan's
+   own "who does the physical work" fields, e.g. "ทีมไฟฟ้า"/"C.Pae") because
+   the Excel's Head Supervisor/Team Support columns track something different
+   -- who's responsible for getting THIS ITEM ordered (e.g. "Project
+   Manager"/"Purchasing Team") -- and conflating the two would have
+   overwritten real Master Plan team assignments with purchasing-workflow
+   roles on import. */
 function renderPurchasePlan(proj=P()){
   if(!proj.boq.length){
     return `<div class="page-head"><div><h2>${tf('แผนสั่งของ (Purchasing Plan)','Purchasing Plan')}</h2></div></div><div class="empty"><span class="ic">📦</span>${tf('เพิ่มรายการงานในแผนงานหลักก่อน เพื่อเริ่มวางแผนสั่งของ','Add work items in the Master Plan first to start planning material orders')}</div>`;
@@ -9600,33 +9598,39 @@ function renderPurchasePlan(proj=P()){
   // Counted over every item regardless of the filter below, so the summary
   // banner/KPI cards/dropdown counts always describe the whole project --
   // only the table rows themselves are narrowed by ppStatusFilter.
-  let overdueCount=0, dueSoonCount=0, notOrderedCount=0;
+  let notOrderedCount=0;
   const orderStatusCounts = {};
   PP_ORDER_STATUS.forEach(s=> orderStatusCounts[s.v]=0);
   groups.forEach(g=> g.items.forEach(item=>{
     const st = item.ppOrderStatus || 'not_ordered';
     orderStatusCounts[st] = (orderStatusCounts[st]||0) + 1;
-    const alert = ppAlertStatus(item);
-    if(alert==='overdue') overdueCount++; else if(alert==='duesoon') dueSoonCount++;
-    if(st==='not_ordered') notOrderedCount++;
+    if(st==='not_ordered' || st==='awaiting_po') notOrderedCount++;
   }));
+  // Suggestion lists for the Head Supervisor / Team Support free-text inputs
+  // -- same datalist-of-existing-values convention as the item editor's own
+  // im-team-list/im-leader-list, so typing the same person/team twice is a
+  // pick, not a retype, without constraining the field to a fixed enum (the
+  // source sheet doesn't define one either).
+  const headSupervisorList = Array.from(new Set(proj.boq.map(i=>i.ppHeadSupervisor||'').filter(Boolean)));
+  const teamSupportList = Array.from(new Set(proj.boq.map(i=>i.ppTeamSupport||'').filter(Boolean)));
   const rows = groups.map(g=>{
     const filteredItems = g.items.filter(item=> ppMatchesStatusFilter(item, ppStatusFilter));
     if(!filteredItems.length) return '';
     const key = g.cat || '__uncategorized__';
     const expanded = ppExpandedCats.has(key);
     const label = g.cat? escapeHtml(g.cat) : tf('ไม่ระบุหมวดหมู่','Uncategorized');
-    const catHeader = `<tr class="budget-cat-row" data-toggle-pp-cat="${escapeHtml(key)}" style="cursor:pointer"><td colspan="11"><span class="mp-cat-chevron">${expanded?'▾':'▸'}</span>📁 ${label} <span class="mp-cat-count">${filteredItems.length} ${tf('รายการ','item(s)')}</span></td></tr>`;
+    const catHeader = `<tr class="budget-cat-row" data-toggle-pp-cat="${escapeHtml(key)}" style="cursor:pointer"><td colspan="7"><span class="mp-cat-chevron">${expanded?'▾':'▸'}</span>📁 ${label} <span class="mp-cat-count">${filteredItems.length} ${tf('รายการ','item(s)')}</span></td></tr>`;
     if(!expanded) return catHeader;
     const itemRows = filteredItems.map(item=>{
       const orderStatus = item.ppOrderStatus || 'not_ordered';
       const orderStatusDef = PP_ORDER_STATUS.find(s=>s.v===orderStatus) || PP_ORDER_STATUS[0];
-      const needDate = ppNeedOnSiteDate(item);
-      const orderByDate = ppOrderByDate(item);
-      const alert = ppAlertStatus(item);
-      const alertHtml = alert==='overdue'? `<span class="badge pp-cancelled">🔴 ${tf('เกินกำหนด','Overdue')}</span>`
-        : alert==='duesoon'? `<span class="badge pp-not-ordered">🟡 ${tf('ใกล้ถึงกำหนด','Due soon')}</span>` : '';
       const orderStatusLabel = escapeHtml(tf(orderStatusDef.th,orderStatusDef.en));
+      // "PCS x 25" -- same "unit x qty" shape as the source sheet's own
+      // Unit-Qty column, built from the BOQ item's own fields rather than a
+      // separate copy so it can never disagree with the Budget/Master Plan
+      // screens. Read-only here (quantity changes belong in the BOQ/Master
+      // Plan editor, the one place that owns it).
+      const unitQty = `${escapeHtml(item.unit||'-')} x ${fmtNum(item.qtyTotal,2)}`;
       // Same reference-photo box as Master Plan (item.refPhotoIds), reused
       // as-is rather than a separate photo field -- per the user's request,
       // whatever photo is already attached in Master Plan should just show
@@ -9635,42 +9639,29 @@ function renderPurchasePlan(proj=P()){
       // screens can never drift out of sync. refreshMasterPlanThumbs() (its
       // existing name, unchanged) already does a generic P().boq lookup by
       // item id, so it fills these thumbnails in too with no changes needed.
-      // Now placed inline right before the item name -- same position as
-      // Master Plan & BOQ's own row layout (thumbBox first, name after) --
-      // instead of trailing in its own column at the far right of the table.
       const ppThumbIds = item.refPhotoIds||[];
       const ppHasThumb = ppThumbIds.length>0;
       const ppThumbBox = `<div class="mp-thumb" ${ppHasThumb? `data-open-gallery="${item.id}"` : `data-quick-attach="${item.id}"`} title="${tf('ภาพชุดงาน','Reference photos')}">
         ${ppHasThumb? `<img data-mp-thumb="${item.id}" alt="">` : `<span class="mp-thumb-empty">📷</span>`}
         ${ppThumbIds.length>1? `<span class="mp-thumb-count">+${ppThumbIds.length-1}</span>` : ''}
       </div>`;
-      return `<tr data-pp-row="${item.id}" class="${alert==='overdue'?'pp-row-overdue':alert==='duesoon'?'pp-row-duesoon':''}">
+      return `<tr data-pp-row="${item.id}">
         <td class="tabular hint">${escapeHtml(item.itemCode||'-')}</td>
         <td title="${escapeHtml(item.name)}"><div class="pp-name-cell">${ppThumbBox}<span>${escapeHtml(item.name)}</span></div></td>
-        <td>${escapeHtml(item.unit)}</td>
-        <td class="tabular hint" title="${tf('อัตโนมัติจากวันเริ่มงานในแผนงานหลัก','Automatic from the Master Plan start date')}">${needDate? fmtDateShort(needDate) : '-'}</td>
-        <td><input type="number" min="0" step="1" data-pp-field="ppLeadTimeDays" value="${item.ppLeadTimeDays==null?'':item.ppLeadTimeDays}" placeholder="${PP_DEFAULT_LEAD_DAYS}" title="${tf(`ค่าเริ่มต้น ${PP_DEFAULT_LEAD_DAYS} วัน ถ้าไม่ได้กรอก`,`Defaults to ${PP_DEFAULT_LEAD_DAYS} days if left blank`)}"></td>
-        <td class="tabular hint" title="${tf(`คำนวณอัตโนมัติ = วันที่ต้องถึงหน้างาน − Lead Time (ค่าเริ่มต้น ${PP_DEFAULT_LEAD_DAYS} วัน ถ้าไม่ได้กรอก)`,`Computed automatically = need-on-site date − lead time (defaults to ${PP_DEFAULT_LEAD_DAYS} days if left blank)`)}">${orderByDate? fmtDateShort(orderByDate) : '-'}</td>
-        <td>${alertHtml}</td>
-        <td><input type="number" step="0.01" data-pp-field="ppActualOrderQty" value="${item.ppActualOrderQty==null?'':item.ppActualOrderQty}"></td>
-        <td><input type="text" data-pp-field="ppPoNo" value="${escapeHtml(item.ppPoNo||'')}" placeholder="${tf('เลขที่ PO','PO no.')}" title="${escapeHtml(item.ppPoNo||'')}"></td>
+        <td class="tabular hint">${unitQty}</td>
         <td><select data-pp-field="ppOrderStatus" class="pp-status-select ${orderStatusDef.cls}" title="${orderStatusLabel}">${PP_ORDER_STATUS.map(s=>`<option value="${s.v}" ${orderStatus===s.v?'selected':''}>${escapeHtml(tf(s.th,s.en))}</option>`).join('')}</select></td>
         <td><input type="text" data-pp-field="ppNotes" value="${escapeHtml(item.ppNotes||'')}" placeholder="${tf('หมายเหตุ','note')}" title="${escapeHtml(item.ppNotes||'')}"></td>
+        <td><input type="text" data-pp-field="ppHeadSupervisor" list="pp-head-supervisor-list" value="${escapeHtml(item.ppHeadSupervisor||'')}" placeholder="${tf('หัวหน้าทีมดูแล','Head supervisor')}" title="${escapeHtml(item.ppHeadSupervisor||'')}"></td>
+        <td><input type="text" data-pp-field="ppTeamSupport" list="pp-team-support-list" value="${escapeHtml(item.ppTeamSupport||'')}" placeholder="${tf('ทีมสนับสนุน','Team support')}" title="${escapeHtml(item.ppTeamSupport||'')}"></td>
       </tr>`;
     }).join('');
     return catHeader + itemRows;
   }).join('');
-  const alertNote = overdueCount? `<div class="role-note" style="margin-bottom:16px;background:var(--coral-50);border-color:var(--coral-500);color:var(--coral-600)">🔴 ${overdueCount} ${tf('รายการเกินกำหนดสั่งซื้อแล้วแต่ยังไม่ได้สั่ง','item(s) are past their order-by date and still not ordered')}${dueSoonCount? ` · 🟡 ${dueSoonCount} ${tf('รายการใกล้ถึงกำหนด (ภายใน 3 วัน)','due within 3 days')}` : ''}</div>`
-    : dueSoonCount? `<div class="role-note" style="margin-bottom:16px;background:var(--amber-50);border-color:var(--amber-500)">🟡 ${dueSoonCount} ${tf('รายการใกล้ถึงกำหนดสั่งซื้อ (ภายใน 3 วัน)','item(s) are due to be ordered within 3 days')}</div>` : '';
-  // Status filter dropdown -- lets the same summary bar that shows the
-  // overdue/due-soon/not-ordered counts also narrow the table to just one
-  // of those slices (plus each PP_ORDER_STATUS value), instead of only
-  // ever showing the fixed totals. Options carry their own live count so
-  // picking one tells you up front how many rows to expect.
+  // Status filter dropdown -- narrows the table to one PP_ORDER_STATUS value
+  // at a time; each option carries its own live count so picking one tells
+  // you up front how many rows to expect.
   const ppFilterOptions = [
     {v:'all', label:`${tf('ทั้งหมด','All')} (${proj.boq.length})`},
-    {v:'overdue', label:`🔴 ${tf('เกินกำหนด','Overdue')} (${overdueCount})`},
-    {v:'duesoon', label:`🟡 ${tf('ใกล้ถึงกำหนด','Due soon')} (${dueSoonCount})`},
   ].concat(PP_ORDER_STATUS.map(s=>({v:s.v, label:`${tf(s.th,s.en)} (${orderStatusCounts[s.v]||0})`})));
   const ppFilterHtml = `<div class="field" style="max-width:280px;margin-bottom:16px">
     <label>${tf('กรองตามสถานะ','Filter by status')}</label>
@@ -9678,28 +9669,26 @@ function renderPurchasePlan(proj=P()){
   </div>`;
   return `
   <div class="page-head">
-    <div><h2>${tf('แผนสั่งของ (Purchasing Plan)','Purchasing Plan')}</h2><div class="sub">${tf(`แผนสั่งของเข้าหน้างานของทุกรายการใน BOQ — วันที่ต้องถึงหน้างานดึงจากแผนงานหลักอัตโนมัติ ส่วนวันที่ต้องสั่งซื้อคำนวณจาก Lead Time ที่กรอกต่อรายการ (ค่าเริ่มต้น ${PP_DEFAULT_LEAD_DAYS} วันก่อนถึงหน้างาน ถ้าไม่ได้กรอก)`,`Material ordering plan for every BOQ item — the need-on-site date is pulled automatically from the Master Plan, and the order-by date is computed from the lead time entered per item (defaults to ${PP_DEFAULT_LEAD_DAYS} days before the need-on-site date if left blank)`)}</div></div>
+    <div><h2>${tf('แผนสั่งของ (Purchasing Plan)','Purchasing Plan')}</h2><div class="sub">${tf('แผนสั่งของเข้าหน้างานของทุกรายการใน BOQ — หน้าตา/คอลัมน์ตรงกับไฟล์ Excel ที่ใช้ติดตามจริง','Material ordering plan for every BOQ item — columns match the real Excel tracking sheet')}</div></div>
     <button class="btn ghost sm" id="btn-pp-import-excel">📥 ${tf('นำเข้าจาก Excel','Import from Excel')}</button>
   </div>
   ${groups.length>1? `<div class="mp-expand-controls">
     <button class="btn ghost sm" id="btn-pp-expand-all-cat">${tf('ขยายทั้งหมด','Expand all')}</button>
     <button class="btn ghost sm" id="btn-pp-collapse-all-cat">${tf('ย่อทั้งหมด','Collapse all')}</button>
   </div>` : ''}
-  ${alertNote}
   <div class="grid cols-auto" style="margin-bottom:16px">
     <div class="card kpi"><div class="stat"><span class="lbl">📦 ${tf('รายการทั้งหมด','Total items')}</span><span class="num tabular" style="font-size:19px">${proj.boq.length}</span></div></div>
     <div class="card kpi"><div class="stat"><span class="lbl">🟡 ${tf('ยังไม่ได้สั่ง','Not yet ordered')}</span><span class="num tabular" style="font-size:19px">${notOrderedCount}</span></div></div>
-    <div class="card kpi"><div class="stat"><span class="lbl">🔴 ${tf('เกินกำหนดสั่งซื้อ','Overdue to order')}</span><span class="num tabular" style="font-size:19px;color:${overdueCount?'var(--coral-600)':'inherit'}">${overdueCount}</span></div></div>
   </div>
   ${ppFilterHtml}
+  <datalist id="pp-head-supervisor-list">${headSupervisorList.map(v=>`<option value="${escapeHtml(v)}">`).join('')}</datalist>
+  <datalist id="pp-team-support-list">${teamSupportList.map(v=>`<option value="${escapeHtml(v)}">`).join('')}</datalist>
   ${rows? `
   <div class="table-topscroll pp-wrap-topscroll" id="pp-topscroll"><div id="pp-topscroll-spacer"></div></div>
   <div class="table-wrap pp-wrap" id="pp-table-wrap"><table class="budget-table pp-table"><thead><tr>
-    <th>${tf('No.','No.')}</th><th>${tf('รายการวัสดุ/อุปกรณ์','Item')}</th><th>${tf('หน่วย','Unit')}</th>
-    <th>${tf('วันที่ต้องถึงหน้างาน','Need-on-Site Date')}</th><th>${tf('Lead Time (วัน)','Lead Time (days)')}</th>
-    <th>${tf('วันที่ต้องสั่งซื้อ','Order-by Date')}</th><th>${tf('สถานะแจ้งเตือน','Alert')}</th>
-    <th>${tf('จำนวนที่สั่งจริง','Actual Order Qty')}</th><th>${tf('เลขที่ใบสั่งซื้อ','PO No.')}</th><th>${tf('สถานะการสั่งของ','Order Status')}</th>
-    <th>${tf('หมายเหตุ','Notes')}</th>
+    <th>${tf('No.','No.')}</th><th>${tf('รายการวัสดุ/อุปกรณ์','Item')}</th><th>${tf('หน่วย-จำนวน','Unit-Qty')}</th>
+    <th>${tf('สถานะ','Status')}</th><th>${tf('หมายเหตุ','Update Remark')}</th>
+    <th>${tf('หัวหน้าทีมดูแล','Head Supervisor')}</th><th>${tf('ทีมสนับสนุน','Team Support')}</th>
   </tr></thead><tbody>${rows}</tbody></table></div>
   ` : `<div class="empty"><span class="ic">📦</span>${tf('ไม่มีรายการในสถานะนี้','No items with this status')}</div>`}
   `;
@@ -9725,7 +9714,7 @@ function wirePpTopscroll(){
 function wirePurchasePlan(proj=P()){
   wirePpTopscroll();
   const importBtn = $('#btn-pp-import-excel');
-  if(importBtn) importBtn.onclick = ()=>{ ppImport = {rows:[], headerRowIndex:0, mapping:{code:-1,status:-1,notes:-1}, statusValueMap:{}, warning:'', sourceLabel:''}; render(); };
+  if(importBtn) importBtn.onclick = ()=>{ ppImport = {rows:[], headerRowIndex:0, mapping:{code:-1,status:-1,notes:-1,headSupervisor:-1,teamSupport:-1}, statusValueMap:{}, warning:'', sourceLabel:''}; render(); };
   const filterSel = $('#pp-status-filter');
   if(filterSel) filterSel.onchange = ()=>{ ppStatusFilter = filterSel.value; render(); };
   $$('[data-toggle-pp-cat]').forEach(row=> row.onclick = ()=>{
@@ -9769,19 +9758,17 @@ function wirePurchasePlan(proj=P()){
         item[field] = inp.value===''? null : (inp.type==='number'? parseNumLoose(inp.value) : inp.value);
         if(inp.hasAttribute('title')) inp.title = inp.value; // keep the hover tooltip in sync with the (narrowed) input's live value
       };
-      // Fields that feed a computed column (need-on-site/order-by date,
-      // overdue alert, the quotation-vs-drawing mismatch highlight) need a
-      // full re-render on blur to refresh those read-only cells; free-text
-      // fields (supplier, PO no., notes) just save quietly so a keystroke
+      // Every remaining pp field (notes, head supervisor, team support) is
+      // free text that doesn't feed any computed column, so it just saves
+      // quietly on blur -- no re-render needed, which also means a keystroke
       // never steals focus by rebuilding the row underneath the cursor.
-      const affectsComputed = field==='ppLeadTimeDays';
-      inp.onblur = ()=>{ saveData(); if(affectsComputed) render(); };
+      inp.onblur = ()=>{ saveData(); };
     });
     row.querySelectorAll('select[data-pp-field]').forEach(sel=>{
       sel.onchange = ()=>{
         item[sel.dataset.ppField] = sel.value;
         saveData();
-        render(); // order status affects the alert column/KPI counts/row highlight
+        render(); // order status affects the KPI counts/status filter dropdown
       };
     });
   });
@@ -13715,7 +13702,7 @@ function cjobDueDate(job){
   return addDays(job.startDate, Math.max(Number(job.durationDays)||0,0));
 }
 // "ระบบติดตามสถานะและแจ้งเตือนเมื่อใกล้ครบกำหนดจำนวนวันทำงาน" (Phase 2) --
-// same overdue/due-soon convention as ppAlertStatus() above (3-day window),
+// an overdue/due-soon convention (3-day window) local to Contractor Jobs,
 // only meaningful once work is actually supposed to be underway and before
 // the contractor has handed anything over yet.
 function cjobAlertStatus(job){
