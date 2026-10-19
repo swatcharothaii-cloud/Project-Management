@@ -868,6 +868,22 @@ select.pp-status-select.pp-paid,select.pp-status-select.pp-delivered,select.pp-s
 select.pp-status-select.pp-in-production{background:var(--coral-50);color:var(--coral-600);border-color:var(--coral-500)}
 select.pp-status-select.pp-pay-cancelled{background:var(--coral-50);color:var(--coral-600);border-color:var(--coral-500)}
 select.pp-status-select.pp-noneed{background:var(--surface-2);color:var(--ink-500)}
+/* Team Support color chip (ppTeamChipHue in JS) -- mirrors the real Excel
+   sheet's own per-person/team fill color on its "Team Support" column. Head
+   Supervisor deliberately gets no equivalent rule: the real sheet's Head
+   Supervisor column is plain black-on-white for every value, so coloring it
+   here would be adding a color Excel itself never had. Reuses the same 5
+   hues as the order-status colors above (amber/blue/mint/coral/slate, never
+   purple -- see #app.screen-project's remap, and the in_production bug it
+   caused on this same screen) since those are the only hues that render as
+   distinct colors inside a project screen; a name and an order status never
+   sit in the same cell, so reusing the hues causes no visual collision. */
+input.pp-team-chip{border-radius:6px;font-weight:600}
+input.pp-team-chip.pp-team-chip-amber{background:var(--amber-50);color:var(--amber-600);border-color:var(--amber-500)}
+input.pp-team-chip.pp-team-chip-blue{background:var(--blue-50);color:var(--blue-600);border-color:var(--blue-500)}
+input.pp-team-chip.pp-team-chip-mint{background:var(--mint-50);color:var(--mint-600);border-color:var(--mint-500)}
+input.pp-team-chip.pp-team-chip-coral{background:var(--coral-50);color:var(--coral-600);border-color:var(--coral-500)}
+input.pp-team-chip.pp-team-chip-slate{background:var(--surface-2);color:var(--ink-500)}
 .pp-table tr.pp-row-overdue td{background:var(--coral-50)}
 .pp-table tr.pp-row-duesoon td{background:var(--amber-50)}
 .pp-table input,.pp-table select{font-size:12.5px;padding:4px 6px;border:1px solid var(--line);border-radius:6px;background:var(--surface);color:var(--ink-700);box-sizing:border-box;width:100%}
@@ -4706,6 +4722,30 @@ function guessPpStatusValue(raw){
   const norm = String(raw||'').toLowerCase();
   for(const g of PP_STATUS_GUESS_KEYWORDS){ if(g.kw.some(k=>norm.includes(k))) return g.v; }
   return 'not_ordered';
+}
+// Team Support color chip -- the real Excel sheet gives its "Team Support"
+// column a distinct fill color per person/team (e.g. "C. Pu" is always
+// light green, "C.Kung" always light peach), while its "Head Supervisor"
+// column next to it is plain black-on-white for every value -- confirmed by
+// inspecting the actual workbook's cell fills, not guessed. This mirrors
+// that: only ppTeamSupport gets a color chip, never ppHeadSupervisor.
+// There's no fixed name->color lookup table, since the field is free text
+// (the source sheet doesn't define a fixed enum of teams either, and a
+// lookup table would need an app update every time a new name shows up).
+// Instead the name's own text is hashed into one of the 5 hues that render
+// as genuinely distinct colors inside a project screen -- amber/blue/mint/
+// coral/slate; NOT purple, which #app.screen-project silently remaps to
+// blue/slate (see that rule's own comment, and the in_production status-
+// color bug this same trap caused on this very screen) -- so the same name
+// always lands on the same hue, matching the Excel sheet's own "one person,
+// one consistent color" idea even though the exact hues won't match 1:1.
+const PP_TEAM_CHIP_HUES = ['amber','blue','mint','coral','slate'];
+function ppTeamChipHue(name){
+  const s = String(name||'').trim();
+  if(!s) return null;
+  let h = 0;
+  for(let i=0;i<s.length;i++) h = (h*31 + s.charCodeAt(i)) >>> 0;
+  return PP_TEAM_CHIP_HUES[h % PP_TEAM_CHIP_HUES.length];
 }
 // Rows below the detected header, trimmed down to {code,statusRaw,notesRaw}.
 // A row is only kept if it has a non-blank code -- that's it. An earlier
@@ -9663,7 +9703,7 @@ function renderPurchasePlan(proj=P()){
         <td><select data-pp-field="ppOrderStatus" class="pp-status-select ${orderStatusDef.cls}" title="${orderStatusLabel}">${PP_ORDER_STATUS.map(s=>`<option value="${s.v}" ${orderStatus===s.v?'selected':''}>${escapeHtml(tf(s.th,s.en))}</option>`).join('')}</select></td>
         <td><input type="text" data-pp-field="ppNotes" value="${escapeHtml(item.ppNotes||'')}" placeholder="${tf('หมายเหตุ','note')}" title="${escapeHtml(item.ppNotes||'')}"></td>
         <td><input type="text" data-pp-field="ppHeadSupervisor" list="pp-head-supervisor-list" value="${escapeHtml(item.ppHeadSupervisor||'')}" placeholder="${tf('หัวหน้าทีมดูแล','Head supervisor')}" title="${escapeHtml(item.ppHeadSupervisor||'')}"></td>
-        <td><input type="text" data-pp-field="ppTeamSupport" list="pp-team-support-list" value="${escapeHtml(item.ppTeamSupport||'')}" placeholder="${tf('ทีมสนับสนุน','Team support')}" title="${escapeHtml(item.ppTeamSupport||'')}"></td>
+        <td><input type="text" class="pp-team-chip${item.ppTeamSupport? ` pp-team-chip-${ppTeamChipHue(item.ppTeamSupport)}` : ''}" data-pp-field="ppTeamSupport" list="pp-team-support-list" value="${escapeHtml(item.ppTeamSupport||'')}" placeholder="${tf('ทีมสนับสนุน','Team support')}" title="${escapeHtml(item.ppTeamSupport||'')}"></td>
       </tr>`;
     }).join('');
     return catHeader + itemRows;
@@ -9773,7 +9813,12 @@ function wirePurchasePlan(proj=P()){
       // free text that doesn't feed any computed column, so it just saves
       // quietly on blur -- no re-render needed, which also means a keystroke
       // never steals focus by rebuilding the row underneath the cursor.
-      inp.onblur = ()=>{ saveData(); };
+      // ppTeamSupport is the one exception: its color chip (ppTeamChipHue)
+      // is computed at render time from the field's current value, so it
+      // needs a re-render after a blur to pick up a typed/changed name --
+      // still only on blur, not on every keystroke, so focus is never stolen
+      // mid-type.
+      inp.onblur = ()=>{ saveData(); if(field==='ppTeamSupport') render(); };
     });
     row.querySelectorAll('select[data-pp-field]').forEach(sel=>{
       sel.onchange = ()=>{
