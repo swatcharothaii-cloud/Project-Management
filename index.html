@@ -868,7 +868,7 @@ select.pp-status-select.pp-paid,select.pp-status-select.pp-delivered,select.pp-s
 select.pp-status-select.pp-in-production{background:var(--coral-50);color:var(--coral-600);border-color:var(--coral-500)}
 select.pp-status-select.pp-pay-cancelled{background:var(--coral-50);color:var(--coral-600);border-color:var(--coral-500)}
 select.pp-status-select.pp-noneed{background:var(--surface-2);color:var(--ink-500)}
-/* Team Support color chip (ppTeamChipHue in JS) -- mirrors the real Excel
+/* Team Support color chip (ppTeamChipHueMap in JS) -- mirrors the real Excel
    sheet's own per-person/team fill color on its "Team Support" column. Head
    Supervisor deliberately gets no equivalent rule: the real sheet's Head
    Supervisor column is plain black-on-white for every value, so coloring it
@@ -4732,20 +4732,30 @@ function guessPpStatusValue(raw){
 // There's no fixed name->color lookup table, since the field is free text
 // (the source sheet doesn't define a fixed enum of teams either, and a
 // lookup table would need an app update every time a new name shows up).
-// Instead the name's own text is hashed into one of the 5 hues that render
-// as genuinely distinct colors inside a project screen -- amber/blue/mint/
+// Instead each PROJECT assigns its own names to the 5 hues that render as
+// genuinely distinct colors inside a project screen -- amber/blue/mint/
 // coral/slate; NOT purple, which #app.screen-project silently remaps to
 // blue/slate (see that rule's own comment, and the in_production status-
-// color bug this same trap caused on this very screen) -- so the same name
-// always lands on the same hue, matching the Excel sheet's own "one person,
-// one consistent color" idea even though the exact hues won't match 1:1.
+// color bug this same trap caused on this very screen) -- in first-seen
+// order (ppTeamChipHueMap below, built from the same distinct-values list
+// the datalist suggestions already use). An earlier version hashed each
+// name's own text into a hue directly, with no per-project list involved --
+// simpler, but with only 5 hues to share among however many names happen to
+// be in use, two names can hash to the same one by pure chance (caught on
+// the real Richmond file: "C.Kung" and "TC Art" both landed on coral,
+// reproducing the exact "two different things, one indistinguishable
+// color" bug this feature exists to avoid). Building the map from each
+// project's own distinct names instead guarantees no collision as long as
+// that project is using 5 or fewer names at once (every real project seen
+// so far), matching the Excel sheet's own "one person, one distinct color"
+// result even though the exact hues won't match 1:1; a 6th+ distinct name
+// in one project would have to start reusing a hue, same as the source
+// sheet would eventually run out of colors it hasn't already used too.
 const PP_TEAM_CHIP_HUES = ['amber','blue','mint','coral','slate'];
-function ppTeamChipHue(name){
-  const s = String(name||'').trim();
-  if(!s) return null;
-  let h = 0;
-  for(let i=0;i<s.length;i++) h = (h*31 + s.charCodeAt(i)) >>> 0;
-  return PP_TEAM_CHIP_HUES[h % PP_TEAM_CHIP_HUES.length];
+function ppTeamChipHueMap(distinctNames){
+  const map = {};
+  distinctNames.forEach((name,i)=>{ map[name] = PP_TEAM_CHIP_HUES[i % PP_TEAM_CHIP_HUES.length]; });
+  return map;
 }
 // Rows below the detected header, trimmed down to {code,statusRaw,notesRaw}.
 // A row is only kept if it has a non-blank code -- that's it. An earlier
@@ -9664,6 +9674,11 @@ function renderPurchasePlan(proj=P()){
   // source sheet doesn't define one either).
   const headSupervisorList = Array.from(new Set(proj.boq.map(i=>i.ppHeadSupervisor||'').filter(Boolean)));
   const teamSupportList = Array.from(new Set(proj.boq.map(i=>i.ppTeamSupport||'').filter(Boolean)));
+  // One hue per distinct name THIS PROJECT is actually using, in first-seen
+  // order -- see ppTeamChipHueMap's own comment for why this replaced a
+  // plain per-name hash (two unrelated names could, and on the real
+  // Richmond file did, hash to the same hue).
+  const teamSupportHueMap = ppTeamChipHueMap(teamSupportList);
   const rows = groups.map(g=>{
     const filteredItems = g.items.filter(item=> ppMatchesStatusFilter(item, ppStatusFilter));
     if(!filteredItems.length) return '';
@@ -9703,7 +9718,7 @@ function renderPurchasePlan(proj=P()){
         <td><select data-pp-field="ppOrderStatus" class="pp-status-select ${orderStatusDef.cls}" title="${orderStatusLabel}">${PP_ORDER_STATUS.map(s=>`<option value="${s.v}" ${orderStatus===s.v?'selected':''}>${escapeHtml(tf(s.th,s.en))}</option>`).join('')}</select></td>
         <td><input type="text" data-pp-field="ppNotes" value="${escapeHtml(item.ppNotes||'')}" placeholder="${tf('หมายเหตุ','note')}" title="${escapeHtml(item.ppNotes||'')}"></td>
         <td><input type="text" data-pp-field="ppHeadSupervisor" list="pp-head-supervisor-list" value="${escapeHtml(item.ppHeadSupervisor||'')}" placeholder="${tf('หัวหน้าทีมดูแล','Head supervisor')}" title="${escapeHtml(item.ppHeadSupervisor||'')}"></td>
-        <td><input type="text" class="pp-team-chip${item.ppTeamSupport? ` pp-team-chip-${ppTeamChipHue(item.ppTeamSupport)}` : ''}" data-pp-field="ppTeamSupport" list="pp-team-support-list" value="${escapeHtml(item.ppTeamSupport||'')}" placeholder="${tf('ทีมสนับสนุน','Team support')}" title="${escapeHtml(item.ppTeamSupport||'')}"></td>
+        <td><input type="text" class="pp-team-chip${item.ppTeamSupport? ` pp-team-chip-${teamSupportHueMap[item.ppTeamSupport]}` : ''}" data-pp-field="ppTeamSupport" list="pp-team-support-list" value="${escapeHtml(item.ppTeamSupport||'')}" placeholder="${tf('ทีมสนับสนุน','Team support')}" title="${escapeHtml(item.ppTeamSupport||'')}"></td>
       </tr>`;
     }).join('');
     return catHeader + itemRows;
@@ -9813,11 +9828,11 @@ function wirePurchasePlan(proj=P()){
       // free text that doesn't feed any computed column, so it just saves
       // quietly on blur -- no re-render needed, which also means a keystroke
       // never steals focus by rebuilding the row underneath the cursor.
-      // ppTeamSupport is the one exception: its color chip (ppTeamChipHue)
-      // is computed at render time from the field's current value, so it
-      // needs a re-render after a blur to pick up a typed/changed name --
-      // still only on blur, not on every keystroke, so focus is never stolen
-      // mid-type.
+      // ppTeamSupport is the one exception: its color chip (teamSupportHueMap,
+      // built from ppTeamChipHueMap) is computed at render time from every
+      // item's current value, so it needs a re-render after a blur to pick
+      // up a typed/changed name -- still only on blur, not on every
+      // keystroke, so focus is never stolen mid-type.
       inp.onblur = ()=>{ saveData(); if(field==='ppTeamSupport') render(); };
     });
     row.querySelectorAll('select[data-pp-field]').forEach(sel=>{
