@@ -890,21 +890,28 @@ input.pp-team-chip.pp-team-chip-coral{background:var(--coral-50);color:var(--cor
 input.pp-team-chip.pp-team-chip-slate{background:var(--surface-2);color:var(--ink-500)}
 .pp-table tr.pp-row-overdue td{background:var(--coral-50)}
 .pp-table tr.pp-row-duesoon td{background:var(--amber-50)}
-.pp-table input,.pp-table select{font-size:12.5px;padding:4px 6px;border:1px solid var(--line);border-radius:6px;background:var(--surface);color:var(--ink-700);box-sizing:border-box;width:100%}
+.pp-table input,.pp-table select{font-size:12.5px;padding:3px 5px;border:1px solid var(--line);border-radius:6px;background:var(--surface);color:var(--ink-700);box-sizing:border-box;width:100%}
 /* table-layout:auto (inherited from .budget-table) sizes every column to its
    unwrapped content width and only wraps when the table itself is squeezed
    -- but .pp-wrap scrolls horizontally, so it never squeezes and nothing
    ever wraps, which is exactly why the table needed a scrollbar at all.
    table-layout:fixed instead takes the widths declared below on the header
    cells as the real column widths (proportionally stretched or shrunk to
-   fill the table's own width, so the whole 17-column table always fits
+   fill the table's own width, so the whole 7-column table always fits
    whatever the viewport is) and wraps/truncates cell content to match --
    the actual fix for "every item fits within one page width". Each
    input/select is width:100% of its <td> above so it always matches its
    column exactly, with a single source of truth (the widths below) instead
    of two numbers that can drift apart. */
 .pp-table{table-layout:fixed;width:100%}
-.pp-table th,.pp-table td{padding:6px 8px}
+/* Row padding was 6px 8px -- on a narrow/mobile screen, where only the first
+   1-2 columns fit before the user has to scroll sideways, that padding reads
+   as dead vertical space stacked between a small 34px photo and the row's
+   actual content (reported directly: "ลดพื้นที่ว่าง" -- reduce the blank
+   space). Tightened to 4px 6px; combined with the slightly bigger thumbnail
+   below, net row height stays about the same but less of it is empty
+   padding. */
+.pp-table th,.pp-table td{padding:4px 6px}
 /* Header labels are long Thai phrases with no spaces to break on, so plain
    white-space:normal doesn't wrap them -- overflow-wrap:anywhere forces a
    break inside the column instead of stretching it. The item-name column
@@ -921,20 +928,19 @@ input.pp-team-chip.pp-team-chip-slate{background:var(--surface-2);color:var(--in
 .pp-table td:nth-child(5),.pp-table th:nth-child(5){width:9.6%}
 .pp-table td:nth-child(6),.pp-table th:nth-child(6){white-space:nowrap;width:5.4%}
 .pp-table td:nth-child(7),.pp-table th:nth-child(7){width:8.8%}
-.pp-table td:nth-child(8),.pp-table th:nth-child(8){width:5%}
-.pp-table td:nth-child(9),.pp-table th:nth-child(9){white-space:nowrap;width:5.4%}
-.pp-table td:nth-child(10),.pp-table th:nth-child(10){white-space:nowrap;width:6.8%}
-.pp-table td:nth-child(11),.pp-table th:nth-child(11){width:10.4%}
-.pp-table td:nth-child(14),.pp-table th:nth-child(14){width:10.4%}
-.pp-table td:nth-child(15),.pp-table th:nth-child(15){width:5.6%}
-.pp-table td:nth-child(16),.pp-table th:nth-child(16){width:7.6%}
-.pp-table td:nth-child(17),.pp-table th:nth-child(17){width:8.4%}
+/* This table only ever renders 7 <td>s per row (No./Item/Unit-Qty/Status/
+   Remark/Head Supervisor/Team Support) -- nth-child(8) upward used to exist
+   here too, leftover from an earlier/larger layout, but they never matched
+   anything, so they've been removed rather than left as dead weight. */
 .pp-table select{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 /* Reference-photo thumbnail placed inline before the item name, matching
    Master Plan & BOQ's own row layout (.gl-name-cell there) -- same
-   thumb-then-text pattern instead of the photo trailing in its own column. */
-.pp-table .pp-name-cell{display:flex;align-items:center;gap:8px;min-width:0}
-.pp-table .pp-name-cell .mp-thumb{width:34px;height:34px;border-radius:8px}
+   thumb-then-text pattern instead of the photo trailing in its own column.
+   Sized up from 34px to 38px (user asked to enlarge it a bit) with a
+   matching tighter gap (8px->6px) so the extra width doesn't push the item
+   text further away. */
+.pp-table .pp-name-cell{display:flex;align-items:center;gap:6px;min-width:0}
+.pp-table .pp-name-cell .mp-thumb{width:38px;height:38px;border-radius:9px}
 .pp-table .pp-name-cell span{min-width:0}
 .pp-table .badge{white-space:nowrap;padding:3px 8px;font-size:11px}
 .pp-table .budget-cat-row td{white-space:nowrap}
@@ -6004,6 +6010,38 @@ function wireHub(){
 // "Linked" work history is auto-derived by matching a contractor's name against
 // the team names typed into each project's Daily Log workforce entries -- no
 // duplicate data entry needed as long as the names match.
+//
+// contractorNameOptions() -- shared suggestion list for ANY field across the app
+// where the user picks a contractor/crew or support team, so every one of those
+// fields offers the same shared roster (Settings > ข้อมูลผู้รับเหมา) instead of each
+// screen guessing its own list from whatever happens to already be typed in. Used by
+// the Defect Item List's Assigned Team, Inspection Report's Team/Supplier field,
+// Master Plan's Responsible Team + Team Leader fields, and Purchasing Plan's Team
+// Support column -- per the user's explicit "ทุกหมวดที่มีตัวเลือกผู้รับเหมา หรือ
+// ทีมสนับสนุน ให้ดึงตัวเลือกมาจากหน้าข้อมูลผู้รับเหมาทั้งหมด" request. (Purchasing
+// Plan's Head Supervisor column is deliberately NOT one of these -- its values are
+// internal roles like "Project Manager"/"Designer", not contractor/crew names, so
+// pulling from the contractor roster there wouldn't make sense; confirmed with the
+// user before scoping this.)
+//
+// Every field that uses this stays a plain text <input> with a <datalist> (never a
+// closed <select>) specifically so a name that isn't in the roster yet can still just
+// be typed in directly -- the other half of that same request ("และสามารถพิมพ์เพิ่มเอง
+// ได้ด้วย"). contractorNameOptions() itself only returns the shared, active-roster
+// part of the list; callers that also want to keep suggesting field-specific values
+// that are already in use elsewhere (e.g. Master Plan's STANDARD_TEAMS, or whatever
+// team names a project's own BOQ already has) pass those in as extra arrays to merge,
+// de-duplicated, with the roster.
+function contractorRosterNames(){
+  return (state.contractors||[]).filter(c=>c.active!==false).map(c=>c.name).filter(Boolean);
+}
+function contractorNameOptions(...extraLists){
+  const seen = new Set(); const out = [];
+  contractorRosterNames().concat(...extraLists.filter(Boolean)).forEach(n=>{
+    if(n && !seen.has(n)){ seen.add(n); out.push(n); }
+  });
+  return out.sort((a,b)=> a.localeCompare(b,'th'));
+}
 function contractorLinkedStats(name){
   const n = (name||'').trim();
   if(!n) return {days:0, headcount:0, lastDate:null, projects:[]};
@@ -6869,8 +6907,13 @@ function itemModalHtml(){
   const pendingThumbs = d.pendingPhotos.map((p,idx)=>`<div class="photo-item"><img src="${p.dataUrl}" alt=""><button class="rm" data-rm-pending-photo="${idx}">✕</button></div>`).join('');
   const hasPhotos = existingIds.length || d.pendingPhotos.length;
   const zoneList = Array.from(new Set(P().boq.map(i=>i.zone||'').filter(Boolean)));
-  const teamList = Array.from(new Set(STANDARD_TEAMS.concat(P().boq.map(i=>i.team||'').filter(Boolean))));
-  const leaderList = Array.from(new Set(P().boq.map(i=>i.leader||'').filter(Boolean)));
+  // "ทีมงานที่รับผิดชอบ" (Responsible team) and "หัวหน้าทีม" (Team leader) both
+  // suggest from the shared Contractor Roster first (contractorNameOptions(),
+  // Settings > ข้อมูลผู้รับเหมา), with STANDARD_TEAMS / this project's own
+  // already-used team/leader names folded in too -- still free-text inputs,
+  // so any name not in those lists can still just be typed directly.
+  const teamList = contractorNameOptions(STANDARD_TEAMS, P().boq.map(i=>i.team||'').filter(Boolean));
+  const leaderList = contractorNameOptions(P().boq.map(i=>i.leader||'').filter(Boolean));
   return `
   <div class="modal-bg" id="item-modal-bg">
     <div class="modal">
@@ -9678,12 +9721,20 @@ function renderPurchasePlan(proj=P()){
     orderStatusCounts[st] = (orderStatusCounts[st]||0) + 1;
     if(st==='not_ordered' || st==='awaiting_po') notOrderedCount++;
   }));
-  // Suggestion lists for the Head Supervisor / Team Support free-text inputs
-  // -- same datalist-of-existing-values convention as the item editor's own
-  // im-team-list/im-leader-list, so typing the same person/team twice is a
-  // pick, not a retype, without constraining the field to a fixed enum (the
-  // source sheet doesn't define one either).
+  // Suggestion list for the Head Supervisor free-text input -- same datalist-
+  // of-existing-values convention as the item editor's own im-team-list --
+  // kept exactly as it was: these values are internal roles ("Project
+  // Manager"/"Designer"), not contractor/crew names, so the contractor roster
+  // doesn't apply here (confirmed with the user).
   const headSupervisorList = Array.from(new Set(proj.boq.map(i=>i.ppHeadSupervisor||'').filter(Boolean)));
+  // teamSupportList (this project's own already-used values) still drives the
+  // hue map below -- colors are only assigned to names actually in use on this
+  // project. The datalist suggestions shown in the input itself now come from
+  // contractorNameOptions() instead (built where the datalist is rendered,
+  // just above the table), so the field suggests the shared Contractor Roster
+  // first, with any of this project's own already-used values folded in too,
+  // per the user's "ดึงตัวเลือกมาจากหน้าข้อมูลผู้รับเหมา" request -- while staying
+  // a free-text input the user can still type a brand-new name into.
   const teamSupportList = Array.from(new Set(proj.boq.map(i=>i.ppTeamSupport||'').filter(Boolean)));
   // One hue per distinct name THIS PROJECT is actually using, in first-seen
   // order -- see ppTeamChipHueMap's own comment for why this replaced a
@@ -9766,7 +9817,7 @@ function renderPurchasePlan(proj=P()){
   </div>
   ${ppFilterHtml}
   <datalist id="pp-head-supervisor-list">${headSupervisorList.map(v=>`<option value="${escapeHtml(v)}">`).join('')}</datalist>
-  <datalist id="pp-team-support-list">${teamSupportList.map(v=>`<option value="${escapeHtml(v)}">`).join('')}</datalist>
+  <datalist id="pp-team-support-list">${contractorNameOptions(teamSupportList).map(v=>`<option value="${escapeHtml(v)}">`).join('')}</datalist>
   ${rows? `
   <div class="table-topscroll pp-wrap-topscroll" id="pp-topscroll"><div id="pp-topscroll-spacer"></div></div>
   <div class="table-wrap pp-wrap" id="pp-table-wrap"><table class="budget-table pp-table"><thead><tr>
@@ -10085,7 +10136,12 @@ function inspectionEditorHtml(proj){
   const d = inspectionDraft;
   if(!d) return '';
   const itemCards = d.items.map((it,idx)=>inspectionItemCardHtml(it,idx)).join('');
-  const teamList = Array.from(new Set(STANDARD_TEAMS.concat((proj.boq||[]).map(i=>i.team||'').filter(Boolean))));
+  // Suggestions for "ชื่อทีมงาน / ผู้รับเหมา" (Team / Supplier name): the shared
+  // Contractor Roster first (contractorNameOptions(), Settings > ข้อมูลผู้รับเหมา),
+  // with STANDARD_TEAMS (generic trade categories, e.g. "ทีมไฟฟ้า") and this
+  // project's own already-used team names folded in too -- still a free-text
+  // input, so a name in none of those lists can still just be typed.
+  const teamList = contractorNameOptions(STANDARD_TEAMS, (proj.boq||[]).map(i=>i.team||'').filter(Boolean));
   return `
   <div class="modal-bg" id="insp-modal-bg">
     <div class="modal" style="max-width:920px">
@@ -12587,20 +12643,18 @@ function punchDefectPhotoCellHtml(it, kind){
 // just land in this one flat table.
 function punchDefectTableHtml(proj){
   const items = punchSearchedItems(proj);
-  // "ทีมงาน" (Assigned Team) is a dropdown sourced strictly from the shared
-  // Contractor Roster (state.contractors, ตั้งค่าบริษัท > ข้อมูลผู้รับเหมา) per
-  // the user's explicit "ให้ดึงมาจากข้อมูลผู้รับเหมา" request -- active
-  // contractors only, so a retired/deactivated one drops out of the list for
-  // *new* picks but an item already assigned to it keeps showing its name
-  // (contractorTeamOptionsFor below adds it back in for that row only) so no
-  // existing data silently disappears or gets blanked out by this change.
-  const contractorTeamList = Array.from(new Set(
-    (state.contractors||[]).filter(c=>c.active!==false).map(c=>c.name).filter(Boolean)
-  )).sort((a,b)=> a.localeCompare(b,'th'));
-  function contractorTeamOptionsFor(current){
-    if(current && !contractorTeamList.includes(current)) return [current, ...contractorTeamList];
-    return contractorTeamList;
-  }
+  // "ทีมงาน" (Assigned Team) suggests names from the shared Contractor Roster
+  // (state.contractors, ตั้งค่าบริษัท > ข้อมูลผู้รับเหมา, via contractorNameOptions())
+  // -- this used to be a closed <select> built from that same roster, which
+  // meant a name not yet in the roster couldn't be entered here at all. Per
+  // the user's follow-up "สามารถพิมพ์เพิ่มเองได้ด้วย" it's now a free-text
+  // <input> + <datalist> (assignedTeamList/pu-assigned-team-list below) like
+  // every other field this helper feeds -- so the roster is still the first
+  // thing offered, but typing a brand-new name just works, and an item's
+  // existing value always shows regardless of whether it's in the roster
+  // (a plain input always displays its own value, unlike a <select>, so no
+  // "add the current value back in" special-casing is needed any more).
+  const assignedTeamList = contractorNameOptions();
   const rows = items.map((it,idx)=>{
     const progress = clamp(Number(it.progress)||0, 0, 100);
     const progColor = progress>=100? 'var(--mint-600)' : (progress>0? 'var(--amber-600)' : 'var(--coral-600)');
@@ -12610,10 +12664,7 @@ function punchDefectTableHtml(proj){
       <td><textarea rows="2" data-pu-field="notes" data-pu-row-id="${it.id}" placeholder="${tf('รายละเอียดความเสียหาย','Description')}" style="min-width:160px">${escapeHtml(it.notes||'')}</textarea></td>
       <td>${punchDefectPhotoCellHtml(it,'before')}</td>
       <td>${punchDefectPhotoCellHtml(it,'after')}</td>
-      <td><select data-pu-field="assignedTo" data-pu-row-id="${it.id}" style="min-width:110px">
-        <option value="">${tf('- เลือกทีมงาน -','- Select team -')}</option>
-        ${contractorTeamOptionsFor(it.assignedTo||'').map(t=>`<option value="${escapeHtml(t)}" ${t===(it.assignedTo||'')?'selected':''}>${escapeHtml(t)}</option>`).join('')}
-      </select></td>
+      <td><input type="text" data-pu-field="assignedTo" data-pu-row-id="${it.id}" list="pu-assigned-team-list" value="${escapeHtml(it.assignedTo||'')}" placeholder="${tf('ทีมงาน','Assigned team')}" style="min-width:110px"></td>
       <td><input type="text" data-pu-field="supervisor" data-pu-row-id="${it.id}" value="${escapeHtml(it.supervisor||'')}" placeholder="${tf('ผู้ควบคุมงาน','Supervisor')}" style="min-width:110px"></td>
       <td><input type="date" data-pu-field="issueDate" data-pu-row-id="${it.id}" value="${it.issueDate||''}"></td>
       <td><input type="date" data-pu-field="startDate" data-pu-row-id="${it.id}" value="${it.startDate||''}"></td>
@@ -12696,6 +12747,7 @@ function punchDefectTableHtml(proj){
       </table>
     </div>
     <button class="btn ghost sm" id="pu-add-row" style="margin-top:10px">+ ${tf('เพิ่มแถว','Add row')}</button>
+    <datalist id="pu-assigned-team-list">${assignedTeamList.map(t=>`<option value="${escapeHtml(t)}">`).join('')}</datalist>
     ${lightboxHtml}
   </div></div>`;
 }
