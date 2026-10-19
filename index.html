@@ -825,36 +825,47 @@ input.gl-mini-input[type="date"]::-webkit-calendar-picker-indicator{padding:2px;
 .badge.mps-payment{background:var(--purple-50);color:var(--purple-700)}
 .badge.mps-delivery{background:var(--blue-50);color:var(--blue-600)}
 .badge.mps-cancelled{background:var(--coral-50);color:var(--coral-600)}
-/* Purchasing Plan (แผนสั่งของ) order/payment status vocabulary -- its own
-   9-state order status (incl. "no need to order" for labor/service lines)
-   and separate payment-status axis, kept visually distinct from the Master
-   Plan chart's mps-* set above even though a couple of colors repeat. Only
-   5 hues exist in the palette, so the 4 extra states added for the Excel
-   import feature share a hue with the existing state they're closest to in
-   the real ordering workflow rather than inventing new colors: awaiting_po
-   reads as "still not actually ordered" (same amber as not_ordered),
-   in_production gets its own purple (no existing state was close enough to
-   share), delivered reads as "done, arrived" (same mint as ordered), and
-   installing reads as "still in motion on site" (same blue as shipping). */
+/* Purchasing Plan (แผนสั่งของ) order status vocabulary -- its own 8-state
+   order status (PP_ORDER_STATUS, copied verbatim from the user's real Excel
+   Lists sheet), kept visually distinct from the Master Plan chart's mps-*
+   set above even though a couple of colors repeat. Only 5 hues are safe to
+   use here -- amber/blue/mint/coral/slate -- NOT purple: #app.screen-project
+   (every per-project screen, which this always is) remaps --purple-700/600/
+   500/100/50 straight to --blue-*/--slate-* for the app's navy-duotone
+   "inside a project" theme (see that rule's own comment, above the mps-*
+   block in this file), so anything styled with --purple-* in here silently
+   renders as blue/slate instead -- not a distinct color at all. An earlier
+   version of this block colored in_production with --purple-50/700,
+   intending a 5th distinct hue; inside a project that collapsed to the same
+   blue as ordered/installing, so three different statuses all looked
+   identical -- reported by the user as "the dropdown/colors aren't coming
+   through". Fixed by moving in_production to coral (free to reuse here: the
+   separate "cancelled" state this screen used to have, the only other coral
+   user, was folded into no_need when the vocabulary was rebuilt to match
+   the Excel Lists sheet, so coral has no other job on this screen). The
+   remaining pairing is by meaning: amber for "not actually ordered yet"
+   (not_ordered + awaiting_po), blue for "placed and still moving"
+   (ordered + installing), mint for "a milestone is behind us" (paid +
+   delivered), and neutral slate for the one terminal/skip state (no_need). */
 .badge.pp-not-ordered{background:var(--amber-50);color:var(--amber-600)}
 .badge.pp-awaiting-po{background:var(--amber-50);color:var(--amber-600)}
 .badge.pp-ordered{background:var(--blue-50);color:var(--blue-600)}
 .badge.pp-installing{background:var(--blue-50);color:var(--blue-600)}
 .badge.pp-paid{background:var(--mint-50);color:var(--mint-600)}
 .badge.pp-delivered{background:var(--mint-50);color:var(--mint-600)}
-.badge.pp-in-production{background:var(--purple-50);color:var(--purple-700)}
+.badge.pp-in-production{background:var(--coral-50);color:var(--coral-600)}
 .badge.pp-noneed{background:var(--surface-2);color:var(--ink-500)}
 .badge.pp-pay-pending{background:var(--amber-50);color:var(--amber-600)}
 .badge.pp-pay-paid{background:var(--mint-50);color:var(--mint-600)}
 .badge.pp-pay-cancelled{background:var(--coral-50);color:var(--coral-600)}
-/* Color the order/payment <select> itself (not just a badge) so a row's
-   status reads at a glance while still being a plain, immediately-editable
+/* Color the order <select> itself (not just a badge) so a row's status
+   reads at a glance while still being a plain, immediately-editable
    dropdown -- no extra click into a separate "edit" mode needed. */
 select.pp-status-select{border-radius:6px;font-weight:600;font-size:12.5px}
 select.pp-status-select.pp-not-ordered,select.pp-status-select.pp-awaiting-po,select.pp-status-select.pp-pay-pending{background:var(--amber-50);color:var(--amber-600);border-color:var(--amber-500)}
 select.pp-status-select.pp-ordered,select.pp-status-select.pp-installing{background:var(--blue-50);color:var(--blue-600);border-color:var(--blue-500)}
 select.pp-status-select.pp-paid,select.pp-status-select.pp-delivered,select.pp-status-select.pp-pay-paid{background:var(--mint-50);color:var(--mint-600);border-color:var(--mint-500)}
-select.pp-status-select.pp-in-production{background:var(--purple-50);color:var(--purple-700);border-color:var(--purple-500)}
+select.pp-status-select.pp-in-production{background:var(--coral-50);color:var(--coral-600);border-color:var(--coral-500)}
 select.pp-status-select.pp-pay-cancelled{background:var(--coral-50);color:var(--coral-600);border-color:var(--coral-500)}
 select.pp-status-select.pp-noneed{background:var(--surface-2);color:var(--ink-500)}
 .pp-table tr.pp-row-overdue td{background:var(--coral-50)}
