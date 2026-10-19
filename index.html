@@ -868,16 +868,20 @@ select.pp-status-select.pp-paid,select.pp-status-select.pp-delivered,select.pp-s
 select.pp-status-select.pp-in-production{background:var(--coral-50);color:var(--coral-600);border-color:var(--coral-500)}
 select.pp-status-select.pp-pay-cancelled{background:var(--coral-50);color:var(--coral-600);border-color:var(--coral-500)}
 select.pp-status-select.pp-noneed{background:var(--surface-2);color:var(--ink-500)}
-/* Team Support color chip (ppTeamChipHueMap in JS) -- mirrors the real Excel
-   sheet's own per-person/team fill color on its "Team Support" column. Head
-   Supervisor deliberately gets no equivalent rule: the real sheet's Head
-   Supervisor column is plain black-on-white for every value, so coloring it
-   here would be adding a color Excel itself never had. Reuses the same 5
-   hues as the order-status colors above (amber/blue/mint/coral/slate, never
-   purple -- see #app.screen-project's remap, and the in_production bug it
-   caused on this same screen) since those are the only hues that render as
-   distinct colors inside a project screen; a name and an order status never
-   sit in the same cell, so reusing the hues causes no visual collision. */
+/* Head Supervisor / Team Support color chips (ppTeamChipHueMap in JS, one
+   independent hue map per column). Team Support's chip mirrors the real
+   Excel sheet's own per-person/team fill color on its "Team Support" column.
+   Head Supervisor's chip does NOT mirror Excel -- the real sheet leaves that
+   column plain black-on-white for every value -- but the user explicitly
+   asked for it to get the same at-a-glance color treatment as Team Support
+   anyway, having separately said the app's own colors don't need to match
+   Excel's, only the values/layout do. Both reuse the same 5 hues as the
+   order-status colors above (amber/blue/mint/coral/slate, never purple --
+   see #app.screen-project's remap, and the in_production bug it caused on
+   this same screen) since those are the only hues that render as distinct
+   colors inside a project screen; none of these three columns (status,
+   head supervisor, team support) ever sit in the same cell, so reusing the
+   hues across them causes no visual collision. */
 input.pp-team-chip{border-radius:6px;font-weight:600}
 input.pp-team-chip.pp-team-chip-amber{background:var(--amber-50);color:var(--amber-600);border-color:var(--amber-500)}
 input.pp-team-chip.pp-team-chip-blue{background:var(--blue-50);color:var(--blue-600);border-color:var(--blue-500)}
@@ -4723,13 +4727,20 @@ function guessPpStatusValue(raw){
   for(const g of PP_STATUS_GUESS_KEYWORDS){ if(g.kw.some(k=>norm.includes(k))) return g.v; }
   return 'not_ordered';
 }
-// Team Support color chip -- the real Excel sheet gives its "Team Support"
-// column a distinct fill color per person/team (e.g. "C. Pu" is always
-// light green, "C.Kung" always light peach), while its "Head Supervisor"
-// column next to it is plain black-on-white for every value -- confirmed by
-// inspecting the actual workbook's cell fills, not guessed. This mirrors
-// that: only ppTeamSupport gets a color chip, never ppHeadSupervisor.
-// There's no fixed name->color lookup table, since the field is free text
+// Head Supervisor / Team Support color chips -- the real Excel sheet gives
+// its "Team Support" column a distinct fill color per person/team (e.g.
+// "C. Pu" is always light green, "C.Kung" always light peach), while its
+// "Head Supervisor" column next to it is plain black-on-white for every
+// value -- confirmed by inspecting the actual workbook's cell fills, not
+// guessed. This screen originally mirrored that exactly (only ppTeamSupport
+// got a color chip), but the user then asked for ppHeadSupervisor to get
+// the same chip treatment too, explicitly saying the app's own colors don't
+// need to match Excel's, only the values/layout do -- so renderPurchasePlan
+// now builds one ppTeamChipHueMap per column (headSupervisorHueMap,
+// teamSupportHueMap), independently, from that column's own distinct-values
+// list, and both ppHeadSupervisor and ppTeamSupport render with the
+// pp-team-chip class below. There's no fixed name->color lookup table, since
+// each field is free text
 // (the source sheet doesn't define a fixed enum of teams either, and a
 // lookup table would need an app update every time a new name shows up).
 // Instead each PROJECT assigns its own names to the 5 hues that render as
@@ -9677,7 +9688,14 @@ function renderPurchasePlan(proj=P()){
   // One hue per distinct name THIS PROJECT is actually using, in first-seen
   // order -- see ppTeamChipHueMap's own comment for why this replaced a
   // plain per-name hash (two unrelated names could, and on the real
-  // Richmond file did, hash to the same hue).
+  // Richmond file did, hash to the same hue). Head Supervisor gets its own
+  // independent map (computed from its own distinct-names list, not shared
+  // with Team Support's) -- originally this screen left Head Supervisor
+  // uncolored on purpose, since the real Excel sheet itself never colors
+  // that column (only Team Support), but the user asked for both columns to
+  // read at a glance the same way, explicitly saying the app's own color
+  // treatment doesn't need to mirror Excel's -- only the values/layout do.
+  const headSupervisorHueMap = ppTeamChipHueMap(headSupervisorList);
   const teamSupportHueMap = ppTeamChipHueMap(teamSupportList);
   const rows = groups.map(g=>{
     const filteredItems = g.items.filter(item=> ppMatchesStatusFilter(item, ppStatusFilter));
@@ -9717,7 +9735,7 @@ function renderPurchasePlan(proj=P()){
         <td class="tabular hint">${unitQty}</td>
         <td><select data-pp-field="ppOrderStatus" class="pp-status-select ${orderStatusDef.cls}" title="${orderStatusLabel}">${PP_ORDER_STATUS.map(s=>`<option value="${s.v}" ${orderStatus===s.v?'selected':''}>${escapeHtml(tf(s.th,s.en))}</option>`).join('')}</select></td>
         <td><input type="text" data-pp-field="ppNotes" value="${escapeHtml(item.ppNotes||'')}" placeholder="${tf('หมายเหตุ','note')}" title="${escapeHtml(item.ppNotes||'')}"></td>
-        <td><input type="text" data-pp-field="ppHeadSupervisor" list="pp-head-supervisor-list" value="${escapeHtml(item.ppHeadSupervisor||'')}" placeholder="${tf('หัวหน้าทีมดูแล','Head supervisor')}" title="${escapeHtml(item.ppHeadSupervisor||'')}"></td>
+        <td><input type="text" class="pp-team-chip${item.ppHeadSupervisor? ` pp-team-chip-${headSupervisorHueMap[item.ppHeadSupervisor]}` : ''}" data-pp-field="ppHeadSupervisor" list="pp-head-supervisor-list" value="${escapeHtml(item.ppHeadSupervisor||'')}" placeholder="${tf('หัวหน้าทีมดูแล','Head supervisor')}" title="${escapeHtml(item.ppHeadSupervisor||'')}"></td>
         <td><input type="text" class="pp-team-chip${item.ppTeamSupport? ` pp-team-chip-${teamSupportHueMap[item.ppTeamSupport]}` : ''}" data-pp-field="ppTeamSupport" list="pp-team-support-list" value="${escapeHtml(item.ppTeamSupport||'')}" placeholder="${tf('ทีมสนับสนุน','Team support')}" title="${escapeHtml(item.ppTeamSupport||'')}"></td>
       </tr>`;
     }).join('');
@@ -9824,16 +9842,16 @@ function wirePurchasePlan(proj=P()){
         item[field] = inp.value===''? null : (inp.type==='number'? parseNumLoose(inp.value) : inp.value);
         if(inp.hasAttribute('title')) inp.title = inp.value; // keep the hover tooltip in sync with the (narrowed) input's live value
       };
-      // Every remaining pp field (notes, head supervisor, team support) is
-      // free text that doesn't feed any computed column, so it just saves
-      // quietly on blur -- no re-render needed, which also means a keystroke
-      // never steals focus by rebuilding the row underneath the cursor.
-      // ppTeamSupport is the one exception: its color chip (teamSupportHueMap,
-      // built from ppTeamChipHueMap) is computed at render time from every
-      // item's current value, so it needs a re-render after a blur to pick
-      // up a typed/changed name -- still only on blur, not on every
-      // keystroke, so focus is never stolen mid-type.
-      inp.onblur = ()=>{ saveData(); if(field==='ppTeamSupport') render(); };
+      // notes is free text that doesn't feed any computed column, so it just
+      // saves quietly on blur -- no re-render needed, which also means a
+      // keystroke never steals focus by rebuilding the row underneath the
+      // cursor. ppHeadSupervisor/ppTeamSupport are the exception: each one's
+      // color chip (headSupervisorHueMap/teamSupportHueMap, both built from
+      // ppTeamChipHueMap) is computed at render time from every item's
+      // current value, so they need a re-render after a blur to pick up a
+      // typed/changed name -- still only on blur, not on every keystroke, so
+      // focus is never stolen mid-type.
+      inp.onblur = ()=>{ saveData(); if(field==='ppHeadSupervisor' || field==='ppTeamSupport') render(); };
     });
     row.querySelectorAll('select[data-pp-field]').forEach(sel=>{
       sel.onchange = ()=>{
