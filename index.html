@@ -922,10 +922,18 @@ input.pp-team-chip.pp-team-chip-slate{background:var(--surface-2);color:var(--in
    this table's Unit column instead. */
 .pp-table th{white-space:normal;overflow-wrap:anywhere;line-height:1.3;vertical-align:bottom;font-size:11.5px}
 .pp-table td:nth-child(1),.pp-table th:nth-child(1){white-space:nowrap;width:3.4%}
-.pp-table td:nth-child(2),.pp-table th:nth-child(2){white-space:normal;overflow-wrap:anywhere;width:21%}
+.pp-table td:nth-child(2),.pp-table th:nth-child(2){white-space:normal;overflow-wrap:anywhere;width:19%}
 .pp-table td:nth-child(3),.pp-table th:nth-child(3){white-space:nowrap;width:3.6%}
-.pp-table td:nth-child(4),.pp-table th:nth-child(4){width:5.8%}
-.pp-table td:nth-child(5),.pp-table th:nth-child(5){width:9.6%}
+/* Status (ppOrderStatus) widened from 5.8% to 11% -- the longest status
+   label, "สั่งแล้ว เปิด PO แล้ว รอทำจ่าย" (PO Issued / Awaiting Payment), was
+   being cut off with an ellipsis inside the <select> at the old width (the
+   full text only showed on hover, via its title attribute), per the user's
+   explicit "ขยายช่องให้เห็นข้อความครบทั้งบรรทัด" request. Taken mostly from
+   Item (21%->19%) and Remark (9.6%->8.4%) rather than an even shrink of
+   every column, since those two can still wrap/scroll their own content
+   without losing information the way a clipped <select> value does. */
+.pp-table td:nth-child(4),.pp-table th:nth-child(4){width:11%}
+.pp-table td:nth-child(5),.pp-table th:nth-child(5){width:8.4%}
 .pp-table td:nth-child(6),.pp-table th:nth-child(6){white-space:nowrap;width:5.4%}
 .pp-table td:nth-child(7),.pp-table th:nth-child(7){width:8.8%}
 /* This table only ever renders 7 <td>s per row (No./Item/Unit-Qty/Status/
