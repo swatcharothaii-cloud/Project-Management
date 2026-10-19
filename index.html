@@ -4628,6 +4628,25 @@ const PP_ORDER_STATUS = [
   {v:'installing', th:'กำลังติดตั้ง', en:'On Process Install', cls:'pp-installing'},
   {v:'no_need', th:'ไม่ต้องสั่ง/ยกเลิก', en:'Not Required / Cancelled', cls:'pp-noneed'},
 ];
+// Icon + number color for each PP_ORDER_STATUS value's own KPI card in the
+// Purchasing Plan summary banner (renderPurchasePlan) -- per the user's
+// explicit "สรุปด้านบนแบ่งตามสถานะครบทุกอัน" request, that banner now shows
+// one card per status (not just a single merged "ยังไม่ได้สั่ง" card), so each
+// needs its own icon/color pairing. Colors reuse the same hue groups as the
+// .pp-status-select/.badge styles above (amber for the two "not yet moving"
+// states, blue for "in motion", mint for "done", coral for in_production,
+// slate for the terminal no_need) so a card's number color always matches
+// what that status looks like everywhere else on this screen.
+const PP_STATUS_KPI_META = {
+  not_ordered: {icon:'🟡', color:'var(--amber-600)'},
+  awaiting_po: {icon:'🟠', color:'var(--amber-600)'},
+  ordered: {icon:'🔵', color:'var(--blue-600)'},
+  paid: {icon:'💰', color:'var(--mint-600)'},
+  in_production: {icon:'🏭', color:'var(--coral-600)'},
+  delivered: {icon:'🚚', color:'var(--mint-600)'},
+  installing: {icon:'🛠️', color:'var(--blue-600)'},
+  no_need: {icon:'⚪', color:'var(--ink-500)'},
+};
 const PP_PAYMENT_STATUS = [
   {v:'pending', th:'รอจ่าย', en:'Pending payment', cls:'pp-pay-pending'},
   {v:'paid', th:'จ่ายแล้ว', en:'Paid', cls:'pp-pay-paid'},
@@ -9721,13 +9740,11 @@ function renderPurchasePlan(proj=P()){
   // Counted over every item regardless of the filter below, so the summary
   // banner/KPI cards/dropdown counts always describe the whole project --
   // only the table rows themselves are narrowed by ppStatusFilter.
-  let notOrderedCount=0;
   const orderStatusCounts = {};
   PP_ORDER_STATUS.forEach(s=> orderStatusCounts[s.v]=0);
   groups.forEach(g=> g.items.forEach(item=>{
     const st = item.ppOrderStatus || 'not_ordered';
     orderStatusCounts[st] = (orderStatusCounts[st]||0) + 1;
-    if(st==='not_ordered' || st==='awaiting_po') notOrderedCount++;
   }));
   // Suggestion list for the Head Supervisor free-text input -- same datalist-
   // of-existing-values convention as the item editor's own im-team-list --
@@ -9821,7 +9838,10 @@ function renderPurchasePlan(proj=P()){
   </div>` : ''}
   <div class="grid cols-auto" style="margin-bottom:16px">
     <div class="card kpi"><div class="stat"><span class="lbl">📦 ${tf('รายการทั้งหมด','Total items')}</span><span class="num tabular" style="font-size:19px">${proj.boq.length}</span></div></div>
-    <div class="card kpi"><div class="stat"><span class="lbl">🟡 ${tf('ยังไม่ได้สั่ง','Not yet ordered')}</span><span class="num tabular" style="font-size:19px">${notOrderedCount}</span></div></div>
+    ${PP_ORDER_STATUS.map(s=>{
+      const meta = PP_STATUS_KPI_META[s.v] || {icon:'⚪', color:'var(--ink-500)'};
+      return `<div class="card kpi"><div class="stat"><span class="lbl">${meta.icon} ${tf(s.th,s.en)}</span><span class="num tabular" style="font-size:19px;color:${meta.color}">${orderStatusCounts[s.v]||0}</span></div></div>`;
+    }).join('')}
   </div>
   ${ppFilterHtml}
   <datalist id="pp-head-supervisor-list">${headSupervisorList.map(v=>`<option value="${escapeHtml(v)}">`).join('')}</datalist>
